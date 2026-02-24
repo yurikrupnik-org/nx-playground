@@ -34,15 +34,11 @@ async-trait = '0.1.89'
 axum = { version = "0.8.8", features = ['default', 'tracing', 'ws'] }
 axum-extra = { version = "0.12.5", features = ['typed-header'] }
 axum-helpers = { path = 'libs/core/axum-helpers' }
-#bb8 = { version = '0.9.1', features = ['default'] }
-#bb8-redis = { version = '0.26.0' }
-#bytes = '1.11.0'
-chrono = { version = '0.4.43', features = ['serde'] }
+chrono = { version = '0.4.44', features = ['serde'] }
 #clap = { version = '4.5.53', features = ['derive'] }
 color-eyre = '0.6.5'
 core_config = { path = 'libs/core/config' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
-#csv = '1.4.0'
 darling = '0.23.0'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
@@ -64,17 +60,14 @@ lettre = { version = '0.11.19', default-features = false, features = ['tokio1-ru
 messaging = { path = 'libs/core/messaging' }
 metrics = '0.24.3'
 metrics-exporter-prometheus = '0.18.1'
-# migration crate removed - using Atlas for migrations
 mockall = '0.14.0'
 #mongodb = '3.4.1'
-# nats-worker is now part of messaging with feature = "nats"
 oauth2 = '5.0.0'
 pluralizer = '0.5.0'
 proc-macro2 = "1.0.106"
 prost = '0.14.3'
 qdrant-client = "1.17.0"
 quote = '1.0.44'
-#r2d2 = { version = '0.8.10', features = [] }
 rand = "0.10.0"
 redis = { version = "1.0.4", features = ['aio', 'r2d2', 'tokio-comp', 'connection-manager'] }
 regex = "1.12.3"
@@ -89,11 +82,10 @@ serde = { version = '1.0.228', features = ['derive'] }
 serde_json = { version = "1.0.149" }
 sha2 = '0.10.9'
 sqlx = { version = '0.8', default-features = false, features = ['postgres', 'macros', 'uuid', 'chrono', 'migrate'] }
-strum = { version = '0.27.2', features = ['derive'] }
+strum = { version = '0.28.0', features = ['derive'] }
 syn = { version = "2.0.117", features = ['full', 'extra-traits', 'visit'] }
-#tabled = '0.20.0'
 test-utils = { path = 'libs/testing/test-utils' }
-testcontainers = "0.27.0"
+testcontainers = "0.27.1"
 testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
 thiserror = '2.0.18'
 tokio = { version = "1.49.0", features = ['full'] }
@@ -116,7 +108,6 @@ utoipa-scalar = { version = '0.3.0', features = ['axum'] }
 utoipa-swagger-ui = { version = '9.0.2', features = ['axum'] }
 uuid = { version = "1.21.0", features = ['serde', 'v4', 'v7'] }
 validator = { version = '0.20.0', features = ['derive'] }
-#walkdir = '2.5.0'
 
 [profile.dev]
 incremental = true
