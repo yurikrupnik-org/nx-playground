@@ -19,6 +19,9 @@ configMapGenerator:
       - DB_IDLE_TIMEOUT_SECS=300
       - DB_MAX_LIFETIME_SECS=1800
       - DB_SQLX_LOGGING=false
+      - RATE_LIMIT_REQUESTS_PER_WINDOW=100
+      - RATE_LIMIT_WINDOW_SECS=60
+      - RATE_LIMIT_ENABLED=true
 
 secretGenerator:
   - name: zerg-shared-secrets

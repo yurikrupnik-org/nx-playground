@@ -1,4 +1,5 @@
-use axum::Router;
+use axum::{Extension, Router, middleware};
+use axum_helpers::RateLimitTier;
 
 pub mod auth;
 pub mod cloud_resources;
@@ -21,23 +22,56 @@ pub fn routes(state: &crate::state::AppState) -> Router {
     // Import ApiResource trait to access URL constants
     use domain_projects::ApiResource;
 
+    let standard = RateLimitTier::new("standard", 100, 60);
+    let vector_tier = RateLimitTier::new("vector", 20, 60);
+
     let router = Router::new()
-        .nest("/auth", auth::router(state)) // Auth routes at /api/auth
-        .nest("/tasks", tasks::router(state.clone()))
-        .nest("/tasks-direct", tasks_direct::router(state))
-        .nest(domain_projects::entity::Model::URL, projects::router(state))
+        .nest("/auth", auth::router(state)) // No tier = exempt from rate limiting
+        .nest(
+            "/tasks",
+            tasks::router(state.clone())
+                .layer(Extension(standard.clone())),
+        )
+        .nest(
+            "/tasks-direct",
+            tasks_direct::router(state)
+                .layer(Extension(standard.clone())),
+        )
+        .nest(
+            domain_projects::entity::Model::URL,
+            projects::router(state)
+                .layer(Extension(standard.clone())),
+        )
         .nest(
             domain_cloud_resources::entity::Model::URL,
-            cloud_resources::router(state),
+            cloud_resources::router(state)
+                .layer(Extension(standard.clone())),
         )
-        .nest("/users", users::router(state)); // TODO: Add SeaOrmResource to domain_users
+        .nest(
+            "/users",
+            users::router(state)
+                .layer(Extension(standard.clone())),
+        );
 
-    // Add vector routes if Qdrant is configured
-    if let Some(vector_router) = vector::router(state) {
-        router.nest("/vector", vector_router)
+    // Add vector routes with stricter tier if Qdrant is configured
+    let router = if let Some(vector_router) = vector::router(state) {
+        router.nest("/vector", vector_router.layer(Extension(vector_tier)))
     } else {
         router
-    }
+    };
+
+    // Axum onion model: last .layer() is outermost (runs first).
+    // optional auth runs first (inserts JwtClaims if token present),
+    // then rate limiter keys by user:<id> or falls back to ip:<addr>.
+    router
+        .layer(middleware::from_fn_with_state(
+            state.rate_limiter.clone(),
+            axum_helpers::rate_limit_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.jwt_auth.clone(),
+            axum_helpers::optional_jwt_auth_middleware,
+        ))
 }
 
 /// Creates a router with the /ready endpoint that performs actual health checks.

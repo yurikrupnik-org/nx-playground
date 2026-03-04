@@ -40,6 +40,7 @@ pub mod auth;
 pub mod errors;
 pub mod extractors;
 pub mod http;
+pub mod rate_limit;
 pub mod server;
 
 // Re-export auth types
@@ -62,6 +63,9 @@ pub use http::{
 
 // Re-export error types
 pub use errors::{AppError, ErrorCode, ErrorResponse};
+
+// Re-export rate limiting
+pub use rate_limit::{RateLimitConfig, RateLimitTier, RateLimiter, rate_limit_middleware};
 
 // Re-export extractors
 pub use extractors::{UuidPath, ValidatedJson};

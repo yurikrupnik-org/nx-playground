@@ -1,4 +1,4 @@
-use axum_helpers::JwtConfig;
+use axum_helpers::{JwtConfig, RateLimitConfig};
 use core_config::{AppInfo, FromEnv, app_info, server::ServerConfig};
 
 // Import database configs from the database library
@@ -30,6 +30,8 @@ pub struct Config {
     pub github_client_secret: String,
     // NATS configuration
     pub nats_url: String,
+    // Rate limiting configuration
+    pub rate_limit: RateLimitConfig,
 }
 
 impl Config {
@@ -56,6 +58,9 @@ impl Config {
         // NATS configuration
         let nats_url = core_config::env_or_default("NATS_URL", "nats://localhost:4222");
 
+        // Rate limiting configuration (all optional with defaults)
+        let rate_limit = RateLimitConfig::from_env();
+
         Ok(Self {
             app: app_info!(),
             database,
@@ -71,6 +76,7 @@ impl Config {
             github_client_id,
             github_client_secret,
             nats_url,
+            rate_limit,
         })
     }
 }

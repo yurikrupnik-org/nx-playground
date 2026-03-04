@@ -12,6 +12,15 @@ export default defineConfig({
   // base: '/web/',
   server: {
     port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        headers: {
+          'x-forwarded-host': 'localhost:3000',
+          'x-forwarded-proto': 'http',
+        },
+      },
+    },
   },
   build: {
     target: 'esnext',

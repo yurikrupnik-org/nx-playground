@@ -95,7 +95,6 @@ tonic-health = "0.14.5"
 tonic-prost = "0.14.5"
 tower = '0.5.3'
 tower-http = { version = '0.6.8', features = ['timeout', 'trace', 'compression-full', 'decompression-full', 'cors'] }
-tower_governor = '0.8.0'
 tracing = "0.1.44"
 tracing-error = '0.2.1'
 tracing-subscriber = { version = '0.3.22', features = ['env-filter', 'json', 'serde_json'] }

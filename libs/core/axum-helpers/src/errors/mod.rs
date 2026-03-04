@@ -101,6 +101,9 @@ pub enum AppError {
 
     #[error("Service Unavailable: {0}")]
     ServiceUnavailable(String),
+
+    #[error("Too Many Requests: {0}")]
+    TooManyRequests(String),
 }
 
 impl IntoResponse for AppError {
@@ -273,6 +276,16 @@ impl IntoResponse for AppError {
                     msg,
                     None,
                     ErrorCode::ServiceUnavailable,
+                )
+            }
+            AppError::TooManyRequests(msg) => {
+                tracing::warn!("Too many requests: {}", msg);
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "TooManyRequests",
+                    msg,
+                    None,
+                    ErrorCode::RateLimitExceeded,
                 )
             }
         };

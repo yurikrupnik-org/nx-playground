@@ -565,13 +565,14 @@ async fn authorize<R: UserRepository, O: OAuthAccountRepository>(
 ) -> Result<Redirect, UserError> {
     let provider = get_provider(&provider_name, &state.oauth_config)?;
 
-    // Derive origin from request headers, fallback to configured redirect_base_url
+    // Origin URL from request headers — used for post-login redirect to the frontend.
+    // OAuth callback URI always uses redirect_base_url (must match Google Console config).
     let origin_url = derive_origin_url(&headers)
-        .unwrap_or_else(|| state.oauth_config.redirect_base_url.clone());
+        .unwrap_or_else(|| state.oauth_config.frontend_url.clone());
 
     let redirect_uri = format!(
         "{}/api/auth/oauth/{}/callback",
-        origin_url,
+        state.oauth_config.redirect_base_url,
         provider.name()
     );
     tracing::info!("{} OAuth redirect URI: {}", provider_name, redirect_uri);

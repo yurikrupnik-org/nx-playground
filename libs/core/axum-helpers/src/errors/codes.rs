@@ -63,6 +63,9 @@ pub enum ErrorCode {
     /// Service is temporarily unavailable
     ServiceUnavailable,
 
+    /// Rate limit exceeded
+    RateLimitExceeded,
+
     // Database errors (2000-2999)
     /// Database query returned no results
     DatabaseNotFound,
@@ -155,6 +158,7 @@ impl ErrorCode {
             Self::JsonExtraction => "JSON_EXTRACTION",
             Self::InternalError => "INTERNAL_ERROR",
             Self::ServiceUnavailable => "SERVICE_UNAVAILABLE",
+            Self::RateLimitExceeded => "RATE_LIMIT_EXCEEDED",
             Self::DatabaseNotFound => "DATABASE_NOT_FOUND",
             Self::DatabaseConfig => "DATABASE_CONFIG",
             Self::DatabaseError => "DATABASE_ERROR",
@@ -210,6 +214,7 @@ impl ErrorCode {
             Self::UnprocessableEntity => 1009,
             Self::InvalidJson => 1010,
             Self::ServiceUnavailable => 1011,
+            Self::RateLimitExceeded => 1012,
 
             // Database errors (2000-2999)
             Self::DatabaseNotFound => 2001,
@@ -269,6 +274,7 @@ impl ErrorCode {
             Self::JsonExtraction => "Failed to parse request body",
             Self::InternalError => "An internal server error occurred",
             Self::ServiceUnavailable => "Service is temporarily unavailable",
+            Self::RateLimitExceeded => "Rate limit exceeded",
             Self::DatabaseNotFound => "Database record not found",
             Self::DatabaseConfig => "Database configuration error",
             Self::DatabaseError => "Database error occurred",

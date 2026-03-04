@@ -98,6 +98,15 @@ async fn main() -> eyre::Result<()> {
         }
     };
 
+    // Initialize distributed rate limiter
+    let rate_limiter = axum_helpers::RateLimiter::new(redis.clone(), config.rate_limit.clone());
+    info!(
+        "Rate limiter initialized (enabled={}, limit={}/{}s)",
+        config.rate_limit.enabled,
+        config.rate_limit.requests_per_window,
+        config.rate_limit.window_secs
+    );
+
     // Initialize the application state with database connections
     let state = AppState {
         config,
@@ -107,6 +116,7 @@ async fn main() -> eyre::Result<()> {
         jwt_auth,
         notifications,
         vector_service,
+        rate_limiter,
     };
 
     // Build router with API routes (pass reference, not ownership!)

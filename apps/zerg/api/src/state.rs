@@ -8,7 +8,7 @@
 //! - Notification service (NATS-based email queueing)
 //! - Vector service (Qdrant-backed)
 
-use axum_helpers::JwtRedisAuth;
+use axum_helpers::{JwtRedisAuth, RateLimiter};
 use domain_vector::{QdrantRepository, VectorService};
 use email::NotificationService;
 use rpc::tasks::tasks_service_client::TasksServiceClient;
@@ -42,4 +42,6 @@ pub struct AppState {
     pub notifications: NotificationService,
     /// Vector service for Qdrant operations (wrapped in Arc for cheap cloning)
     pub vector_service: Option<Arc<VectorService<QdrantRepository>>>,
+    /// Distributed rate limiter (Redis-backed sliding window counter)
+    pub rate_limiter: RateLimiter,
 }
