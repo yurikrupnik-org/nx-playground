@@ -32,6 +32,9 @@ pub struct Config {
     pub nats_url: String,
     // Rate limiting configuration
     pub rate_limit: RateLimitConfig,
+    // Vector tier rate limit (stricter limit for expensive search operations)
+    pub rate_limit_vector_requests: u64,
+    pub rate_limit_vector_window_secs: u64,
 }
 
 impl Config {
@@ -61,6 +64,16 @@ impl Config {
         // Rate limiting configuration (all optional with defaults)
         let rate_limit = RateLimitConfig::from_env();
 
+        let rate_limit_vector_requests = std::env::var("RATE_LIMIT_VECTOR_REQUESTS_PER_WINDOW")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(20);
+
+        let rate_limit_vector_window_secs = std::env::var("RATE_LIMIT_VECTOR_WINDOW_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60);
+
         Ok(Self {
             app: app_info!(),
             database,
@@ -77,6 +90,8 @@ impl Config {
             github_client_secret,
             nats_url,
             rate_limit,
+            rate_limit_vector_requests,
+            rate_limit_vector_window_secs,
         })
     }
 }

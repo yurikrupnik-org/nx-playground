@@ -22,8 +22,13 @@ pub fn routes(state: &crate::state::AppState) -> Router {
     // Import ApiResource trait to access URL constants
     use domain_projects::ApiResource;
 
-    let standard = RateLimitTier::new("standard", 100, 60);
-    let vector_tier = RateLimitTier::new("vector", 20, 60);
+    let rl = &state.config.rate_limit;
+    let standard = RateLimitTier::new("standard", rl.requests_per_window, rl.window_secs);
+    let vector_tier = RateLimitTier::new(
+        "vector",
+        state.config.rate_limit_vector_requests,
+        state.config.rate_limit_vector_window_secs,
+    );
 
     let router = Router::new()
         .nest("/auth", auth::router(state)) // No tier = exempt from rate limiting
