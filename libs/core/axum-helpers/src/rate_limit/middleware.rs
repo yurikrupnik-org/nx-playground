@@ -119,7 +119,6 @@ pub async fn rate_limit_middleware(
             // Fail-open: allow the request if Redis is down
             tracing::warn!(
                 error = %err,
-                key = %key,
                 "Rate limiter Redis error - failing open"
             );
             next.run(request).await

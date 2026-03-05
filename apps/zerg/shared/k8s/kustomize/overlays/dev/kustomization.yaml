@@ -24,6 +24,8 @@ configMapGenerator:
       - RATE_LIMIT_ENABLED=true
       - RATE_LIMIT_VECTOR_REQUESTS_PER_WINDOW=20
       - RATE_LIMIT_VECTOR_WINDOW_SECS=60
+      - RATE_LIMIT_AUTH_REQUESTS_PER_WINDOW=10
+      - RATE_LIMIT_AUTH_WINDOW_SECS=60
 
 secretGenerator:
   - name: zerg-shared-secrets

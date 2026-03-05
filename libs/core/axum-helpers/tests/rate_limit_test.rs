@@ -129,8 +129,26 @@ async fn test_disabled_limiter_always_allows() {
     };
     let limiter = RateLimiter::new(conn, config);
 
-    // is_enabled() should return false
     assert!(!limiter.is_enabled());
+
+    // Even though limit is 1, the middleware would short-circuit on is_enabled().
+    // Verify check_with_config still works (it doesn't check enabled flag itself).
+    // Exhaust the limit and verify the limiter still enforces at the Redis level —
+    // proving the "disabled" bypass is purely a middleware concern.
+    let r1 = limiter
+        .check_with_config("test:disabled", "standard", 1, 60)
+        .await
+        .unwrap();
+    assert!(r1.allowed, "first request should be allowed");
+
+    let r2 = limiter
+        .check_with_config("test:disabled", "standard", 1, 60)
+        .await
+        .unwrap();
+    assert!(
+        !r2.allowed,
+        "Redis-level check still enforces — disabled flag is middleware-only"
+    );
 }
 
 #[tokio::test]

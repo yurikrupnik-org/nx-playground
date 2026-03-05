@@ -464,11 +464,11 @@ fn extract_cookie_value(cookies: &str, name: &str) -> Option<String> {
     })
 }
 
-/// Extract host from a URL string (e.g. "https://example.com:3000/path" -> "example.com")
-fn extract_host(url: &str) -> Option<&str> {
+/// Extract host:port from a URL string (e.g. "https://example.com:3000/path" -> "example.com:3000")
+/// Includes port when present so scheme-swapping attacks can't bypass validation.
+fn extract_host_port(url: &str) -> Option<&str> {
     let after_scheme = url.split("://").nth(1)?;
-    let host_port = after_scheme.split('/').next()?;
-    Some(host_port.split(':').next().unwrap_or(host_port))
+    Some(after_scheme.split('/').next().unwrap_or(after_scheme))
 }
 
 /// Derive the origin URL from request headers (X-Forwarded-Proto + Host)
@@ -577,7 +577,7 @@ async fn authorize<R: UserRepository, O: OAuthAccountRepository>(
     // Validate that derived host matches frontend_url to prevent open redirect attacks.
     let origin_url = derive_origin_url(&headers)
         .filter(|derived| {
-            extract_host(derived) == extract_host(&state.oauth_config.frontend_url)
+            extract_host_port(derived) == extract_host_port(&state.oauth_config.frontend_url)
         })
         .unwrap_or_else(|| state.oauth_config.frontend_url.clone());
 

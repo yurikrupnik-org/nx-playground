@@ -29,6 +29,11 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         state.config.rate_limit_vector_requests,
         state.config.rate_limit_vector_window_secs,
     );
+    let auth_tier = RateLimitTier::new(
+        "auth",
+        state.config.rate_limit_auth_requests,
+        state.config.rate_limit_auth_window_secs,
+    );
 
     // Closure to build per-route rate limit layers.
     // Axum onion: last .layer() is outermost (runs first).
@@ -42,7 +47,12 @@ pub fn routes(state: &crate::state::AppState) -> Router {
     };
 
     let router = Router::new()
-        .nest("/auth", auth::router(state)) // No tier = exempt from rate limiting
+        .nest(
+            "/auth",
+            auth::router(state)
+                .layer(rl_layer())
+                .layer(Extension(auth_tier)),
+        )
         .nest(
             "/tasks",
             tasks::router(state.clone())

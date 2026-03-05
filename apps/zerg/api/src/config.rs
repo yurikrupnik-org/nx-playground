@@ -35,6 +35,9 @@ pub struct Config {
     // Vector tier rate limit (stricter limit for expensive search operations)
     pub rate_limit_vector_requests: u64,
     pub rate_limit_vector_window_secs: u64,
+    // Auth tier rate limit (strict limit to prevent brute-force/credential stuffing)
+    pub rate_limit_auth_requests: u64,
+    pub rate_limit_auth_window_secs: u64,
 }
 
 impl Config {
@@ -74,6 +77,16 @@ impl Config {
             .and_then(|v| v.parse().ok())
             .unwrap_or(60);
 
+        let rate_limit_auth_requests = std::env::var("RATE_LIMIT_AUTH_REQUESTS_PER_WINDOW")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(10);
+
+        let rate_limit_auth_window_secs = std::env::var("RATE_LIMIT_AUTH_WINDOW_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60);
+
         Ok(Self {
             app: app_info!(),
             database,
@@ -92,6 +105,8 @@ impl Config {
             rate_limit,
             rate_limit_vector_requests,
             rate_limit_vector_window_secs,
+            rate_limit_auth_requests,
+            rate_limit_auth_window_secs,
         })
     }
 }
