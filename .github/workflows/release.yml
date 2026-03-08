@@ -1,0 +1,244 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+permissions:
+  actions: read
+  contents: write
+  id-token: write
+  security-events: write
+
+jobs:
+  # Determine which apps are affected and bump their versions
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      affected: ${{ steps.affected.outputs.apps }}
+      matrix: ${{ steps.affected.outputs.matrix }}
+      has_apps: ${{ steps.affected.outputs.has_apps }}
+      release_sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Derive SHAs for nx affected
+        uses: nrwl/nx-set-shas@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --no-cache
+
+      - name: Determine affected apps
+        id: affected
+        run: |
+          # Get affected projects that have a container target
+          AFFECTED=$(bun nx show projects --affected --with-target container 2>/dev/null || true)
+
+          if [ -z "$AFFECTED" ]; then
+            echo "No affected apps with container target"
+            echo "has_apps=false" >> $GITHUB_OUTPUT
+            echo "apps=" >> $GITHUB_OUTPUT
+            echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Affected apps: $AFFECTED"
+          echo "has_apps=true" >> $GITHUB_OUTPUT
+          echo "apps<<EOF" >> $GITHUB_OUTPUT
+          echo "$AFFECTED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Build matrix JSON for parallel container builds
+          MATRIX="{\"include\":["
+          FIRST=true
+          for APP in $AFFECTED; do
+            ROOT=$(bun nx show project "$APP" --json | jq -r '.root')
+
+            # Read current version
+            if [ -f "$ROOT/Cargo.toml" ]; then
+              CURRENT=$(grep '^version' "$ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
+            elif [ -f "$ROOT/package.json" ]; then
+              CURRENT=$(jq -r '.version' "$ROOT/package.json")
+            else
+              echo "No version file found for $APP in $ROOT"
+              continue
+            fi
+
+            # Bump patch
+            MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+            MINOR=$(echo "$CURRENT" | cut -d. -f2)
+            PATCH=$(echo "$CURRENT" | cut -d. -f3)
+            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              MATRIX="$MATRIX,"
+            fi
+            MATRIX="$MATRIX{\"app\":\"$APP\",\"version\":\"$NEW_VERSION\",\"root\":\"$ROOT\"}"
+
+            echo "$APP: $CURRENT -> $NEW_VERSION"
+          done
+          MATRIX="$MATRIX]}"
+
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Matrix: $MATRIX"
+
+      - name: Bump versions in source files
+        if: steps.affected.outputs.has_apps == 'true'
+        run: |
+          MATRIX='${{ steps.affected.outputs.matrix }}'
+
+          echo "$MATRIX" | jq -c '.include[]' | while read -r item; do
+            APP=$(echo "$item" | jq -r '.app')
+            VERSION=$(echo "$item" | jq -r '.version')
+            ROOT=$(echo "$item" | jq -r '.root')
+
+            if [ -f "$ROOT/Cargo.toml" ]; then
+              CURRENT=$(grep '^version' "$ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
+              sed -i "s/^version = \"$CURRENT\"/version = \"$VERSION\"/" "$ROOT/Cargo.toml"
+              echo "Bumped $APP Cargo.toml: $CURRENT -> $VERSION"
+            elif [ -f "$ROOT/package.json" ]; then
+              jq --arg v "$VERSION" '.version = $v' "$ROOT/package.json" > tmp.json && mv tmp.json "$ROOT/package.json"
+              echo "Bumped $APP package.json -> $VERSION"
+            fi
+          done
+
+      - name: Update Cargo.lock
+        if: steps.affected.outputs.has_apps == 'true'
+        run: cargo generate-lockfile
+
+      - name: Commit version bumps and create tags
+        if: steps.affected.outputs.has_apps == 'true'
+        id: push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+
+          # Build commit message body with bumped versions
+          MATRIX='${{ steps.affected.outputs.matrix }}'
+          BODY=$(echo "$MATRIX" | jq -r '.include[] | "- \(.app)@\(.version)"')
+
+          git commit -m "$(cat <<EOF
+          chore: release version bumps [skip ci]
+
+          $BODY
+          EOF
+          )"
+
+          # Create per-app tags (use for loop to avoid subshell)
+          for item in $(echo "$MATRIX" | jq -c '.include[]'); do
+            APP=$(echo "$item" | jq -r '.app')
+            VERSION=$(echo "$item" | jq -r '.version')
+            TAG="$APP@$VERSION"
+            git tag -a "$TAG" -m "$APP release $VERSION"
+            echo "Created tag: $TAG"
+          done
+
+          git push origin main --follow-tags
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+  # Build containers in parallel using matrix strategy
+  container:
+    needs: version
+    if: needs.version.outputs.has_apps == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.version.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.release_sha || github.sha }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --no-cache
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA }}
+
+      - name: Login to Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Build, push and scan ${{ matrix.app }}
+        run: bun nx run ${{ matrix.app }}:scan --configuration=ci
+        continue-on-error: true
+        env:
+          INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_ARTIFACT_PROJECT }}/docker
+          SHORT_SHA: ${{ github.sha }}
+          APP_VERSION: ${{ matrix.version }}
+          ENABLE_VERSION: "true"
+
+      - name: Upload SARIF
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SARIF_FILE=$(find . -name "trivy-*.sarif" -print -quit 2>/dev/null)
+          if [ -n "$SARIF_FILE" ]; then
+            CATEGORY=$(basename "$SARIF_FILE" .sarif)
+            gzip -c "$SARIF_FILE" | base64 -w0 > /tmp/sarif_base64.txt
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/code-scanning/sarifs" \
+              -f "commit_sha=${{ github.sha }}" \
+              -f "ref=${{ github.ref }}" \
+              -f "sarif=@/tmp/sarif_base64.txt" \
+            && echo "Uploaded $CATEGORY" \
+            || echo "Warning: Failed to upload SARIF"
+          fi
+
+  # Create GitHub releases for each app
+  github-release:
+    needs: [version, container]
+    if: needs.version.outputs.has_apps == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.version.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.release_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ matrix.app }}@${{ matrix.version }}"
+          gh release create "$TAG" \
+            --title "${{ matrix.app }} v${{ matrix.version }}" \
+            --generate-notes \
+            --verify-tag \
+          || echo "Release already exists for $TAG"

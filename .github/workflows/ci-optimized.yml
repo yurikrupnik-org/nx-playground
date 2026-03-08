@@ -233,7 +233,10 @@ jobs:
         if: always()
 
   container:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      ENABLE_VERSION: "false"
     steps:
       - uses: actions/checkout@v4
         with:
