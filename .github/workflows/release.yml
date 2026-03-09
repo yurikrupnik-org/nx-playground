@@ -149,9 +149,9 @@ jobs:
           MATRIX='${{ steps.affected.outputs.matrix }}'
           BODY=$(echo "$MATRIX" | jq -r '.include[] | "- \(.app)@\(.version)"')
 
-          git commit -m "chore: release version bumps [skip ci]
+          git commit -m "chore: release version bumps [skip ci]${BODY:+
 
-$BODY"
+          $BODY}"
 
           # Create per-app tags
           while IFS= read -r item; do
