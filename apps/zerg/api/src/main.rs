@@ -78,7 +78,7 @@ async fn main() -> eyre::Result<()> {
                         info!("OpenAI embedding provider configured");
                         service.with_embedding_provider(Arc::new(provider))
                     } else {
-                        info!("No embedding provider configured");
+                        info!("No embedding provider configured!");
                         service
                     };
                     Some(Arc::new(service))
