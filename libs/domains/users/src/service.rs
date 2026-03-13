@@ -307,12 +307,6 @@ impl<R: UserRepository> UserService<R> {
             vec![Role::User],
         );
 
-        // Set OAuth provider ID
-        match provider {
-            Provider::Google => user.google_id = Some(oauth_info.provider_user_id.clone()),
-            Provider::Github => user.github_id = Some(oauth_info.provider_user_id.clone()),
-        }
-
         // Set avatar from OAuth
         user.avatar_url = oauth_info.avatar_url;
 
@@ -320,6 +314,12 @@ impl<R: UserRepository> UserService<R> {
         user.email_verified = true;
 
         let created = self.repository.create(user).await?;
+
+        // Link OAuth account via oauth_accounts table
+        self.repository
+            .link_oauth_account(created.id, provider, &oauth_info.provider_user_id, None)
+            .await?;
+
         Ok(created.into())
     }
 

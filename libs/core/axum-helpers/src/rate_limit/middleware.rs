@@ -35,10 +35,7 @@ fn extract_key(request: &Request) -> String {
 
     // X-Forwarded-For: take the RIGHTMOST entry (added by our trusted proxy).
     // The leftmost entry is client-controlled and trivially spoofable.
-    if let Some(forwarded) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(ip) = forwarded.rsplit(',').next().map(|s| s.trim()) {
             if !ip.is_empty() {
                 return format!("ip:{}", ip);
@@ -51,7 +48,9 @@ fn extract_key(request: &Request) -> String {
         return format!("ip:{}", connect_info.0.ip());
     }
 
-    tracing::warn!("Could not determine client IP for rate limiting - using shared 'ip:unknown' key");
+    tracing::warn!(
+        "Could not determine client IP for rate limiting - using shared 'ip:unknown' key"
+    );
     "ip:unknown".to_string()
 }
 
@@ -103,8 +102,7 @@ pub async fn rate_limit_middleware(
                 let retry_after = result.reset_at.saturating_sub(now);
 
                 let mut response =
-                    AppError::TooManyRequests("Rate limit exceeded".to_string())
-                        .into_response();
+                    AppError::TooManyRequests("Rate limit exceeded".to_string()).into_response();
 
                 let headers = response.headers_mut();
                 insert_rate_limit_headers(headers, limit, 0, result.reset_at);

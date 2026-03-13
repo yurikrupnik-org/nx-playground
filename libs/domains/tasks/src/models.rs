@@ -86,8 +86,6 @@ pub struct Task {
     pub title: String,
     /// Task description
     pub description: String,
-    /// Whether the task is completed
-    pub completed: bool,
     /// Optional project association
     #[ts(as = "Option<String>")]
     pub project_id: Option<Uuid>,
@@ -131,7 +129,6 @@ pub struct UpdateTask {
     #[validate(length(min = 1, max = 255))]
     pub title: Option<String>,
     pub description: Option<String>,
-    pub completed: Option<bool>,
     #[ts(as = "Option<Option<String>>")]
     pub project_id: Option<Option<Uuid>>,
     pub priority: Option<TaskPriority>,
@@ -146,7 +143,6 @@ pub struct TaskFilter {
     pub project_id: Option<Uuid>,
     pub status: Option<TaskStatus>,
     pub priority: Option<TaskPriority>,
-    pub completed: Option<bool>,
     #[serde(default = "default_limit")]
     pub limit: usize,
     #[serde(default)]
@@ -163,7 +159,6 @@ pub struct TaskResponse {
     pub id: Uuid,
     pub title: String,
     pub description: String,
-    pub completed: bool,
     pub project_id: Option<Uuid>,
     pub priority: TaskPriority,
     pub status: TaskStatus,
@@ -178,7 +173,6 @@ impl From<Task> for TaskResponse {
             id: task.id,
             title: task.title,
             description: task.description,
-            completed: task.completed,
             project_id: task.project_id,
             priority: task.priority,
             status: task.status,
@@ -197,9 +191,6 @@ impl Task {
         }
         if let Some(description) = update.description {
             self.description = description;
-        }
-        if let Some(completed) = update.completed {
-            self.completed = completed;
         }
         if let Some(project_id) = update.project_id {
             self.project_id = project_id;

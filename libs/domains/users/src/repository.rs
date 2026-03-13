@@ -217,45 +217,22 @@ impl UserRepository for InMemoryUserRepository {
 
     async fn get_by_oauth_id(
         &self,
-        provider: Provider,
-        provider_id: &str,
+        _provider: Provider,
+        _provider_id: &str,
     ) -> UserResult<Option<User>> {
-        let users = self.users.read().await;
-        let user = users
-            .values()
-            .find(|u| match provider {
-                Provider::Google => u
-                    .google_id
-                    .as_ref()
-                    .map(|id| id == provider_id)
-                    .unwrap_or(false),
-                Provider::Github => u
-                    .github_id
-                    .as_ref()
-                    .map(|id| id == provider_id)
-                    .unwrap_or(false),
-            })
-            .cloned();
-        Ok(user)
+        // In-memory impl doesn't track oauth_accounts separately
+        Ok(None)
     }
 
     async fn link_oauth_account(
         &self,
         user_id: Uuid,
-        provider: Provider,
-        provider_id: &str,
+        _provider: Provider,
+        _provider_id: &str,
         avatar_url: Option<String>,
     ) -> UserResult<()> {
         let mut users = self.users.write().await;
         if let Some(user) = users.get_mut(&user_id) {
-            match provider {
-                Provider::Google => {
-                    user.google_id = Some(provider_id.to_string());
-                }
-                Provider::Github => {
-                    user.github_id = Some(provider_id.to_string());
-                }
-            }
             if avatar_url.is_some() {
                 user.avatar_url = avatar_url;
             }

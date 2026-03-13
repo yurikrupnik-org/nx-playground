@@ -96,7 +96,9 @@ pub async fn run() -> Result<()> {
                     if attempt >= max_retries {
                         return Err(eyre::eyre!(
                             "Failed to connect to NATS at {} after {} attempts: {}",
-                            nats_url, max_retries, e
+                            nats_url,
+                            max_retries,
+                            e
                         ));
                     }
                     let delay = base_delay

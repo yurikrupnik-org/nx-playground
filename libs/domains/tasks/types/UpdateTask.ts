@@ -5,4 +5,4 @@ import type { TaskStatus } from "./TaskStatus";
 /**
  * DTO for updating an existing task
  */
-export type UpdateTask = { title: string | null, description: string | null, completed: boolean | null, project_id: string | null | null, priority: TaskPriority | null, status: TaskStatus | null, due_date: string | null | null, };
+export type UpdateTask = { title: string | null, description: string | null, project_id: string | null | null, priority: TaskPriority | null, status: TaskStatus | null, due_date: string | null | null, };

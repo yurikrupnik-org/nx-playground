@@ -74,7 +74,6 @@ impl<R: TaskRepository> TaskService<R> {
             .update(
                 id,
                 UpdateTask {
-                    completed: Some(true),
                     status: Some(TaskStatus::Done),
                     ..Default::default()
                 },
@@ -88,7 +87,6 @@ impl<R: TaskRepository> TaskService<R> {
             .update(
                 id,
                 UpdateTask {
-                    completed: Some(false),
                     status: Some(TaskStatus::Todo),
                     ..Default::default()
                 },

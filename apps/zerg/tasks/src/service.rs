@@ -112,7 +112,6 @@ where
             project_id: conv::opt_bytes_to_uuid(req.project_id).to_tonic()?,
             status: req.status.map(|s| s.try_into()).transpose().to_tonic()?,
             priority: req.priority.map(|p| p.try_into()).transpose().to_tonic()?,
-            completed: req.completed,
             limit: req.limit as usize,
             offset: req.offset as usize,
         };
@@ -136,7 +135,6 @@ where
             project_id: conv::opt_bytes_to_uuid(req.project_id).to_tonic()?,
             status: req.status.map(|s| s.try_into()).transpose().to_tonic()?,
             priority: req.priority.map(|p| p.try_into()).transpose().to_tonic()?,
-            completed: req.completed,
             limit: req.limit as usize,
             offset: 0,
         };
@@ -188,7 +186,6 @@ mod tests {
                 id: Uuid::new_v4(),
                 title: input.title,
                 description: input.description,
-                completed: false,
                 project_id: input.project_id,
                 priority: input.priority,
                 status: input.status,
@@ -213,9 +210,6 @@ mod tests {
             }
             if let Some(description) = input.description {
                 task.description = description;
-            }
-            if let Some(completed) = input.completed {
-                task.completed = completed;
             }
             if let Some(project_id) = input.project_id {
                 task.project_id = project_id;
@@ -258,11 +252,6 @@ mod tests {
                     {
                         return false;
                     }
-                    if let Some(completed) = filter.completed
-                        && task.completed != completed
-                    {
-                        return false;
-                    }
                     true
                 })
                 .cloned()
@@ -302,7 +291,6 @@ mod tests {
             id: Uuid::new_v4(),
             title: "Test Task".to_string(),
             description: "Test Description".to_string(),
-            completed: false,
             project_id: None,
             priority: TaskPriority::Medium,
             status: TaskStatus::Todo,
@@ -334,7 +322,6 @@ mod tests {
         let task = response.unwrap().into_inner();
         assert_eq!(task.title, "New Task");
         assert_eq!(task.description, "Task Description");
-        assert!(!task.completed);
     }
 
     #[tokio::test]
@@ -414,7 +401,7 @@ mod tests {
             id: conv::uuid_to_bytes(task_id),
             title: Some("Updated Title".to_string()),
             description: None,
-            completed: Some(true),
+            completed: None,
             project_id: None,
             priority: Some(2), // High
             status: Some(1),   // InProgress
@@ -426,7 +413,6 @@ mod tests {
 
         let result = response.unwrap().into_inner();
         assert_eq!(result.title, "Updated Title");
-        assert!(result.completed);
     }
 
     #[tokio::test]

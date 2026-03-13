@@ -59,10 +59,6 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
     /// Avatar URL (from OAuth or user upload)
     pub avatar_url: Option<String>,
-    /// Google OAuth ID
-    pub google_id: Option<String>,
-    /// GitHub OAuth ID
-    pub github_id: Option<String>,
     /// Last login timestamp
     pub last_login_at: Option<DateTime<Utc>>,
     /// Account active status
@@ -187,8 +183,6 @@ impl User {
             created_at: now,
             updated_at: now,
             avatar_url: None,
-            google_id: None,
-            github_id: None,
             last_login_at: None,
             is_active: true,
             is_locked: false,

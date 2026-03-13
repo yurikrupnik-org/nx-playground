@@ -29,7 +29,6 @@ pub async fn list_tasks<R: TaskRepository>(
         project_id: None,
         status: None,
         priority: None,
-        completed: None,
         limit: 50,
         offset: 0,
     };
