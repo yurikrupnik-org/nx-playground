@@ -1,14 +1,15 @@
 -- Desired Database Schema (Single source of truth)
--- Local dev: Tilt applies this directly via psql
--- Prod: Run `atlas migrate diff` to generate versioned migrations from this file
+-- Local dev: `just db-fresh` applies this directly via psql
+-- K8s dev:   `just migrate` applies migrations via sqlx (port-forwarded)
+-- K8s prod:  Atlas Operator applies migrations via ConfigMaps
 -- PostgreSQL 17+ required for uuidv7()
 
 -- =============================================================================
 -- Extensions
 -- =============================================================================
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
--- CREATE EXTENSION IF NOT EXISTS vector; -- not installed by default
-CREATE EXTENSION IF NOT EXISTS hstore; -- not installed by default
+CREATE EXTENSION IF NOT EXISTS hstore;
+-- CREATE EXTENSION IF NOT EXISTS vector;
 -- CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- =============================================================================

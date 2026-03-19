@@ -20,7 +20,7 @@ procs:
   #     echo "Creating database..."
   #     docker exec dockers-postgres-1 psql -U myuser -d postgres -c "CREATE DATABASE mydatabase;" 2>/dev/null || true
   #     echo "Running migrations..."
-  #     atlas migrate apply --dir "file://manifests/migrations/mydatabase" --url "postgres://myuser:mypassword@localhost:5432/mydatabase?sslmode=disable"
+  #     atlas migrate apply --dir "file://manifests/db/migrations" --url "postgres://myuser:mypassword@localhost:5432/mydatabase?sslmode=disable"
   #     echo "Infrastructure ready! Tailing logs..."
   #     docker compose -f manifests/dockers/compose.yaml logs -f
   #   stop: "SIGTERM"

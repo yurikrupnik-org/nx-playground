@@ -97,7 +97,7 @@ tower = '0.5.3'
 tower-http = { version = '0.6.8', features = ['timeout', 'trace', 'compression-full', 'decompression-full', 'cors'] }
 tracing = "0.1.44"
 tracing-error = '0.2.1'
-tracing-subscriber = { version = '0.3.22', features = ['env-filter', 'json', 'serde_json'] }
+tracing-subscriber = { version = '0.3.23', features = ['env-filter', 'json', 'serde_json'] }
 trybuild = "1.0.116"
 ts-rs = { version = "12.0.1", features = ["chrono-impl", "uuid-impl"] }
 utoipa = { version = '5.4.0', features = ['axum_extras', 'chrono', 'uuid'] }

@@ -19,7 +19,7 @@ futures = { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 
 # Postgres dependencies (optional, enabled by default)
-# Note: Uses Atlas SQL migrations from manifests/migrations/mydatabase/
+# Note: Uses Atlas SQL migrations from manifests/db/migrations/
 sea-orm = { workspace = true, optional = true }
 
 # Testcontainers (always available)
