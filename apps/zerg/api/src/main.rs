@@ -48,13 +48,25 @@ async fn main() -> eyre::Result<()> {
 
     // Initialize NATS connection for notifications
     let nats_future = async {
-        info!("Connecting to NATS at {}", config.nats_url);
+        info!("Connecting to NATS at {}", &config.nats_url);
         async_nats::connect(&config.nats_url)
             .await
             .map_err(|e| eyre::eyre!("NATS connection failed: {}", e))
     };
 
-    let (db, redis, nats_client) = tokio::try_join!(postgres_future, redis_future, nats_future)?;
+    // Initialize MongoDB connection
+    let mongo_future = async {
+        let mongo_url =
+            std::env::var("MONGODB_URL").unwrap_or_else(|_| "mongodb://localhost:27017".to_string());
+        let mongo_db_name =
+            std::env::var("MONGODB_DATABASE").unwrap_or_else(|_| "zerg".to_string());
+        database::mongo::connect(&mongo_url, &mongo_db_name)
+            .await
+            .map_err(|e| eyre::eyre!("MongoDB connection failed: {}", e))
+    };
+
+    let (db, redis, nats_client, mongo_db) =
+        tokio::try_join!(postgres_future, redis_future, nats_future, mongo_future)?;
 
     // Create JetStream context for notifications
     let jetstream = async_nats::jetstream::new(nats_client);
@@ -98,6 +110,18 @@ async fn main() -> eyre::Result<()> {
         }
     };
 
+    // Initialize Dapr pub/sub client (optional - requires Dapr sidecar)
+    let pubsub = if std::env::var("DAPR_ENABLED").unwrap_or_default() == "true" {
+        let dapr = dapr_client::DaprClient::new();
+        let pubsub_name =
+            std::env::var("DAPR_PUBSUB_NAME").unwrap_or_else(|_| "pubsub-nats".to_string());
+        info!(pubsub_name = %pubsub_name, "Dapr pub/sub client initialized");
+        Some(dapr_client::PubSubClient::new(dapr, pubsub_name))
+    } else {
+        info!("Dapr not enabled - async DB endpoints disabled (set DAPR_ENABLED=true to enable)");
+        None
+    };
+
     // Initialize distributed rate limiter
     let rate_limiter = axum_helpers::RateLimiter::new(redis.clone(), config.rate_limit.clone());
     info!(
@@ -116,7 +140,9 @@ async fn main() -> eyre::Result<()> {
         jwt_auth,
         notifications,
         vector_service,
+        mongo_db,
         rate_limiter,
+        pubsub,
     };
 
     // Build router with API routes (pass reference, not ownership!)

@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zerg-db-worker
+  labels:
+    app: zerg-db-worker
+    app.kubernetes.io/name: zerg-db-worker
+    app.kubernetes.io/component: db-worker
+    app.kubernetes.io/part-of: zerg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zerg-db-worker
+  template:
+    metadata:
+      labels:
+        app: zerg-db-worker
+        app.kubernetes.io/name: zerg-db-worker
+        app.kubernetes.io/component: db-worker
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "db-worker"
+        dapr.io/app-port: "8081"
+        dapr.io/enable-api-logging: "true"
+        dapr.io/log-level: "info"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: zerg-db-worker
+          image: yurikrupnik/zerg-db-worker:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+              name: http
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: zerg-shared-config
+            - configMapRef:
+                name: zerg-db-worker-config
+            - secretRef:
+                name: zerg-db-worker-secrets
+                optional: true
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 6
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8081
+            periodSeconds: 5
+            failureThreshold: 3
+            timeoutSeconds: 2
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      terminationGracePeriodSeconds: 30
+      restartPolicy: Always

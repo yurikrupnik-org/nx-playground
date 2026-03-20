@@ -7,8 +7,15 @@ edition = "2024"
 default = ["postgres", "redis"]
 postgres = ["dep:sea-orm"]
 redis = ["dep:redis"]
+mongo = ["dep:mongodb"]
+qdrant = ["dep:qdrant-client"]
+influxdb = ["dep:influxdb2"]
+neo4j = ["dep:neo4rs"]
 config = ["dep:core_config"]
-all = ["postgres", "redis", "config"]
+introspect-sqlx = ["dep:sqlx"]
+introspect-sea-orm = ["postgres"]
+introspect = ["introspect-sqlx", "introspect-sea-orm"]
+all = ["postgres", "redis", "mongo", "config"]
 
 [dependencies]
 # Core dependencies (always available)
@@ -17,12 +24,31 @@ async-trait = { workspace = true }
 # Configuration support (optional)
 core_config = { workspace = true, optional = true }
 
+# MongoDB dependencies (optional)
+mongodb = { workspace = true, optional = true }
+
+# Qdrant vector database (optional)
+qdrant-client = { workspace = true, optional = true }
+
+# InfluxDB time-series database (optional)
+influxdb2 = { workspace = true, optional = true }
+
+# Neo4j graph database (optional)
+neo4rs = { workspace = true, optional = true }
+
 # Redis dependencies (optional)
 redis = { workspace = true, optional = true }
 
 # PostgreSQL dependencies (optional)
 # Note: Migrations are managed by Atlas CLI, not sea-orm-migration
 sea-orm = { workspace = true, optional = true }
+
+# Raw SQL (optional, for introspect-sqlx feature)
+sqlx = { workspace = true, optional = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+strum = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

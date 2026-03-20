@@ -1,0 +1,17 @@
+customer_id,name,email,signup_date,tier,lifetime_value
+C-101,Alice Chen,alice@example.com,2024-06-15,gold,5200.00
+C-102,Bob Martinez,bob@example.com,2024-07-20,silver,1850.00
+C-103,Carol White,carol@example.com,2024-08-10,gold,3400.00
+C-104,David Kim,david@example.com,2024-09-01,bronze,1200.00
+C-105,Eve Johnson,eve@example.com,2024-09-15,silver,800.00
+C-106,Frank Brown,frank@example.com,2024-10-01,bronze,650.00
+C-107,Grace Lee,grace@example.com,2024-10-20,silver,900.00
+C-108,Henry Davis,henry@example.com,2024-11-05,bronze,500.00
+C-109,Iris Wilson,iris@example.com,2024-11-15,bronze,280.00
+C-110,Jack Taylor,jack@example.com,2024-12-01,bronze,180.00
+C-111,Karen Moore,karen@example.com,2024-12-10,silver,350.00
+C-112,Leo Anderson,leo@example.com,2025-01-05,bronze,270.00
+C-113,Mia Thomas,mia@example.com,2025-01-20,bronze,180.00
+C-114,Noah Jackson,noah@example.com,2025-02-01,bronze,330.00
+C-115,Olivia Harris,olivia@example.com,2025-02-15,bronze,150.00
+C-116,Paul Clark,paul@example.com,2025-03-01,bronze,80.00

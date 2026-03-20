@@ -3,10 +3,12 @@
 resolver = '2'
 members = [
     'apps/zerg/api',
+    'apps/zerg/db-worker',
     'apps/zerg/email-nats',
     'apps/zerg/tasks',
     'libs/core/axum-helpers',
     'libs/core/config',
+    'libs/core/dapr',
     'libs/core/field-selector',
     'libs/core/grpc',
     'libs/core/messaging',
@@ -14,6 +16,7 @@ members = [
     'libs/core/proc_macros/api_resource',
     'libs/core/proc_macros/sea_orm_resource',
     'libs/core/proc_macros/selectable_fields',
+    'libs/analytics',
     'libs/database',
     'libs/domains/cloud_resources',
     'libs/domains/projects',
@@ -39,16 +42,18 @@ chrono = { version = '0.4.44', features = ['serde'] }
 color-eyre = '0.6.5'
 core_config = { path = 'libs/core/config' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
+dapr-client = { path = 'libs/core/dapr' }
 darling = '0.23.0'
-database = { path = 'libs/database' }
+database = { path = 'libs/database', default-features = false }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
 domain_projects = { path = 'libs/domains/projects' }
 domain_users = { path = 'libs/domains/users' }
 domain_vector = { path = 'libs/domains/vector' }
 email = { path = 'libs/notifications/email' }
 eyre = { version = '0.6.12', features = ['default'] }
+influxdb2 = '0.5'
 field-selector = { path = 'libs/core/field-selector' }
-#flagsmith = { version = '2.1.0', features = [] }
+flagsmith = { version = '2.1.0', features = [] }
 futures = "0.3.32"
 grpc-client = { path = 'libs/core/grpc' }
 handlebars = '6.4.0'
@@ -61,7 +66,8 @@ messaging = { path = 'libs/core/messaging' }
 metrics = '0.24.3'
 metrics-exporter-prometheus = '0.18.1'
 mockall = '0.14.0'
-#mongodb = '3.4.1'
+mongodb = '3.5.2'
+neo4rs = '0.8'
 oauth2 = '5.0.0'
 pluralizer = '0.5.0'
 proc-macro2 = "1.0.106"

@@ -43,6 +43,8 @@ pub mod entity;
 pub mod error;
 pub mod handlers;
 pub mod models;
+#[cfg(feature = "mongo")]
+pub mod mongo;
 pub mod postgres;
 pub mod repository;
 pub mod service;
@@ -53,6 +55,8 @@ pub use handlers::{DirectApiDoc, GrpcApiDoc};
 pub use models::{
     CreateTask, Task, TaskFilter, TaskPriority, TaskResponse, TaskStatus, UpdateTask,
 };
+#[cfg(feature = "mongo")]
+pub use mongo::MongoTaskRepository;
 pub use postgres::PgTaskRepository;
 pub use repository::TaskRepository;
 pub use service::TaskService;

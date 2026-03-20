@@ -10,15 +10,18 @@ axum-helpers = { workspace = true }
 chrono = { workspace = true }
 color-eyre = { workspace = true }
 core_config = { workspace = true }
+dapr-client = { workspace = true }
 database = { workspace = true, features = ["all"] }
 domain_cloud_resources = { workspace = true }
 domain_projects = { workspace = true }
-domain_tasks = { path = "../../../libs/domains/tasks" }
+domain_tasks = { path = "../../../libs/domains/tasks", features = ["mongo"] }
 domain_users = { workspace = true, features = ["notifications"] }
 domain_vector = { workspace = true }
 email = { workspace = true }
 eyre = { workspace = true }
 grpc-client = { workspace = true }
+messaging = { workspace = true }
+mongodb = { workspace = true }
 # migration crate removed - using Atlas for migrations
 oauth2 = { workspace = true }
 redis = { workspace = true }

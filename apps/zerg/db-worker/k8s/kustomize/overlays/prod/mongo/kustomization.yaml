@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: zerg
+
+resources:
+  - ../../../base
+  - scaledobject.yaml
+
+namePrefix: mongo-
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: zerg-db-worker-config
+    literals:
+      - DB_BACKEND=mongo
+      - APP_PORT=8081
+      - HEALTH_PORT=8081
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/metadata/annotations/dapr.io~1app-id
+        value: "db-worker-mongo"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            memory: "128Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+    target:
+      kind: Deployment
+      name: zerg-db-worker

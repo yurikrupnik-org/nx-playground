@@ -33,6 +33,7 @@
 //! ```
 
 // Always available modules
+pub mod backend;
 pub mod common;
 
 // Repository abstraction (requires postgres feature since it uses SeaORM)
@@ -43,10 +44,18 @@ pub mod repository;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 
+#[cfg(feature = "mongo")]
+pub mod mongo;
+
 #[cfg(feature = "redis")]
 pub mod redis;
 
+// Introspection module (feature-gated: introspect-sqlx, introspect-sea-orm, or both)
+#[cfg(any(feature = "introspect-sqlx", feature = "introspect-sea-orm"))]
+pub mod introspect;
+
 // Re-exports for convenience
+pub use backend::{DatabaseBackend, DatabaseClient};
 pub use common::{DatabaseError, DatabaseResult};
 
 #[cfg(feature = "postgres")]

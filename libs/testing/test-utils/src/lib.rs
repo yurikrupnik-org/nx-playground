@@ -86,6 +86,9 @@ use uuid::Uuid;
 #[cfg(feature = "postgres")]
 mod postgres;
 
+#[cfg(feature = "mongo")]
+mod mongo;
+
 #[cfg(feature = "redis")]
 mod redis;
 
@@ -95,6 +98,9 @@ mod nats;
 // Re-export based on enabled features
 #[cfg(feature = "postgres")]
 pub use postgres::TestDatabase;
+
+#[cfg(feature = "mongo")]
+pub use mongo::TestMongo;
 
 #[cfg(feature = "redis")]
 pub use redis::TestRedis;

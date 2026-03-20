@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: zerg
+
+resources:
+  - ../../../base
+
+namePrefix: influxdb-
+
+replicas:
+  - name: zerg-db-worker
+    count: 1
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: zerg-db-worker-config
+    literals:
+      - DB_BACKEND=influxdb
+      - APP_PORT=8081
+      - HEALTH_PORT=8081
+      - INFLUXDB_URL=http://influxdb.dbs.svc.cluster.local:8086
+      - INFLUXDB_BUCKET=zerg
+      - INFLUXDB_ORG=zerg
+
+secretGenerator:
+  - name: zerg-db-worker-secrets
+    literals:
+      - INFLUXDB_TOKEN=
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/metadata/annotations/dapr.io~1app-id
+        value: "db-worker-influxdb"
+    target:
+      kind: Deployment
+      name: zerg-db-worker

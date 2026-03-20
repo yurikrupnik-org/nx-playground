@@ -203,3 +203,11 @@ CI runs on GitHub Actions (`.github/workflows/ci-optimized.yml`) with parallel j
 Features: Nx Cloud caching, sccache with GCS backend, Workload Identity Federation, SARIF upload to GitHub Security.
 
 The CI pipeline configuration is generated from KCL in `scripts/kcl/ci/`.
+
+
+## Managed App
+
+Runs managed services that show tauri app or a web app. 
+The UI is built using Solid.js or Rust Leptos.
+Use core features of CSS, manage design system integrated with figma account.
+

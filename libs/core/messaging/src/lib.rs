@@ -67,6 +67,7 @@ mod config;
 mod error;
 mod event;
 mod job;
+pub mod jobs;
 mod processor;
 
 // Core exports
@@ -74,6 +75,7 @@ pub use config::{BackoffStrategy, QueueConfig, QueueDef, RetryPolicy};
 pub use error::{ErrorCategory, ProcessingError};
 pub use event::{JobEvent, ProcessResult};
 pub use job::{Job, JobPriority};
+pub use jobs::{DbOpEvent, DbOperation};
 pub use processor::{FailingProcessor, NoOpProcessor, Processor};
 
 // NATS module (feature-gated)

@@ -1,0 +1,62 @@
+[package]
+name = "zerg_db_worker"
+version = "0.1.0"
+edition = "2024"
+description = "Multi-database event-driven worker service using Dapr + NATS JetStream"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "zerg_db_worker"
+path = "src/main.rs"
+
+[features]
+default = []
+postgres = ["database/postgres", "dep:sea-orm", "domain_tasks/default"]
+mongo = ["database/mongo", "dep:mongodb", "domain_tasks/mongo"]
+qdrant = ["database/qdrant", "dep:qdrant-client"]
+influxdb = ["database/influxdb", "dep:influxdb2"]
+neo4j = ["database/neo4j", "dep:neo4rs"]
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true, features = ["full", "signal"] }
+
+# HTTP server for Dapr subscription delivery + health
+axum = { workspace = true }
+
+# Core
+core_config = { workspace = true }
+dapr-client = { workspace = true }
+database = { workspace = true }
+messaging = { workspace = true }
+
+# Domain
+domain_tasks = { path = "../../../libs/domains/tasks", default-features = false }
+
+# Error handling
+eyre = { workspace = true }
+
+# DB clients (optional, feature-gated)
+mongodb = { workspace = true, optional = true }
+sea-orm = { workspace = true, optional = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Observability
+tracing = { workspace = true }
+
+# Optional direct DB clients
+qdrant-client = { workspace = true, optional = true }
+influxdb2 = { workspace = true, optional = true }
+neo4rs = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -6,7 +6,9 @@ pub mod cloud_resources;
 pub mod health;
 pub mod projects;
 pub mod tasks;
+pub mod tasks_async;
 pub mod tasks_direct;
+pub mod tasks_mongo;
 pub mod users;
 pub mod vector;
 
@@ -66,6 +68,12 @@ pub fn routes(state: &crate::state::AppState) -> Router {
                 .layer(Extension(standard.clone())),
         )
         .nest(
+            "/tasks-mongo",
+            tasks_mongo::router(state.mongo_db.clone())
+                .layer(rl_layer())
+                .layer(Extension(standard.clone())),
+        )
+        .nest(
             domain_projects::entity::Model::URL,
             projects::router(state)
                 .layer(rl_layer())
@@ -83,6 +91,18 @@ pub fn routes(state: &crate::state::AppState) -> Router {
                 .layer(rl_layer())
                 .layer(Extension(standard.clone())),
         );
+
+    // Add async task routes if Dapr is configured
+    let router = if let Some(async_router) = tasks_async::router(state) {
+        router.nest(
+            "/tasks-async",
+            async_router
+                .layer(rl_layer())
+                .layer(Extension(standard.clone())),
+        )
+    } else {
+        router
+    };
 
     // Add vector routes with stricter tier if Qdrant is configured
     let router = if let Some(vector_router) = vector::router(state) {

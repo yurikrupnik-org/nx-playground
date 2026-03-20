@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-postgres
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+    - name: connectionString
+      secretKeyRef:
+        name: dapr-secrets
+        key: POSTGRES_CONNECTION_STRING
+    - name: tableName
+      value: "dapr_state"
+    - name: keyPrefix
+      value: "none"
