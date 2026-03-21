@@ -17,6 +17,7 @@ async fn main() -> eyre::Result<()> {
     install_color_eyre();
 
     let config = Config::from_env()?;
+    // let ssd = Config::from_env1()?;
     init_tracing(&config.environment);
 
     let state = AppState {
