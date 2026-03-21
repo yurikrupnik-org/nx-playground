@@ -188,6 +188,98 @@ export def "main reset" [
     success "Local environment reset complete"
 }
 
+# ============================================================================
+# mprocs — run dev processes via mprocs
+# ============================================================================
+
+const MPROCS_DIR = "manifests/mprocs"
+
+# List available mprocs project configs
+export def "main mprocs list" [] {
+    let root = (repo-root)
+    let dir = $"($root)/($MPROCS_DIR)"
+    let preset_names = ["kind"]
+    let all_files = (ls $dir | where name =~ '\.yaml$' | get name | path basename | each {|f| $f | str replace '.yaml' ''})
+    let projects = ($all_files | where {|name| not ($name in $preset_names)})
+    let presets = ($all_files | where {|name| $name in $preset_names})
+
+    info "Project configs (can be merged):"
+    for f in $projects { print $"  - ($f)" }
+
+    if not ($presets | is-empty) {
+        print ""
+        info "Standalone presets:"
+        for f in $presets { print $"  - ($f) — run: mprocs -c manifests/mprocs/($f).yaml" }
+    }
+}
+
+# Launch mprocs with one or more project configs merged together
+export def "main mprocs" [
+    ...projects: string  # Project names to run (e.g. zerg matia). Omit for all.
+] {
+    require-bin "mprocs"
+
+    let root = (repo-root)
+    let dir = $"($root)/($MPROCS_DIR)"
+
+    # Discover available project configs (exclude kind.yaml — standalone preset)
+    let preset_names = ["kind"]
+    let available = (ls $dir
+        | where name =~ '\.yaml$'
+        | get name
+        | path basename
+        | each {|f| $f | str replace '.yaml' ''}
+        | where {|name| not ($name in $preset_names)}
+    )
+
+    # Determine which configs to merge
+    let selected = if ($projects | is-empty) {
+        # No args → merge all project configs
+        $available
+    } else {
+        # Validate requested projects exist
+        for p in $projects {
+            let cfg_path = $"($dir)/($p).yaml"
+            if not ($cfg_path | path exists) {
+                error $"Config not found: ($p).yaml. Available: ($available | str join ', ')"
+                return
+            }
+        }
+        $projects
+    }
+
+    if ($selected | is-empty) {
+        error "No project configs found"
+        return
+    }
+
+    info $"Merging configs: ($selected | str join ', ')"
+
+    # Merge procs sections from all selected configs
+    mut merged_procs = {}
+    for project in $selected {
+        let cfg_path = $"($dir)/($project).yaml"
+        let cfg = (open $cfg_path)
+        let procs = ($cfg | get procs)
+        $merged_procs = ($merged_procs | merge $procs)
+    }
+
+    let merged = { procs: $merged_procs }
+
+    # Write to temp file and launch mprocs
+    let tmp = (tmpfile "mprocs-merged")
+    let tmp_yaml = $"($tmp).yaml"
+    $merged | to yaml | save -f $tmp_yaml
+
+    info $"Launching mprocs with ($merged_procs | columns | length) processes..."
+    info $"  Processes: ($merged_procs | columns | str join ', ')"
+
+    mprocs --config $tmp_yaml
+
+    # Cleanup after mprocs exits
+    rm -f $tmp_yaml
+}
+
 # Main help
 def main [] {
     print "Local Development Commands"
@@ -203,9 +295,15 @@ def main [] {
     print "  prune [--all]           - Clean Docker resources"
     print "  kompose [--file] [--namespace] - Convert to K8s"
     print "  reset [--file]          - Reset environment"
+    print "  mprocs [projects...]    - Launch mprocs (zerg, matia, or all)"
+    print "  mprocs list             - Show available configs"
     print ""
     print "Examples:"
     print "  nu scripts/nu/local-dev.nu up -d"
     print "  nu scripts/nu/local-dev.nu logs --follow postgres"
     print "  nu scripts/nu/local-dev.nu reset"
+    print "  nu scripts/nu/local-dev.nu mprocs              # all projects"
+    print "  nu scripts/nu/local-dev.nu mprocs zerg         # zerg only"
+    print "  nu scripts/nu/local-dev.nu mprocs zerg matia   # both"
+    print "  nu scripts/nu/local-dev.nu mprocs list         # show available"
 }

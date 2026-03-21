@@ -321,6 +321,12 @@ export def --wrapped "main secrets" [...args] {
     ^nu $script ...$args
 }
 
+# Infrastructure mapping - compose → helm/kcl/kompose
+export def --wrapped "main infra" [...args] {
+    let script = ($SCRIPT_DIR | path dirname | path join "infra.nu")
+    ^nu $script ...$args
+}
+
 # Main help
 def main [] {
     print "Monorepo Nu Scripts"
@@ -337,6 +343,7 @@ def main [] {
     print "  dev     - Docker compose (up, down, logs, kompose, prune)"
     print "  cluster - Kind cluster (create, delete, gitops, observability)"
     print "  secrets - Secrets management (fetch, verify, load)"
+    print "  infra   - Infrastructure mapping (compose → helm/kcl/kompose)"
     print ""
     print "Examples:"
     print "  nu scripts/nu/mod.nu up                    # Local Kind cluster + services"

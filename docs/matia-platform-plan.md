@@ -27,7 +27,8 @@ A **self-hosted subset** tailored to our monorepo:
 | Lineage | Track source → transform → output chains | P0 - Done |
 | Observability | Data quality checks, row counts, schema drift detection | P1 |
 | Reverse ETL | Push results to PG/Mongo/NATS via existing db-worker | P1 |
-| Connectors | PostgreSQL, MongoDB, NATS, Qdrant, InfluxDB, S3 | P1 |
+| Connectors (Source) | PostgreSQL, MongoDB, NATS, Qdrant, InfluxDB, S3 | P1 |
+| Connectors (Sink) | BigQuery, Bigtable, PostgreSQL, MongoDB, S3, NATS | P1 |
 | Scheduling | Cron-based pipeline execution via NATS + KEDA | P2 |
 | API | REST endpoints for catalog, pipeline runs, results | P2 |
 | UI | Web dashboard for catalog browsing, pipeline DAGs | P3 |
@@ -44,8 +45,9 @@ A **self-hosted subset** tailored to our monorepo:
 │  │ CSV      │  │ LazyFrame    │  │ Metadata   │  │ CSV      │  │
 │  │ JSON     │─▶│ transforms   │─▶│ Schema     │─▶│ Parquet  │  │
 │  │ Parquet  │  │ joins        │  │ Lineage    │  │ PG/Mongo │  │
-│  │ PG query │  │ aggregations │  │ Quality    │  │ NATS     │  │
-│  │ Mongo    │  │ filters      │  │ Freshness  │  │ S3       │  │
+│  │ PG query │  │ aggregations │  │ Quality    │  │ NATS/S3  │  │
+│  │ Mongo    │  │ filters      │  │ Freshness  │  │ BigQuery │  │
+│  │ NATS     │  │              │  │            │  │ Bigtable │  │
 │  └──────────┘  └──────────────┘  └────────────┘  └──────────┘  │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -89,6 +91,14 @@ libs/analytics/src/
     postgres.rs     # SELECT → DataFrame via sqlx
     mongo.rs        # collection.find() → DataFrame
     nats.rs         # consume stream → DataFrame (batch window)
+  sinks/
+    mod.rs
+    postgres.rs     # DataFrame → INSERT INTO / COPY via sqlx
+    mongo.rs        # DataFrame → collection.insert_many()
+    bigquery.rs     # DataFrame → BigQuery table via gcp-bigquery-client
+    bigtable.rs     # DataFrame → Bigtable rows via google-cloud-bigtable
+    nats.rs         # DataFrame rows → NATS topic (JSON per row)
+    s3.rs           # DataFrame → Parquet/CSV on S3 (via aws-sdk-s3)
   quality/
     mod.rs
     checks.rs       # null counts, uniqueness, range, regex patterns
@@ -148,6 +158,27 @@ Pipeline::new("sync_to_mongo")
     .source("enriched_tasks", &catalog).unwrap()
     .export_via_dapr(&pubsub, "db.tasks.mongo")
     .await?;
+
+// Pipeline output → BigQuery table
+Pipeline::new("daily_analytics")
+    .source("sales", &catalog).unwrap()
+    .filter_completed()
+    .add_revenue_column()
+    .revenue_by("category")
+    .export_to_bigquery(&bq_client, "project.dataset.daily_revenue")
+    .await?;
+
+// Pipeline output → Bigtable (wide-column for time-series / lookups)
+Pipeline::new("user_features")
+    .source("active_users", &catalog).unwrap()
+    .export_to_bigtable(&bt_client, "user-features", "cf1")
+    .await?;
+
+// Pipeline output → S3 as Parquet (data lake)
+Pipeline::new("archive_metrics")
+    .source("metrics_1h", &catalog).unwrap()
+    .export_to_s3(&s3_client, "s3://data-lake/metrics/", ExportFormat::Parquet)
+    .await?;
 ```
 
 **Scheduling** via NATS + existing worker pattern:
@@ -163,11 +194,18 @@ struct PipelineJob {
 }
 
 enum OutputTarget {
-    Catalog(String),                    // register in catalog
+    Catalog(String),                                    // register in catalog
     Postgres { table: String },
+    Mongo { database: String, collection: String },
     Nats { topic: String },
     Parquet { path: String },
+    BigQuery { table_id: String },                      // project.dataset.table
+    Bigtable { table: String, column_family: String },
+    S3 { bucket: String, prefix: String, format: ExportFormat },
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+enum ExportFormat { Parquet, Csv, Json }
 ```
 
 **New app**: `apps/zerg/analytics-worker/`
@@ -220,15 +258,18 @@ Tech: React (already in `apps/zerg/web/`) + the analytics API endpoints.
 ## Crate Dependency Graph
 
 ```
-libs/analytics/          ← Polars core (no DB deps)
+libs/analytics/              ← Polars core (no DB deps)
   ↑
-libs/analytics-connectors/  ← DB connectors (PG, Mongo, etc.)
-  ↑                           depends on: analytics, database
-apps/zerg/analytics-worker/  ← Scheduled pipeline execution
-  ↑                           depends on: analytics, analytics-connectors, messaging
-apps/zerg/api/              ← REST API for catalog/pipelines
-  ↑                           depends on: analytics, analytics-connectors
-apps/zerg/web/              ← UI dashboard
+libs/analytics-connectors/   ← Source connectors (PG, Mongo, NATS → DataFrame)
+  ↑                            depends on: analytics, database
+libs/analytics-sinks/        ← Output connectors (DataFrame → PG, Mongo, BigQuery, Bigtable, S3, NATS)
+  ↑                            depends on: analytics
+  ↑                            optional deps: gcp-bigquery-client, google-cloud-bigtable, aws-sdk-s3
+apps/matia/api/              ← REST API for catalog/pipelines
+  ↑                            depends on: analytics, analytics-connectors, analytics-sinks
+apps/matia/worker/           ← Scheduled pipeline execution
+  ↑                            depends on: analytics, analytics-connectors, analytics-sinks, messaging
+apps/matia/web/              ← UI dashboard
 ```
 
 ## Key Design Decisions

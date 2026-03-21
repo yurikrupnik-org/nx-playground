@@ -1,6 +1,7 @@
 """
 Configuration schemas for CI generation.
 """
+#type Language = "typescript" | "rust" | "go" | "python" | "java" | "kcl"
 
 import .common as c
 
@@ -26,7 +27,7 @@ schema BaseConfig:
     sccache_provider: "gcp" | "aws" | "s3" = "gcp"
 
     # CI targets to run
-    targets: [str] = ["lint", "test", "build"]
+    targets: [str] = ["lint", "test", "build", "container"]
 
     # Extra environment variables
     env: {str: str} = {}
@@ -105,7 +106,7 @@ schema GoServiceConfig(BaseConfig):
 
 schema PythonAppConfig(BaseConfig):
     """Configuration for Python applications"""
-    package_manager: "pip" | "poetry" | "uv" = "pip"
+    package_manager: "pip" | "poetry" | "uv" = "uv"
 
     # Test/lint tools
     pytest: bool = True
@@ -113,7 +114,7 @@ schema PythonAppConfig(BaseConfig):
     mypy: bool = False
 
     # Build
-    build_wheel: bool = False
+    build_wheel: bool = True
 
 # =============================================================================
 # CI GENERATION CONFIG

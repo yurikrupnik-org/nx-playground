@@ -1,38 +1,32 @@
 """
 Common types and enums for CI configuration.
 """
-
 # =============================================================================
 # TYPE DEFINITIONS
 # =============================================================================
-
 type Language = "typescript" | "rust" | "go" | "python" | "java" | "kcl"
 type PackageManager = "bun" | "npm" | "pnpm" | "yarn" | "cargo" | "go" | "pip" | "poetry"
 type MonorepoTool = "nx" | "turborepo" | "moonrepo" | "cargo-workspace" | "none"
 type CIProvider = "github" | "tekton" | "gitlab" | "circleci"
 type AppType = "rust-single" | "tanstack-app" | "tauri-app" | "node-fe" | "go-service" | "nx-monorepo" | "custom"
-
 # =============================================================================
 # CONSTANTS
 # =============================================================================
-
 # Default versions for tools
-DEFAULT_NODE_VERSION = "22"
+DEFAULT_NODE_VERSION = "24"
 DEFAULT_BUN_VERSION = "1"
 DEFAULT_GO_VERSION = "1.23"
 DEFAULT_RUST_CHANNEL = "stable"
 DEFAULT_PYTHON_VERSION = "3.12"
-
 # Default images for Tekton
 TEKTON_IMAGES = {
-    node = "node:22-slim"
+    node = "node:24-slim"
     bun = "oven/bun:1"
     go = "golang:1.23"
-    rust = "rust:1.83"
+    rust = "rust:1.94"
     python = "python:3.12-slim"
     git = "alpine/git:latest"
 }
-
 # GitHub Actions versions
 GHA_ACTIONS = {
     checkout = "actions/checkout@v4"

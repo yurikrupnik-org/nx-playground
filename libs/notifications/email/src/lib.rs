@@ -56,3 +56,6 @@ pub use provider::{SmtpConfig, SmtpProvider};
 
 #[cfg(feature = "sendgrid")]
 pub use provider::SendGridProvider;
+
+#[cfg(feature = "ses")]
+pub use provider::SesProvider;

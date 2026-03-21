@@ -2,6 +2,7 @@
 [workspace]
 resolver = '2'
 members = [
+    'apps/matia/api',
     'apps/zerg/api',
     'apps/zerg/db-worker',
     'apps/zerg/email-nats',
@@ -31,6 +32,8 @@ members = [
 [workspace.dependencies]
 api_resource = { path = 'libs/core/proc_macros/api_resource' }
 argon2 = { version = '0.5.3', features = ['std'] }
+aws-config = { version = '1', features = ['behavior-version-latest'] }
+aws-sdk-sesv2 = '1'
 async-nats = '0.46.0'
 async-stream = '0.3.6'
 async-trait = '0.1.89'

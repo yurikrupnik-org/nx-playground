@@ -37,11 +37,16 @@ impl FromEnv for ServerConfig {
 }
 
 impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
+    async fn default() -> Result<Self, ConfigError> {
+        Ok(Self {
             host: Ipv4Addr::UNSPECIFIED.to_string(),
-            port: 8080,
-        }
+            port: env_or_default("PORT", "8080")
+              .parse()
+              .map_err(|e| ConfigError::ParseError {
+                key: "PORT".to_string(),
+                details: format!("{}", e),
+              })?
+        })
     }
 }
 

@@ -15,6 +15,30 @@
         "nx": "22.5.2",
       },
     },
+    "apps/matia/web": {
+      "name": "matia-web",
+      "version": "0.0.0",
+      "dependencies": {
+        "@tanstack/solid-query": "^5.90.15",
+        "@tanstack/solid-router": "^1.139.14",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "solid-js": "^1.9.5",
+        "tailwind-merge": "^3.3.1",
+      },
+      "devDependencies": {
+        "@solidjs/testing-library": "^0.8.10",
+        "@tailwindcss/vite": "^4.1.17",
+        "@testing-library/jest-dom": "^6.6.3",
+        "jsdom": "^25.0.1",
+        "solid-devtools": "^0.34.3",
+        "tailwindcss": "^4.1.17",
+        "typescript": "^5.7.2",
+        "vite": "^7.1.4",
+        "vite-plugin-solid": "2.11.9",
+        "vitest": "^4.0.0",
+      },
+    },
     "apps/zerg/web": {
       "name": "vite-template-solid",
       "version": "0.0.0",
@@ -43,6 +67,23 @@
     "libs/domains/tasks": {
       "name": "@domain/tasks",
       "version": "0.1.0",
+    },
+    "libs/matia/api-client": {
+      "name": "@matia/api-client",
+      "version": "0.1.0",
+      "dependencies": {
+        "@matia/types": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.7.2",
+      },
+    },
+    "libs/matia/types": {
+      "name": "@matia/types",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "^5.7.2",
+      },
     },
   },
   "packages": {
@@ -393,6 +434,10 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@ltd/j-toml": ["@ltd/j-toml@1.38.0", "", {}, "sha512-lYtBcmvHustHQtg4X7TXUu1Xa/tbLC3p2wLvgQI+fWVySguVZJF60Snxijw5EiohumxZbR10kWYFFebh1zotiw=="],
+
+    "@matia/api-client": ["@matia/api-client@workspace:libs/matia/api-client"],
+
+    "@matia/types": ["@matia/types@workspace:libs/matia/types"],
 
     "@monodon/rust": ["@monodon/rust@2.3.0", "", { "dependencies": { "@ltd/j-toml": "1.38.0", "@nx/devkit": ">= 19 < 21", "chalk": "^4.1.2", "npm-run-path": "^4.0.1", "semver": "7.5.4", "tslib": "^2.0.0" }, "peerDependencies": { "@napi-rs/cli": "^3.0.0-alpha.55" } }, "sha512-iMnMnO/UF84Cod+J0DHaSTJLTlxT5eWXuTFeFlge5AeKNlzhnfCa733M2LiZjD9WVfIGK5yy4go63S3bshB0mg=="],
 
@@ -1055,6 +1100,8 @@
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
     "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="],
+
+    "matia-web": ["matia-web@workspace:apps/matia/web"],
 
     "merge-anything": ["merge-anything@5.1.7", "", { "dependencies": { "is-what": "^4.1.8" } }, "sha512-eRtbOb1N5iyH0tkQDAoQ4Ipsp/5qSR79Dzrz8hEPxRX10RWWR/iQXdoKmBSRCThY1Fh5EhISDtpSc93fpxUniQ=="],
 

@@ -8,3 +8,11 @@ rustc-wrapper = "sccache"
 # Default export directory for ts-rs (relative to each crate root)
 # Override with #[ts(export_to = "custom/")] per type if needed
 TS_RS_EXPORT_DIR = { value = "types", relative = false }
+
+# AWS CodeArtifact private registry
+# To authenticate locally:
+#   aws codeartifact login --tool cargo --domain $CODEARTIFACT_DOMAIN \
+#     --repository $CODEARTIFACT_REPO --region $AWS_REGION
+# The login command writes credentials to ~/.cargo/credentials.toml automatically.
+[registries.codeartifact]
+index = "sparse+https://${CODEARTIFACT_DOMAIN}-${CODEARTIFACT_OWNER}.d.codeartifact.${AWS_REGION}.amazonaws.com/cargo/${CODEARTIFACT_REPO}/"

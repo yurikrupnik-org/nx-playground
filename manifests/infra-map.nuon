@@ -1,0 +1,83 @@
+# Infrastructure mapping: compose service → K8s deployment strategy
+# type: helm | kcl | kompose | kustomize
+#
+# helm:     deploys via `helm install/upgrade`
+# kcl:      renders manifests via `kcl run` then `kubectl apply`
+# kompose:  converts compose service via `kompose` (fallback)
+# kustomize: applies a kustomize overlay
+{
+    postgres: {
+        type: helm
+        chart: "oci://registry-1.docker.io/bitnamicharts/postgresql"
+        version: null
+        namespace: dbs
+        values: {
+            "auth.postgresPassword": mypassword
+            "auth.username": myuser
+            "auth.password": mypassword
+            "auth.database": mydatabase
+            "primary.service.ports.postgresql": 5432
+        }
+        compose_service: postgres
+    }
+    mongo: {
+        type: helm
+        chart: "oci://registry-1.docker.io/bitnamicharts/mongodb"
+        version: null
+        namespace: dbs
+        values: {
+            "auth.enabled": false
+        }
+        compose_service: mongo
+    }
+    redis: {
+        type: helm
+        chart: "oci://registry-1.docker.io/bitnamicharts/redis"
+        version: null
+        namespace: dbs
+        values: {
+            "architecture": standalone
+            "auth.enabled": false
+        }
+        compose_service: redis
+    }
+    nats: {
+        type: helm
+        chart: nats/nats
+        repo: "https://nats-io.github.io/k8s/helm/charts/"
+        version: null
+        namespace: dbs
+        values: {
+            "config.jetstream.enabled": true
+            "config.monitor.enabled": true
+        }
+        compose_service: nats
+    }
+    qdrant: {
+        type: helm
+        chart: qdrant/qdrant
+        repo: "https://qdrant.github.io/qdrant-helm/"
+        version: null
+        namespace: dbs
+        values: {}
+        compose_service: qdrant
+    }
+    influxdb: {
+        type: helm
+        chart: influxdata/influxdb2
+        repo: "https://helm.influxdata.com/"
+        version: null
+        namespace: dbs
+        values: {
+            "adminUser.organization": docs
+            "adminUser.bucket": home
+            "adminUser.token": admintoken123
+        }
+        compose_service: influxdb2
+    }
+    mailhog: {
+        type: kompose
+        namespace: dbs
+        compose_service: mailhog
+    }
+}

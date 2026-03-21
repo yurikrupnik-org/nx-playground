@@ -157,6 +157,20 @@ services:
     networks:
       - qdrant-network
 
+  strapi:
+    image: naskio/strapi
+    ports:
+      - "1337:1337"
+    environment:
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: mydatabase
+      DATABASE_USERNAME: myuser
+      DATABASE_PASSWORD: mypassword
+    depends_on:
+      - postgres
+
 volumes:
   influxdb2-data:
   influxdb2-config:
