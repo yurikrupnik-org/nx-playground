@@ -1,0 +1,88 @@
+name: Publish Crates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'libs/**/Cargo.toml'
+      - 'libs/**/*.rs'
+  workflow_dispatch:
+    inputs:
+      crate:
+        description: 'Specific crate to publish (e.g., core_config). Leave empty for all changed.'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry run (validate without publishing)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-crates-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> dist/target'
+
+      - name: Determine crates to publish
+        id: crates
+        run: |
+          if [ -n "${{ inputs.crate }}" ]; then
+            echo "crates=${{ inputs.crate }}" >> $GITHUB_OUTPUT
+            echo "Publishing specific crate: ${{ inputs.crate }}"
+            exit 0
+          fi
+
+          # Find changed lib crates since last commit on main
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- libs/ | \
+            grep -oP 'libs/[^/]+(/[^/]+)*' | sort -u)
+
+          CRATES=""
+          for DIR in $CHANGED; do
+            if [ -f "$DIR/Cargo.toml" ]; then
+              NAME=$(grep '^name' "$DIR/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
+              if [ -n "$NAME" ]; then
+                CRATES="$CRATES $NAME"
+              fi
+            fi
+          done
+
+          CRATES=$(echo "$CRATES" | xargs)
+          echo "crates=$CRATES" >> $GITHUB_OUTPUT
+          echo "Changed crates: $CRATES"
+
+      - name: Publish to crates.io
+        if: steps.crates.outputs.crates != ''
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          DRY_RUN=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN="--dry-run"
+            echo "Dry run mode enabled"
+          fi
+
+          for CRATE in ${{ steps.crates.outputs.crates }}; do
+            echo "Publishing $CRATE..."
+            cargo publish \
+              --package "$CRATE" \
+              --allow-dirty \
+              $DRY_RUN \
+            || echo "Warning: Failed to publish $CRATE (may already exist at this version)"
+          done

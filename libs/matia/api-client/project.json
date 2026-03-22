@@ -1,0 +1,8 @@
+{
+  "name": "@matia/api-client",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/matia/api-client/src",
+  "targets": {},
+  "tags": ["scope:matia", "type:client"]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@matia/api-client",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TypeScript API client for the Matia data platform",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "tsc"
+  },
+  "dependencies": {
+    "@matia/types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "publishConfig": {
+    "registry": "https://me-west1-npm.pkg.dev/playground-447016/npm-shared/"
+  }
+}
