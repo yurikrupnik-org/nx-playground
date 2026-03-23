@@ -1,0 +1,21 @@
+pr_number,title,author,team,first_commit_at,opened_at,merged_at,review_time_hours,additions,deletions,changed_files
+42,feat: add rate limiter to API,yuri,platform,2025-02-28T09:00:00Z,2025-02-28T16:00:00Z,2025-03-01T09:30:00Z,4.5,320,45,12
+43,fix: tasks retry logic,yuri,platform,2025-03-01T08:00:00Z,2025-03-01T10:00:00Z,2025-03-01T14:00:00Z,2.0,85,20,4
+44,chore: update web dependencies,sara,frontend,2025-03-01T14:00:00Z,2025-03-01T16:00:00Z,2025-03-02T08:30:00Z,1.5,1200,980,8
+45,feat: JWT refresh token rotation,yuri,platform,2025-03-02T10:00:00Z,2025-03-02T18:00:00Z,2025-03-03T10:30:00Z,6.0,450,120,15
+46,test: add integration tests for tasks,alex,platform,2025-03-03T09:00:00Z,2025-03-03T14:00:00Z,2025-03-04T07:30:00Z,3.5,280,10,8
+47,feat: SES email provider,yuri,platform,2025-03-04T10:00:00Z,2025-03-04T17:00:00Z,2025-03-05T15:30:00Z,8.0,240,15,6
+48,fix: web routing 404 on refresh,sara,frontend,2025-03-05T11:00:00Z,2025-03-05T14:00:00Z,2025-03-06T09:30:00Z,2.5,35,8,3
+49,feat: add CORS wildcard for dev,yuri,platform,2025-03-06T08:00:00Z,2025-03-06T12:00:00Z,2025-03-07T12:30:00Z,5.0,60,15,4
+50,refactor: extract gRPC health module,alex,platform,2025-03-07T14:00:00Z,2025-03-07T17:00:00Z,2025-03-08T09:00:00Z,2.0,150,180,10
+51,feat: Dapr pub/sub integration,yuri,platform,2025-03-08T10:00:00Z,2025-03-08T18:00:00Z,2025-03-09T14:30:00Z,12.0,520,30,18
+52,fix: web dark mode contrast,sara,frontend,2025-03-09T09:00:00Z,2025-03-09T11:00:00Z,2025-03-10T10:30:00Z,1.0,45,20,5
+53,feat: email template hot reload,alex,platform,2025-03-10T08:00:00Z,2025-03-10T15:00:00Z,2025-03-11T13:30:00Z,6.5,310,40,9
+54,fix: API memory leak in vector search,yuri,platform,2025-03-11T16:00:00Z,2025-03-11T18:00:00Z,2025-03-12T09:30:00Z,3.0,25,45,3
+55,chore: bump sea-orm to rc.34,alex,platform,2025-03-12T10:00:00Z,2025-03-12T12:00:00Z,2025-03-13T07:30:00Z,1.5,80,75,6
+56,feat: analytics DORA module,yuri,platform,2025-03-13T09:00:00Z,2025-03-13T17:00:00Z,2025-03-14T15:30:00Z,10.0,680,20,14
+57,test: web e2e with playwright,sara,frontend,2025-03-14T10:00:00Z,2025-03-14T16:00:00Z,2025-03-15T08:30:00Z,4.0,420,15,12
+58,feat: CodeArtifact crate publishing,yuri,platform,2025-03-15T11:00:00Z,2025-03-15T18:00:00Z,2025-03-16T11:30:00Z,7.0,180,10,5
+59,fix: tasks status enum migration,alex,platform,2025-03-16T14:00:00Z,2025-03-16T16:00:00Z,2025-03-17T09:30:00Z,2.5,95,110,7
+60,feat: KCL Tilt generator,yuri,platform,2025-03-17T08:00:00Z,2025-03-17T16:00:00Z,2025-03-18T13:30:00Z,9.0,550,60,11
+61,fix: web build output path,sara,frontend,2025-03-18T10:00:00Z,2025-03-18T12:00:00Z,2025-03-19T10:30:00Z,1.5,15,10,2

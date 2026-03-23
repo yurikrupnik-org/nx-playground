@@ -1,0 +1,7 @@
+incident_id,service,team,severity,title,caused_by_deploy,detected_at,resolved_at,detection_method
+inc-001,zerg-web,frontend,high,Homepage 500 errors after deploy,d-003,2025-03-02T09:10:00Z,2025-03-02T09:45:00Z,alertmanager
+inc-002,zerg-api,platform,critical,API latency spike p99 > 5s,d-008,2025-03-07T13:10:00Z,2025-03-07T14:30:00Z,prometheus
+inc-003,zerg-email-nats,platform,medium,Email delivery queue backlog,d-012,2025-03-11T14:15:00Z,2025-03-11T15:00:00Z,grafana
+inc-004,zerg-api,platform,high,Auth middleware panic on malformed JWT,d-019,2025-03-18T14:12:00Z,2025-03-18T15:20:00Z,sentry
+inc-005,zerg-tasks,platform,low,gRPC deadline exceeded intermittent,,2025-03-10T22:00:00Z,2025-03-11T08:30:00Z,pagerduty
+inc-006,zerg-web,frontend,medium,CSS bundle missing after CDN purge,,2025-03-14T16:30:00Z,2025-03-14T17:15:00Z,statuspage

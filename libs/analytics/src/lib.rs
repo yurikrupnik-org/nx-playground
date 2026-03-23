@@ -28,12 +28,14 @@
 //! ```
 
 pub mod catalog;
+pub mod dora;
 pub mod error;
 pub mod ingest;
 pub mod pipeline;
 pub mod transform;
 
 pub use catalog::DataCatalog;
+pub use dora::{compute_dora_summary, DoraLevel, DoraMetrics};
 pub use error::{AnalyticsError, AnalyticsResult};
 pub use ingest::Ingestor;
 pub use pipeline::Pipeline;
