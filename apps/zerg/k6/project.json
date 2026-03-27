@@ -1,0 +1,52 @@
+{
+  "name": "zerg-k6",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/zerg/k6",
+  "implicitDependencies": ["zerg_api", "zerg_tasks"],
+  "targets": {
+    "test:auth": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "k6 run apps/zerg/k6/scenarios/auth-storm.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test:crud": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "k6 run apps/zerg/k6/scenarios/crud-thundering-herd.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test:rate-limit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "k6 run apps/zerg/k6/scenarios/rate-limiter.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test:grpc-vs-rest": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "k6 run apps/zerg/k6/scenarios/grpc-vs-rest.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test:pool-exhaustion": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "k6 run apps/zerg/k6/scenarios/pool-exhaustion.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test:multi-tenant": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "k6 run apps/zerg/k6/scenarios/multi-tenant.js",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  },
+  "tags": ["scope:zerg", "type:k6"]
+}

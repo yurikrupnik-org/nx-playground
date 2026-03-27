@@ -1,7 +1,6 @@
 """
 Tekton pipeline generator.
 """
-
 import k8s.apimachinery.pkg.apis.meta.v1 as metav1
 import .schemas
 import .tasks
@@ -10,7 +9,6 @@ import ...schemas.config as cfg
 # =============================================================================
 # PIPELINE BUILDERS
 # =============================================================================
-
 _pipeline_task = lambda name: str, task_name: str, run_after: [str] = [] -> schemas.TektonPipelineTask {
     schemas.TektonPipelineTask {
         name = name
@@ -35,11 +33,9 @@ _clone_task = lambda -> schemas.TektonPipelineTask {
         ]
     }
 }
-
 # =============================================================================
 # MONOREPO PIPELINE GENERATOR
 # =============================================================================
-
 generate_monorepo = lambda config: cfg.MonorepoConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
     _pm = config.package_manager
     _tasks = [
@@ -48,6 +44,7 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, tekton_config: cfg.Tekton
         tasks.nx_task("lint", _pm, config.use_affected)
         tasks.nx_task("test", _pm, config.use_affected)
         tasks.nx_task("build", _pm, config.use_affected)
+        tasks.nx_task("container", _pm, config.use_affected)
     ]
 
     _pipeline = schemas.TektonPipeline {
@@ -74,11 +71,9 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, tekton_config: cfg.Tekton
 
     _tasks + [_pipeline]
 }
-
 # =============================================================================
 # RUST APP PIPELINE GENERATOR
 # =============================================================================
-
 generate_rust = lambda config: cfg.RustAppConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
     _features = "--features " + ",".join(config.cargo_features) if config.cargo_features else ""
     _tasks = [
@@ -92,6 +87,7 @@ generate_rust = lambda config: cfg.RustAppConfig, tekton_config: cfg.TektonConfi
     _pipeline_tasks = [_clone_task()]
     if config.rustfmt:
         _pipeline_tasks += [_pipeline_task("fmt", "cargo-fmt", ["clone"])]
+
     if config.clippy:
         _after = ["fmt"] if config.rustfmt else ["clone"]
         _pipeline_tasks += [_pipeline_task("clippy", "cargo-clippy", _after)]
@@ -120,11 +116,9 @@ generate_rust = lambda config: cfg.RustAppConfig, tekton_config: cfg.TektonConfi
 
     [t for t in _tasks if t] + [_pipeline]
 }
-
 # =============================================================================
 # NODE APP PIPELINE GENERATOR
 # =============================================================================
-
 generate_node = lambda config: cfg.NodeAppConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
     _pm = config.package_manager
     _tasks = [
@@ -145,7 +139,6 @@ generate_node = lambda config: cfg.NodeAppConfig, tekton_config: cfg.TektonConfi
         _pipeline_tasks += [_pipeline_task("build", "build", ["lint", "test"])]
     else:
         _pipeline_tasks += [_pipeline_task("build", "build", ["lint"])]
-
     _pipeline = schemas.TektonPipeline {
         metadata = metav1.ObjectMeta {
             name = "${config.name}-ci"
@@ -164,11 +157,9 @@ generate_node = lambda config: cfg.NodeAppConfig, tekton_config: cfg.TektonConfi
 
     [t for t in _tasks if t] + [_pipeline]
 }
-
 # =============================================================================
 # GO SERVICE PIPELINE GENERATOR
 # =============================================================================
-
 generate_go = lambda config: cfg.GoServiceConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
     _tasks = [
         tasks.git_clone()
@@ -198,7 +189,6 @@ generate_go = lambda config: cfg.GoServiceConfig, tekton_config: cfg.TektonConfi
 
     _tasks + [_pipeline]
 }
-
 # =============================================================================
 # EXPORTS
 # =============================================================================

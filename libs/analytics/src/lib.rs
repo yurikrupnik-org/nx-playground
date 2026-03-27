@@ -34,6 +34,9 @@ pub mod ingest;
 pub mod pipeline;
 pub mod transform;
 
+#[cfg(feature = "bigquery")]
+pub mod bigquery;
+
 pub use catalog::DataCatalog;
 pub use dora::{compute_dora_summary, DoraLevel, DoraMetrics};
 pub use error::{AnalyticsError, AnalyticsResult};

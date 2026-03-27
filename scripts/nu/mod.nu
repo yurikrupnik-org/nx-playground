@@ -50,6 +50,19 @@ def check-prerequisites []: nothing -> bool {
     $all_found
 }
 
+export def "main frankenstien" [
+  --name (-n): string = "dev"      # Cluster name
+  --workers (-w): int = 2          # Number of worker nodes
+  --skip-dbs                       # Skip database deployment
+  --skip-secrets                   # Skip external-secrets setup
+  --skip-obs                       # Skip observability stack
+  --skip-tilt                      # Skip starting Tilt
+  --flux                           # Bootstrap Flux GitOps
+  --dry-run                        # Preview without executing
+  --verbose (-v)
+] {
+  create-app-namespaces
+}
 # ============================================================================
 # Top-level up/down commands - Full environment lifecycle
 # ============================================================================
@@ -199,7 +212,11 @@ def setup-external-secrets [] {
 }
 
 # Bootstrap Flux GitOps
-def bootstrap-flux [] {
+def bootstrap-flux [
+  repository: string = $CONFIG.gitops_repo
+  branch: string = "main"
+  path: string = "/clusters/mgmt"
+] {
     require-bin "flux"
     require-bin "gh"
 

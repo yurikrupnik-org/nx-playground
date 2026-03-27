@@ -1,0 +1,31 @@
+{
+  "name": "zerg-e2e",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/zerg/e2e",
+  "implicitDependencies": ["zerg-web", "zerg_api"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx playwright test --config=apps/zerg/e2e/playwright.config.ts",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test:ui": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx playwright test --config=apps/zerg/e2e/playwright.config.ts --ui",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test:headed": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx playwright test --config=apps/zerg/e2e/playwright.config.ts --headed",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  },
+  "tags": ["scope:zerg", "type:e2e"]
+}

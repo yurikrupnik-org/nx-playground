@@ -13,7 +13,8 @@ parquet = ["polars/parquet"]
 sql = ["dep:polars-sql"]
 streaming = ["polars/streaming"]
 cloud = ["polars/cloud"]
-all = ["csv", "json", "parquet", "sql", "streaming"]
+bigquery = ["dep:gcp-bigquery-client"]
+all = ["csv", "json", "parquet", "sql", "streaming", "bigquery"]
 
 [dependencies]
 chrono = { workspace = true }
@@ -37,6 +38,7 @@ polars = { version = "0.46", features = [
     "log",
     "dynamic_group_by",
 ] }
+gcp-bigquery-client = { version = "0.25", optional = true }
 polars-sql = { version = "0.46", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

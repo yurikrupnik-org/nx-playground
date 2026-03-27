@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K8s CRD Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+    --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff; --accent2: #3fb950;
+    --danger: #f85149; --warn: #d29922; --purple: #bc8cff; --cyan: #56d4dd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; }
+
+  /* Header */
+  .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 20px;
+    display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .actions { margin-left: auto; display: flex; gap: 8px; }
+  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg3);
+    color: var(--text); cursor: pointer; font-size: 13px; transition: all 0.15s; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: #238636; border-color: #238636; color: #fff; }
+  .btn.primary:hover { background: #2ea043; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Summary cards */
+  .summary { display: flex; gap: 12px; padding: 12px 20px; background: var(--bg2);
+    border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+  .card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; min-width: 120px; }
+  .card .card-value { font-size: 22px; font-weight: 700; }
+  .card .card-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .card.blue .card-value { color: var(--accent); }
+  .card.green .card-value { color: var(--accent2); }
+  .card.purple .card-value { color: var(--purple); }
+  .card.cyan .card-value { color: var(--cyan); }
+
+  /* Tabs */
+  .tabs { display: flex; background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 0 20px; flex-shrink: 0; overflow-x: auto; }
+  .tab { padding: 10px 16px; cursor: pointer; color: var(--text2); font-size: 13px;
+    border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* Main layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar / Tree */
+  .sidebar { width: 420px; border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    flex-shrink: 0; }
+  .search-box { padding: 10px; border-bottom: 1px solid var(--border); }
+  .search-box input { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 13px; outline: none; }
+  .search-box input:focus { border-color: var(--accent); }
+  .tree { flex: 1; overflow-y: auto; padding: 6px 0; }
+  .tree-group { margin-bottom: 2px; }
+  .tree-group-header { padding: 6px 14px; cursor: pointer; display: flex; align-items: center;
+    gap: 6px; font-size: 13px; font-weight: 600; color: var(--text2); user-select: none; }
+  .tree-group-header:hover { background: var(--bg3); color: var(--text); }
+  .tree-group-header .arrow { transition: transform 0.15s; font-size: 10px; width: 12px; }
+  .tree-group-header.open .arrow { transform: rotate(90deg); }
+  .tree-group-header .count { margin-left: auto; background: var(--bg3); padding: 1px 7px;
+    border-radius: 10px; font-size: 11px; font-weight: 400; }
+  .tree-items { display: none; }
+  .tree-items.open { display: block; }
+  .tree-item { padding: 5px 14px 5px 30px; cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; gap: 6px; }
+  .tree-item:hover { background: var(--bg3); }
+  .tree-item.selected { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tree-item .item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; flex-shrink: 0;
+    border: 1px solid var(--border); }
+  .badge.scope-ns { background: rgba(88,166,255,0.15); color: var(--accent); border-color: rgba(88,166,255,0.3); }
+  .badge.scope-cluster { background: rgba(188,140,255,0.15); color: var(--purple); border-color: rgba(188,140,255,0.3); }
+  .badge.kind { background: var(--bg3); color: var(--text2); }
+  .badge.group { background: rgba(86,212,221,0.1); color: var(--cyan); border-color: rgba(86,212,221,0.25); }
+  .badge.ns { background: rgba(63,185,80,0.1); color: var(--accent2); border-color: rgba(63,185,80,0.25); }
+
+  /* Content / YAML panel */
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .content-header { padding: 10px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg2); flex-wrap: wrap; }
+  .content-header .resource-title { font-size: 14px; font-weight: 600; }
+  .yaml-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .yaml-editor { flex: 1; width: 100%; resize: none; background: var(--bg); color: var(--accent2);
+    border: none; padding: 14px 16px; font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 13px; line-height: 1.5; outline: none; tab-size: 2; overflow: auto; }
+  .yaml-toolbar { padding: 8px 16px; border-top: 1px solid var(--border); display: flex;
+    align-items: center; gap: 10px; background: var(--bg2); flex-shrink: 0; }
+  .yaml-toolbar .status { font-size: 12px; color: var(--text2); }
+  .yaml-toolbar .status.error { color: var(--danger); }
+  .yaml-toolbar .status.success { color: var(--accent2); }
+
+  /* CRD overview table */
+  .overview { flex: 1; overflow: auto; padding: 0; }
+  .overview table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .overview th { position: sticky; top: 0; background: var(--bg2); padding: 8px 12px;
+    text-align: left; font-weight: 600; border-bottom: 1px solid var(--border); color: var(--text2);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; user-select: none; }
+  .overview th:hover { color: var(--text); }
+  .overview th.sorted::after { content: ' \u25B2'; font-size: 9px; }
+  .overview th.sorted.desc::after { content: ' \u25BC'; }
+  .overview td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+  .overview tr:hover td { background: var(--bg3); }
+  .overview .zero { color: var(--text2); }
+
+  /* Empty state */
+  .empty { display: flex; align-items: center; justify-content: center; flex: 1;
+    color: var(--text2); font-size: 14px; flex-direction: column; gap: 8px; }
+
+  /* Loading */
+  .loading { display: flex; align-items: center; justify-content: center; flex: 1; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>K8s CRD Dashboard</h1>
+  <div class="actions">
+    <span id="liveIndicator" style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)">
+      <span id="liveDot" style="width:8px;height:8px;border-radius:50%;background:var(--accent2)"></span>
+      <span id="liveLabel">Connecting...</span>
+    </span>
+  </div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="by_namespace">Namespace</div>
+  <div class="tab" data-tab="by_group">API Group</div>
+  <div class="tab" data-tab="by_kind">Kind</div>
+  <div class="tab" data-tab="by_scope">Scope</div>
+  <div class="tab" data-tab="by_version">Version</div>
+  <div class="tab" data-tab="overview">CRD Overview</div>
+</div>
+
+<div class="main">
+  <div class="sidebar" id="sidebar">
+    <div class="search-box">
+      <input type="text" id="search" placeholder="Filter resources..." oninput="filterTree()">
+    </div>
+    <div class="tree" id="tree">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div class="content" id="content">
+    <div class="empty">
+      <div>Select a resource to view its YAML</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let dashboardData = null;
+let currentTab = 'by_namespace';
+let selectedResource = null;
+let originalYaml = '';
+let overviewSort = { col: 'instance_count', desc: true };
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTab = tab.dataset.tab;
+    if (currentTab === 'overview') {
+      renderOverview();
+    } else {
+      renderTree();
+      document.getElementById('sidebar').style.display = '';
+    }
+  });
+});
+
+let lastUpdateTime = null;
+let eventSource = null;
+
+function onDashboardData(data) {
+  dashboardData = data;
+  lastUpdateTime = new Date();
+  renderSummary();
+  if (currentTab === 'overview') renderOverview();
+  else renderTree();
+  updateLiveIndicator('connected');
+}
+
+function updateLiveIndicator(status) {
+  const dot = document.getElementById('liveDot');
+  const label = document.getElementById('liveLabel');
+  if (status === 'connected') {
+    dot.style.background = 'var(--accent2)';
+    const ago = lastUpdateTime ? timeSince(lastUpdateTime) : '';
+    label.textContent = `Live${ago ? ' \u00b7 updated ' + ago : ''}`;
+  } else if (status === 'connecting') {
+    dot.style.background = 'var(--warn)';
+    label.textContent = 'Reconnecting...';
+  } else {
+    dot.style.background = 'var(--danger)';
+    label.textContent = 'Disconnected';
+  }
+}
+
+function timeSince(date) {
+  const s = Math.floor((new Date() - date) / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  return Math.floor(s / 3600) + 'h ago';
+}
+
+// Update the "ago" label periodically
+setInterval(() => { if (lastUpdateTime) updateLiveIndicator('connected'); }, 5000);
+
+function connectSSE() {
+  if (eventSource) eventSource.close();
+  updateLiveIndicator('connecting');
+
+  eventSource = new EventSource('/api/events');
+
+  eventSource.addEventListener('snapshot', (e) => {
+    try { onDashboardData(JSON.parse(e.data)); } catch(err) { console.error('snapshot parse error', err); }
+  });
+
+  eventSource.addEventListener('update', (e) => {
+    try { onDashboardData(JSON.parse(e.data)); } catch(err) { console.error('update parse error', err); }
+  });
+
+  eventSource.onerror = () => {
+    updateLiveIndicator('connecting');
+    // EventSource auto-reconnects, but we update the UI
+  };
+}
+
+function renderSummary() {
+  if (!dashboardData) return;
+  const d = dashboardData;
+  const nsCount = Object.keys(d.by_namespace).length;
+  const groupCount = Object.keys(d.by_group).length;
+  const kindCount = Object.keys(d.by_kind).length;
+  document.getElementById('summary').innerHTML = `
+    <div class="card blue"><div class="card-value">${d.total_crds}</div><div class="card-label">CRD Types</div></div>
+    <div class="card green"><div class="card-value">${d.total_instances}</div><div class="card-label">Instances</div></div>
+    <div class="card cyan"><div class="card-value">${d.total_namespaced}</div><div class="card-label">Namespaced</div></div>
+    <div class="card purple"><div class="card-value">${d.total_cluster_scoped}</div><div class="card-label">Cluster-scoped</div></div>
+    <div class="card"><div class="card-value">${nsCount}</div><div class="card-label">Namespaces</div></div>
+    <div class="card"><div class="card-value">${groupCount}</div><div class="card-label">API Groups</div></div>
+    <div class="card"><div class="card-value">${kindCount}</div><div class="card-label">Kinds</div></div>
+  `;
+}
+
+function renderOverview() {
+  if (!dashboardData) return;
+  document.getElementById('sidebar').style.display = 'none';
+  const content = document.getElementById('content');
+  const search = document.getElementById('search').value.toLowerCase();
+
+  let summaries = dashboardData.crd_summaries;
+  if (search) {
+    summaries = summaries.filter(s =>
+      s.name.toLowerCase().includes(search) ||
+      s.group.toLowerCase().includes(search) ||
+      s.kind.toLowerCase().includes(search)
+    );
+  }
+
+  // Sort
+  summaries.sort((a, b) => {
+    let va = a[overviewSort.col], vb = b[overviewSort.col];
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+    if (va < vb) return overviewSort.desc ? 1 : -1;
+    if (va > vb) return overviewSort.desc ? -1 : 1;
+    return 0;
+  });
+
+  const cols = [
+    { key: 'kind', label: 'Kind' },
+    { key: 'group', label: 'API Group' },
+    { key: 'version', label: 'Version' },
+    { key: 'scope', label: 'Scope' },
+    { key: 'instance_count', label: 'Instances' },
+    { key: 'name', label: 'CRD Name' },
+  ];
+
+  let html = '<div class="overview"><table><thead><tr>';
+  for (const col of cols) {
+    const sorted = overviewSort.col === col.key;
+    const cls = sorted ? (overviewSort.desc ? 'sorted desc' : 'sorted') : '';
+    html += `<th class="${cls}" data-col="${col.key}">${col.label}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  for (const s of summaries) {
+    const scopeBadge = s.scope === 'namespaced'
+      ? '<span class="badge scope-ns">Namespaced</span>'
+      : '<span class="badge scope-cluster">Cluster</span>';
+    const countCls = s.instance_count === 0 ? 'zero' : '';
+    html += `<tr>
+      <td><strong>${esc(s.kind)}</strong></td>
+      <td><span class="badge group">${esc(s.group)}</span></td>
+      <td>${esc(s.version)}</td>
+      <td>${scopeBadge}</td>
+      <td class="${countCls}"><strong>${s.instance_count}</strong></td>
+      <td style="color:var(--text2);font-size:12px">${esc(s.name)}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div>';
+  content.innerHTML = html;
+
+  // Sort click handlers
+  content.querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (overviewSort.col === col) overviewSort.desc = !overviewSort.desc;
+      else { overviewSort.col = col; overviewSort.desc = col === 'instance_count'; }
+      renderOverview();
+    });
+  });
+}
+
+function renderTree() {
+  if (!dashboardData) return;
+  document.getElementById('sidebar').style.display = '';
+  const groups = dashboardData[currentTab];
+  if (!groups) return;
+  const search = document.getElementById('search').value.toLowerCase();
+  const tree = document.getElementById('tree');
+  tree.innerHTML = '';
+
+  const sortedKeys = Object.keys(groups).sort((a, b) => {
+    // Sort by instance count desc
+    return groups[b].length - groups[a].length;
+  });
+
+  for (const key of sortedKeys) {
+    let items = groups[key];
+    if (search) {
+      items = items.filter(i =>
+        i.name.toLowerCase().includes(search) ||
+        i.kind.toLowerCase().includes(search) ||
+        (i.namespace || '').toLowerCase().includes(search) ||
+        i.group.toLowerCase().includes(search)
+      );
+      if (items.length === 0) continue;
+    }
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'tree-group';
+
+    const headerEl = document.createElement('div');
+    headerEl.className = 'tree-group-header';
+    headerEl.innerHTML = `<span class="arrow">&#9654;</span> ${esc(key)} <span class="count">${items.length}</span>`;
+
+    const itemsEl = document.createElement('div');
+    itemsEl.className = 'tree-items';
+
+    if (search || sortedKeys.length <= 5) {
+      headerEl.classList.add('open');
+      itemsEl.classList.add('open');
+    }
+
+    headerEl.addEventListener('click', () => {
+      headerEl.classList.toggle('open');
+      itemsEl.classList.toggle('open');
+    });
+
+    for (const item of items) {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'tree-item';
+
+      // Build badges based on current tab context
+      let badges = '';
+      const scopeCls = item.scope === 'namespaced' ? 'scope-ns' : 'scope-cluster';
+      const scopeLabel = item.scope === 'namespaced' ? 'NS' : 'C';
+
+      if (currentTab !== 'by_kind') badges += `<span class="badge kind">${esc(item.kind)}</span>`;
+      if (currentTab !== 'by_namespace' && item.namespace) badges += `<span class="badge ns">${esc(item.namespace)}</span>`;
+      if (currentTab !== 'by_scope') badges += `<span class="badge ${scopeCls}">${scopeLabel}</span>`;
+      if (currentTab !== 'by_group') badges += `<span class="badge group" style="font-size:9px">${esc(shortGroup(item.group))}</span>`;
+
+      itemEl.innerHTML = `<span class="item-name">${esc(item.name)}</span>${badges}`;
+      itemEl.addEventListener('click', () => selectResource(item, itemEl));
+      itemsEl.appendChild(itemEl);
+    }
+
+    groupEl.appendChild(headerEl);
+    groupEl.appendChild(itemsEl);
+    tree.appendChild(groupEl);
+  }
+}
+
+function shortGroup(g) {
+  // "compute.gcp.upbound.io" -> "compute.gcp..."
+  const parts = g.split('.');
+  if (parts.length <= 2) return g;
+  return parts[0] + '.' + parts[1] + '...';
+}
+
+function filterTree() {
+  if (currentTab === 'overview') renderOverview();
+  else renderTree();
+}
+
+async function selectResource(item, el) {
+  document.querySelectorAll('.tree-item.selected').forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedResource = item;
+
+  const scopeBadge = item.scope === 'namespaced'
+    ? '<span class="badge scope-ns">Namespaced</span>'
+    : '<span class="badge scope-cluster">Cluster</span>';
+  const nsBadge = item.namespace ? `<span class="badge ns">${esc(item.namespace)}</span>` : '';
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="content-header">
+      <span class="resource-title">${esc(item.name)}</span>
+      <span class="badge kind">${esc(item.kind)}</span>
+      <span class="badge group">${esc(item.group)}</span>
+      ${scopeBadge} ${nsBadge}
+      <span style="color:var(--text2);font-size:12px;margin-left:auto">${esc(item.api_version)}</span>
+    </div>
+    <div class="yaml-container"><div class="loading"><div class="spinner"></div></div></div>`;
+
+  try {
+    const ns = item.namespace ? `&namespace=${encodeURIComponent(item.namespace)}` : '';
+    const url = `/api/resource/${enc(item.group)}/${enc(item.version)}/${enc(item.kind)}/${enc(item.name)}?${ns}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(await res.text());
+    const yaml = await res.text();
+    originalYaml = yaml;
+    showYamlEditor(yaml);
+  } catch (e) {
+    document.querySelector('.yaml-container').innerHTML =
+      `<div class="empty"><div>Error: ${esc(e.message)}</div></div>`;
+  }
+}
+
+function showYamlEditor(yaml) {
+  const container = document.querySelector('.yaml-container');
+  container.innerHTML = `
+    <textarea class="yaml-editor" id="yamlEditor" spellcheck="false">${esc(yaml)}</textarea>
+    <div class="yaml-toolbar">
+      <button class="btn primary" id="applyBtn" onclick="applyChanges()" disabled>Apply Changes</button>
+      <button class="btn" onclick="resetYaml()">Reset</button>
+      <span class="status" id="yamlStatus">No changes</span>
+    </div>`;
+
+  const editor = document.getElementById('yamlEditor');
+  editor.addEventListener('input', () => {
+    const changed = editor.value !== originalYaml;
+    document.getElementById('applyBtn').disabled = !changed;
+    document.getElementById('yamlStatus').textContent = changed ? 'Modified' : 'No changes';
+    document.getElementById('yamlStatus').className = changed ? 'status' : 'status';
+  });
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart;
+      editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(editor.selectionEnd);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      editor.dispatchEvent(new Event('input'));
+    }
+  });
+}
+
+function resetYaml() {
+  const ed = document.getElementById('yamlEditor');
+  if (ed) { ed.value = originalYaml; ed.dispatchEvent(new Event('input')); }
+}
+
+async function applyChanges() {
+  const editor = document.getElementById('yamlEditor');
+  const statusEl = document.getElementById('yamlStatus');
+  const applyBtn = document.getElementById('applyBtn');
+  const item = selectedResource;
+  if (!item || !editor) return;
+
+  applyBtn.disabled = true;
+  statusEl.textContent = 'Applying...'; statusEl.className = 'status';
+
+  try {
+    const ns = item.namespace ? `&namespace=${encodeURIComponent(item.namespace)}` : '';
+    const url = `/api/resource/${enc(item.group)}/${enc(item.version)}/${enc(item.kind)}/${enc(item.name)}?${ns}`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yaml: editor.value }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const newYaml = await res.text();
+    originalYaml = newYaml;
+    editor.value = newYaml;
+    statusEl.textContent = 'Applied successfully'; statusEl.className = 'status success';
+    applyBtn.disabled = true;
+  } catch (e) {
+    statusEl.textContent = `Error: ${e.message}`; statusEl.className = 'status error';
+    applyBtn.disabled = false;
+  }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function enc(s) { return encodeURIComponent(s); }
+
+connectSSE();
+</script>
+</body>
+</html>

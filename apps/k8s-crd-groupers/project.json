@@ -1,0 +1,52 @@
+{
+  "name": "k8s-crd-groupers",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/k8s-crd-groupers/src",
+  "targets": {
+    "build": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo build --package k8s-crd-groupers",
+        "cwd": "{workspaceRoot}"
+      },
+      "configurations": {
+        "production": {
+          "command": "cargo build --package k8s-crd-groupers --release"
+        }
+      }
+    },
+    "test": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo test --package k8s-crd-groupers",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "lint": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo clippy --package k8s-crd-groupers",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "run-api": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo run --package k8s-crd-groupers --bin crd-grouper-api",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "run-cli": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo run --package k8s-crd-groupers --bin crd-grouper-cli",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  },
+  "tags": []
+}
