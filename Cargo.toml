@@ -34,15 +34,15 @@ members = [
 api_resource = { path = 'libs/core/proc_macros/api_resource' }
 argon2 = { version = '0.5.3', features = ['std'] }
 aws-config = { version = '1', features = ['behavior-version-latest'] }
-aws-sdk-sesv2 = '1'
-async-nats = '0.46.0'
+aws-sdk-sesv2 = '1.117.0'
+async-nats = '0.47.0'
 async-stream = '0.3.6'
 async-trait = '0.1.89'
 axum = { version = "0.8.8", features = ['default', 'tracing', 'ws'] }
 axum-extra = { version = "0.12.5", features = ['typed-header'] }
 axum-helpers = { path = 'libs/core/axum-helpers' }
 chrono = { version = '0.4.44', features = ['serde'] }
-clap = { version = '4.5.53', features = ['derive'] }
+clap = { version = '4.6.0', features = ['derive'] }
 color-eyre = '0.6.5'
 core_config = { path = 'libs/core/config' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
@@ -55,7 +55,7 @@ domain_users = { path = 'libs/domains/users' }
 domain_vector = { path = 'libs/domains/vector' }
 email = { path = 'libs/notifications/email' }
 eyre = { version = '0.6.12', features = ['default'] }
-influxdb2 = '0.5'
+influxdb2 = '0.5.2'
 field-selector = { path = 'libs/core/field-selector' }
 flagsmith = { version = '2.1.0', features = [] }
 futures = "0.3.32"
@@ -65,7 +65,7 @@ http = { version = '1.4.0' }
 jsonwebtoken = { version = '10.3.0', features = ['aws_lc_rs'] }
 k8s-openapi = { version = '0.27.1', features = ['v1_35'] }
 kube = { version = '3.1.0', features = ['derive', 'runtime', 'rustls-tls', 'ring'] }
-lettre = { version = '0.11.19', default-features = false, features = ['tokio1-rustls-tls', 'builder', 'smtp-transport', 'hostname'] }
+lettre = { version = '0.11.20', default-features = false, features = ['tokio1-rustls-tls', 'builder', 'smtp-transport', 'hostname'] }
 messaging = { path = 'libs/core/messaging' }
 metrics = '0.24.3'
 metrics-exporter-prometheus = '0.18.1'
@@ -98,7 +98,7 @@ test-utils = { path = 'libs/testing/test-utils' }
 testcontainers = "0.27.2"
 testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
 thiserror = '2.0.18'
-tokio = { version = "1.50.0", features = ['full'] }
+tokio = { version = "1.51.0", features = ['full'] }
 tokio-stream = { version = '0.1.18', features = ['sync'] }
 tonic = { version = "0.14.5", features = ['zstd'] }
 tonic-health = "0.14.5"
@@ -122,6 +122,9 @@ validator = { version = '0.20.0', features = ['derive'] }
 incremental = true
 codegen-units = 16 # Parallel compilation
 opt-level = 0 # No optimization for speed
+
+[profile.dev.build-override]
+opt-level = 3 # Optimize proc macros and build scripts for faster execution
 
 [profile.release]
 opt-level = 'z'
