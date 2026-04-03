@@ -17,7 +17,6 @@ members = [
     'libs/core/proc_macros/api_resource',
     'libs/core/proc_macros/sea_orm_resource',
     'libs/core/proc_macros/selectable_fields',
-    'libs/analytics',
     'libs/database',
     'libs/domains/cloud_resources',
     'libs/domains/projects',
