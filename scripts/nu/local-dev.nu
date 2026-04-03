@@ -215,7 +215,7 @@ export def "main mprocs list" [] {
 
 # Launch mprocs with one or more project configs merged together
 export def "main mprocs" [
-    ...projects: string  # Project names to run (e.g. zerg matia). Omit for all.
+    ...projects: string  # Project names to run (e.g. zerg). Omit for all.
 ] {
     require-bin "mprocs"
 
@@ -295,7 +295,7 @@ def main [] {
     print "  prune [--all]           - Clean Docker resources"
     print "  kompose [--file] [--namespace] - Convert to K8s"
     print "  reset [--file]          - Reset environment"
-    print "  mprocs [projects...]    - Launch mprocs (zerg, matia, or all)"
+    print "  mprocs [projects...]    - Launch mprocs (zerg, or all)"
     print "  mprocs list             - Show available configs"
     print ""
     print "Examples:"
@@ -304,6 +304,5 @@ def main [] {
     print "  nu scripts/nu/local-dev.nu reset"
     print "  nu scripts/nu/local-dev.nu mprocs              # all projects"
     print "  nu scripts/nu/local-dev.nu mprocs zerg         # zerg only"
-    print "  nu scripts/nu/local-dev.nu mprocs zerg matia   # both"
     print "  nu scripts/nu/local-dev.nu mprocs list         # show available"
 }

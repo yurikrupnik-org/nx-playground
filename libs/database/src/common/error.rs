@@ -1,6 +1,3 @@
-#[cfg(feature = "redis")]
-use crate::mongo;
-
 /// Unified database error type for all database operations
 ///
 /// This provides a consistent error interface across PostgreSQL, Redis, and other databases.
@@ -20,7 +17,6 @@ pub enum DatabaseError {
     #[cfg(feature = "mongo")]
     #[error("Mongodb error: {0}")]
     Mongo(String),
-    // Mongo(#[from] mongo),
 
     /// Connection failed after retries
     #[error("Connection failed: {0}")]

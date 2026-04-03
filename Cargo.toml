@@ -3,7 +3,6 @@
 resolver = '2'
 members = [
     'apps/k8s-crd-groupers',
-    'apps/matia/api',
     'apps/zerg/api',
     'apps/zerg/db-worker',
     'apps/zerg/email-nats',

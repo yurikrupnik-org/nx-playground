@@ -15,7 +15,6 @@ export function TaskDetailPage() {
   const statusId = createUniqueId();
   const priorityId = createUniqueId();
 
-
   const taskQuery = useQuery(() => ({
     queryKey: ['tasks', params().id],
     queryFn: () => tasksApi.getById(params().id),
@@ -213,18 +212,20 @@ export function TaskDetailPage() {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData().status === 'done'}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData(),
-                        status: e.currentTarget.checked ? 'done' : 'todo',
-                      })
-                    }
-                    class="rounded"
-                  />
-                  <label>Mark as completed</label>
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData().status === 'done'}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData(),
+                          status: e.currentTarget.checked ? 'done' : 'todo',
+                        })
+                      }
+                      class="rounded"
+                    />
+                    Mark as completed
+                  </label>
                 </div>
                 <div class="flex gap-2">
                   <button

@@ -4581,27 +4581,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
-name = "matia_api"
-version = "0.1.0"
-dependencies = [
- "axum 0.8.8",
- "axum-helpers",
- "chrono",
- "color-eyre",
- "core_config",
- "eyre",
- "serde",
- "serde_json",
- "tokio",
- "tower 0.5.3",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "utoipa",
- "uuid",
-]
-
-[[package]]
 name = "md-5"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
