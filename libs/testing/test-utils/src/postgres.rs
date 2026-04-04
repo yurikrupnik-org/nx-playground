@@ -100,11 +100,11 @@ impl TestDatabase {
         }
     }
 
-    /// Run migrations from SQL files in manifests/migrations/mydatabase/
+    /// Run migrations from SQL files in manifests/db/migrations/
     async fn run_migrations(connection: &DatabaseConnection) {
         // Find workspace root by looking for Cargo.toml with [workspace]
         let workspace_root = Self::find_workspace_root();
-        let migrations_dir = workspace_root.join("manifests/migrations/mydatabase");
+        let migrations_dir = workspace_root.join("manifests/db/migrations");
 
         if !migrations_dir.exists() {
             tracing::warn!(

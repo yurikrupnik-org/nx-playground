@@ -13,6 +13,11 @@ pub enum DatabaseError {
     #[error("Redis error: {0}")]
     Redis(#[from] redis::RedisError),
 
+    /// Mongo-specific errors
+    #[cfg(feature = "mongo")]
+    #[error("Mongodb error: {0}")]
+    Mongo(String),
+
     /// Connection failed after retries
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),

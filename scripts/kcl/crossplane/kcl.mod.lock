@@ -1,0 +1,25 @@
+[dependencies]
+  [dependencies.crossplane-provider-upjet-aws]
+    name = "crossplane-provider-upjet-aws"
+    full_name = "crossplane-provider-upjet-aws_1.23.0"
+    version = "1.23.0"
+    sum = "WrS6bUpp/7QAWCb0EZd281C8n34hzlr0v25Alofn2wQ="
+    reg = "ghcr.io"
+    repo = "kcl-lang/crossplane-provider-upjet-aws"
+    oci_tag = "1.23.0"
+  [dependencies.crossplane-provider-upjet-gcp]
+    name = "crossplane-provider-upjet-gcp"
+    full_name = "crossplane-provider-upjet-gcp_1.0.5"
+    version = "1.0.5"
+    sum = "nJLB3un8NJ9rare3BtDmp4Xs1PnHG2DP1ykdOxwaeYA="
+    reg = "ghcr.io"
+    repo = "kcl-lang/crossplane-provider-upjet-gcp"
+    oci_tag = "1.0.5"
+  [dependencies.k8s]
+    name = "k8s"
+    full_name = "k8s_1.31.2"
+    version = "1.31.2"
+    sum = "xBZgPsnpVVyWBpahuPQHReeRx28eUHGFoaPeqbct+vs="
+    reg = "ghcr.io"
+    repo = "kcl-lang/k8s"
+    oci_tag = "1.31.2"

@@ -10,6 +10,7 @@ path = "src/lib.rs"
 default = ["smtp"]
 smtp = ["dep:lettre"]
 sendgrid = ["dep:reqwest"]
+ses = ["dep:aws-sdk-sesv2", "dep:aws-config"]
 integration = []
 
 [dependencies]
@@ -21,6 +22,8 @@ eyre = { workspace = true }
 handlebars = "6"
 
 # Provider dependencies (optional)
+aws-config = { workspace = true, optional = true }
+aws-sdk-sesv2 = { workspace = true, optional = true }
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "builder", "smtp-transport", "hostname"], optional = true }
 messaging = { workspace = true, features = ["nats"] }
 rand = { workspace = true }

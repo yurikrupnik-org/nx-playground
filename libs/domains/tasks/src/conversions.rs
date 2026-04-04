@@ -110,7 +110,7 @@ impl From<UpdateTask> for UpdateByIdRequest {
             id: vec![], // Will be set by caller with the actual UUID
             title: input.title,
             description: input.description,
-            completed: input.completed,
+            completed: None, // derived from status, not stored
             project_id: input.project_id.and_then(opt_uuid_to_bytes),
             priority: input.priority.map(Into::into),
             status: input.status.map(Into::into),
@@ -147,7 +147,6 @@ impl TryFrom<UpdateByIdRequest> for UpdateTask {
         Ok(UpdateTask {
             title: proto.title,
             description: proto.description,
-            completed: proto.completed,
             project_id: proto.project_id.map(|bytes| bytes_to_uuid(&bytes).ok()),
             priority: proto.priority.map(|p| p.try_into()).transpose()?,
             status: proto.status.map(|s| s.try_into()).transpose()?,
@@ -168,7 +167,6 @@ impl TryFrom<CreateResponse> for Task {
             id: bytes_to_uuid(&proto.id)?,
             title: proto.title,
             description: proto.description,
-            completed: proto.completed,
             project_id: opt_bytes_to_uuid(proto.project_id).ok().flatten(),
             priority: proto.priority.try_into().unwrap_or_else(|e| {
                 tracing::warn!("Invalid priority in CreateResponse, defaulting: {e}");
@@ -193,7 +191,6 @@ impl TryFrom<GetByIdResponse> for Task {
             id: bytes_to_uuid(&proto.id)?,
             title: proto.title,
             description: proto.description,
-            completed: proto.completed,
             project_id: opt_bytes_to_uuid(proto.project_id).ok().flatten(),
             priority: proto.priority.try_into().unwrap_or_else(|e| {
                 tracing::warn!("Invalid priority in GetByIdResponse, defaulting: {e}");
@@ -218,7 +215,6 @@ impl TryFrom<UpdateByIdResponse> for Task {
             id: bytes_to_uuid(&proto.id)?,
             title: proto.title,
             description: proto.description,
-            completed: proto.completed,
             project_id: opt_bytes_to_uuid(proto.project_id).ok().flatten(),
             priority: proto.priority.try_into().unwrap_or_else(|e| {
                 tracing::warn!("Invalid priority in UpdateByIdResponse, defaulting: {e}");
@@ -245,7 +241,7 @@ impl From<Task> for CreateResponse {
             id: uuid_to_bytes(task.id),
             title: task.title,
             description: task.description,
-            completed: task.completed,
+            completed: task.status == TaskStatus::Done,
             project_id: opt_uuid_to_bytes(task.project_id),
             priority: task.priority.into(),
             status: task.status.into(),
@@ -262,7 +258,7 @@ impl From<Task> for GetByIdResponse {
             id: uuid_to_bytes(task.id),
             title: task.title,
             description: task.description,
-            completed: task.completed,
+            completed: task.status == TaskStatus::Done,
             project_id: opt_uuid_to_bytes(task.project_id),
             priority: task.priority.into(),
             status: task.status.into(),
@@ -279,7 +275,7 @@ impl From<Task> for UpdateByIdResponse {
             id: uuid_to_bytes(task.id),
             title: task.title,
             description: task.description,
-            completed: task.completed,
+            completed: task.status == TaskStatus::Done,
             project_id: opt_uuid_to_bytes(task.project_id),
             priority: task.priority.into(),
             status: task.status.into(),
@@ -296,7 +292,7 @@ impl From<Task> for ListStreamResponse {
             id: uuid_to_bytes(task.id),
             title: task.title,
             description: task.description,
-            completed: task.completed,
+            completed: task.status == TaskStatus::Done,
             project_id: opt_uuid_to_bytes(task.project_id),
             priority: task.priority.into(),
             status: task.status.into(),

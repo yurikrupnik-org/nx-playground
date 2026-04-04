@@ -35,7 +35,7 @@ export def "main create" [
     kind create cluster --name $name --config $tmp
 
     rm -f $tmp
-
+    return
     if $env.LAST_EXIT_CODE? == 1 {
         error "Failed to create cluster"
         exit 1

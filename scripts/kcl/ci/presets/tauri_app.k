@@ -27,7 +27,7 @@ default_config = lambda name: str, pm: str = "bun" -> cfg.TauriAppConfig {
         name = name
         main_branch = "main"
         package_manager = pm
-        frontend_framework = "react"
+        frontend_framework = "vue"
         tauri_version = "v2"
         build_targets = ["linux", "macos", "windows"]
         use_cargo_cache = True

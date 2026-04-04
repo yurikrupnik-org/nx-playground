@@ -1,4 +1,4 @@
-use axum_helpers::{AppError, impl_into_response_via_app_error};
+use axum_helpers::{impl_into_response_via_app_error, AppError};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -15,6 +15,10 @@ pub enum TaskError {
 
     #[error("Database error: {0}")]
     Database(String),
+    #[error("Network error: {0}")]
+    Network(String),
+    #[error("Auth error: {0}")]
+    Auth(String),
 }
 
 pub type TaskResult<T> = Result<T, TaskError>;
@@ -25,9 +29,9 @@ impl From<TaskError> for AppError {
             TaskError::NotFound(id) => AppError::NotFound(format!("Task {} not found", id)),
             TaskError::Validation(msg) => AppError::BadRequest(msg),
             TaskError::Internal(msg) => AppError::InternalServerError(msg),
-            TaskError::Database(msg) => {
-                AppError::InternalServerError(format!("Database error: {}", msg))
-            }
+            TaskError::Database(msg) => AppError::InternalServerError(msg),
+            TaskError::Network(msg) => AppError::InternalServerError(msg),
+            TaskError::Auth(msg) => AppError::InternalServerError(msg),
         }
     }
 }

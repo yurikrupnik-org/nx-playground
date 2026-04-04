@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-nats
+spec:
+  type: pubsub.jetstream
+  version: v1
+  metadata:
+    - name: natsURL
+      value: "nats://nats.dbs.svc.cluster.local:4222"
+    - name: durableSubscriptionName
+      value: "db-worker"
+    - name: deliverPolicy
+      value: "all"
+    - name: ackWait
+      value: "30s"

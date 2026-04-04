@@ -6,6 +6,7 @@
 //! |----------|---------|----------|-------------|
 //! | [`SmtpProvider`] | `smtp` | Generic SMTP | Username/Password |
 //! | [`SendGridProvider`] | `sendgrid` | General purpose | API Key |
+//! | [`SesProvider`] | `ses` | AWS environments | IAM / Instance Profile |
 //! | [`MockSmtpProvider`] | (always) | Testing | None |
 //!
 //! ## Gmail via SMTP
@@ -54,3 +55,9 @@ pub use smtp::{SmtpConfig, SmtpProvider};
 pub mod sendgrid;
 #[cfg(feature = "sendgrid")]
 pub use sendgrid::SendGridProvider;
+
+// AWS SES provider (feature-gated)
+#[cfg(feature = "ses")]
+pub mod ses;
+#[cfg(feature = "ses")]
+pub use ses::SesProvider;

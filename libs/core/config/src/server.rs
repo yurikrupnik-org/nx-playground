@@ -40,7 +40,9 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             host: Ipv4Addr::UNSPECIFIED.to_string(),
-            port: 8080,
+            port: env_or_default("PORT", "8080")
+                .parse()
+                .unwrap_or(8080),
         }
     }
 }

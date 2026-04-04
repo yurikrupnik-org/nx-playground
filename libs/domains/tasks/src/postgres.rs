@@ -69,10 +69,6 @@ impl TaskRepository for PgTaskRepository {
             query = query.filter(entity::Column::Priority.eq(priority));
         }
 
-        if let Some(completed) = filter.completed {
-            query = query.filter(entity::Column::Completed.eq(completed));
-        }
-
         // Apply pagination and ordering
         query = query
             .order_by_desc(entity::Column::CreatedAt)
@@ -107,7 +103,6 @@ impl TaskRepository for PgTaskRepository {
             id: Set(task.id),
             title: Set(task.title.clone()),
             description: Set(task.description.clone()),
-            completed: Set(task.completed),
             project_id: Set(task.project_id),
             priority: Set(task.priority),
             status: Set(task.status),

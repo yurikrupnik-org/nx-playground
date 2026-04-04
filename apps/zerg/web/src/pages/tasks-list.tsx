@@ -131,7 +131,7 @@ export function TasksListPage() {
                         >
                           {task.status.replace('_', ' ')}
                         </span>
-                        {task.completed && (
+                        {task.status === 'done' && (
                           <span class="px-2 py-1 text-xs rounded bg-green-100 text-green-800">
                             ✓ Completed
                           </span>

@@ -3,11 +3,17 @@ name = "zerg_tasks"
 version = "0.1.0"
 edition = "2024"
 
+[dev-dependencies]
+futures = { workspace = true }
+mongodb = { workspace = true }
+test-utils = { workspace = true, features = ["mongo"] }
+tokio-stream = { workspace = true }
+
 [dependencies]
 chrono = { workspace = true }
 core_config = { workspace = true }
 database = { workspace = true, features = ["config"] }
-domain_tasks = { path = "../../../libs/domains/tasks" }
+domain_tasks = { path = "../../../libs/domains/tasks", features = ["mongo"] }
 domain_vector = { workspace = true }
 eyre = { workspace = true }
 grpc-client = { path = "../../../libs/core/grpc", features = ["server"] }

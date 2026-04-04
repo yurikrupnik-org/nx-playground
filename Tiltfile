@@ -15,7 +15,6 @@ local_resource(
 )
 
 
-
 local_resource(
     'redis',
     serve_cmd='kubectl port-forward -n dbs deployment/redis 6379:6379',
@@ -64,28 +63,28 @@ local_resource(
     cmd='just gen-schema-configmap',
     labels=['migrations'],
     deps=[
-        'manifests/schemas/schema.sql',
+        'manifests/db/schema.sql',
     ],
 )
 
 # =============================================================================
-# Database Setup - Seed Data Only
-# Atlas operator handles schema via AtlasSchema CR
+# Database Setup - Migrations + Seed
+# Applies migrations via sqlx (port-forwarded), then seeds
 # =============================================================================
 local_resource(
-    'db-seed',
+    'db-migrate',
     cmd='''
-        echo "Applying schema..."
-        kubectl exec -i -n dbs deployment/postgres -- psql -U myuser -d mydatabase < manifests/schemas/schema.sql
+        echo "Running migrations..."
+        sqlx migrate run --source manifests/db/migrations --database-url "postgres://myuser:mypassword@localhost:5432/mydatabase?sslmode=disable"
         echo "Applying seed data..."
-        kubectl exec -i -n dbs deployment/postgres -- psql -U myuser -d mydatabase < manifests/schemas/seed.sql
-        echo "Schema + seed data applied!"
+        kubectl exec -i -n dbs deployment/postgres -- psql -U myuser -d mydatabase < manifests/db/seed.sql
+        echo "Migrations + seed data applied!"
     ''',
     labels=['migrations'],
     resource_deps=['postgres'],
     deps=[
-        'manifests/schemas/schema.sql',
-        'manifests/schemas/seed.sql',
+        'manifests/db/migrations',
+        'manifests/db/seed.sql',
     ],
 )
 
@@ -93,7 +92,7 @@ local_resource(
 # Applications
 # =============================================================================
 include('./apps/zerg/shared/Tiltfile')
-include('./apps/zerg/api/Tiltfile')
 include('./apps/zerg/tasks/Tiltfile')
-include('./apps/zerg/web/Tiltfile')
 include('./apps/zerg/email-nats/Tiltfile')
+include('./apps/zerg/api/Tiltfile')
+include('./apps/zerg/web/Tiltfile')

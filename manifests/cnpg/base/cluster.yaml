@@ -13,7 +13,7 @@ metadata:
   name: mydatabase-db
 spec:
   # Number of instances (1 for dev, 3 for prod HA)
-  instances: 1
+  instances: 2
 
   # PostgreSQL version
   imageName: ghcr.io/cloudnative-pg/postgresql:18

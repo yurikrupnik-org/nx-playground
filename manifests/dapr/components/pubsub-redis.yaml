@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-redis
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: "redis.dbs.svc.cluster.local:6379"
+    - name: redisPassword
+      value: ""
+    - name: consumerID
+      value: "db-worker"
+    - name: enableTLS
+      value: "false"

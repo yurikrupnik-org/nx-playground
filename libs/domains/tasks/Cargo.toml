@@ -3,14 +3,20 @@ name = "domain_tasks"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+mongo = ["dep:mongodb", "dep:futures"]
+
 [dependencies]
 async-trait = { workspace = true }
 axum = { workspace = true }
 axum-helpers = { workspace = true }
 chrono = { workspace = true }
 core_proc_macros = { workspace = true, features = ["sea_orm_resource"] }
-database = { workspace = true }
+database = { workspace = true, features = ["postgres", "redis"] }
+futures = { workspace = true, optional = true }
 grpc-client = { path = "../../core/grpc" }
+mongodb = { workspace = true, optional = true }
 regex = { workspace = true }
 rpc = { path = "../../rpc" }
 sea-orm = { workspace = true }
@@ -31,6 +37,8 @@ validator = { workspace = true }
 futures = { workspace = true }
 http-body-util = "0.1"
 mockall = { workspace = true }
+mongodb = { workspace = true }
 serde_json = { workspace = true }
-test-utils = { workspace = true }
+test-utils = { workspace = true, features = ["mongo"] }
+tokio = { workspace = true }
 tower = { workspace = true }

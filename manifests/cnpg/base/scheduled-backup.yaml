@@ -29,7 +29,7 @@ spec:
   # Suspend backups (useful for maintenance)
   suspend: false
 
----
+# ---
 # On-demand backup (apply when needed)
 # kubectl apply -f - <<EOF
 # apiVersion: postgresql.cnpg.io/v1

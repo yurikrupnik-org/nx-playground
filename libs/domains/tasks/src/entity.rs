@@ -13,7 +13,6 @@ pub struct Model {
     pub title: String,
     #[sea_orm(column_type = "Text")]
     pub description: String,
-    pub completed: bool,
     pub project_id: Option<Uuid>,
     pub priority: TaskPriority,
     pub status: TaskStatus,
@@ -34,7 +33,6 @@ impl From<Model> for crate::models::Task {
             id: model.id,
             title: model.title,
             description: model.description,
-            completed: model.completed,
             project_id: model.project_id,
             priority: model.priority,
             status: model.status,
@@ -52,7 +50,6 @@ impl From<crate::models::CreateTask> for ActiveModel {
             id: Set(Uuid::now_v7()),
             title: Set(input.title),
             description: Set(input.description),
-            completed: Set(false),
             project_id: Set(input.project_id),
             priority: Set(input.priority),
             status: Set(input.status),

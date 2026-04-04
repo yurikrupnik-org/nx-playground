@@ -60,6 +60,44 @@ services:
     image: "redis:alpine"
     ports:
       - "6379:6379"
+  shared-db:
+    image: "postgres"
+    environment:
+      POSTGRES_DB: shared-db
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      # Performance tuning for development/benchmarking
+      # Adjust based on your system's available RAM
+      POSTGRES_SHARED_BUFFERS: "512MB" # 25% of RAM for caching (default: 128MB)
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "2GB" # 50-75% of RAM (planner hint)
+      POSTGRES_WORK_MEM: "16MB" # Per-query operation memory (default: 4MB)
+      POSTGRES_MAINTENANCE_WORK_MEM: "128MB" # VACUUM, CREATE INDEX memory (default: 64MB)
+      POSTGRES_MAX_CONNECTIONS: "200" # Match application pool (default: 100)
+      POSTGRES_WAL_BUFFERS: "16MB" # WAL buffer size (default: -1)
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: "0.9" # Spread checkpoint I/O (default: 0.5)
+      POSTGRES_RANDOM_PAGE_COST: "1.1" # Lower for SSD (default: 4.0)
+      POSTGRES_EFFECTIVE_IO_CONCURRENCY: "200" # SSD concurrent I/O (default: 1)
+    ports:
+      - "5434:5432"
+  app-db:
+    image: "postgres"
+    environment:
+      POSTGRES_DB: app-db
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      # Performance tuning for development/benchmarking
+      # Adjust based on your system's available RAM
+      POSTGRES_SHARED_BUFFERS: "512MB" # 25% of RAM for caching (default: 128MB)
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "2GB" # 50-75% of RAM (planner hint)
+      POSTGRES_WORK_MEM: "16MB" # Per-query operation memory (default: 4MB)
+      POSTGRES_MAINTENANCE_WORK_MEM: "128MB" # VACUUM, CREATE INDEX memory (default: 64MB)
+      POSTGRES_MAX_CONNECTIONS: "200" # Match application pool (default: 100)
+      POSTGRES_WAL_BUFFERS: "16MB" # WAL buffer size (default: -1)
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: "0.9" # Spread checkpoint I/O (default: 0.5)
+      POSTGRES_RANDOM_PAGE_COST: "1.1" # Lower for SSD (default: 4.0)
+      POSTGRES_EFFECTIVE_IO_CONCURRENCY: "200" # SSD concurrent I/O (default: 1)
+    ports:
+      - "5433:5432"
   postgres:
     image: "postgres"
     environment:
@@ -156,6 +194,38 @@ services:
       retries: 3
     networks:
       - qdrant-network
+
+  flagsmith:
+    image: flagsmith/flagsmith:latest
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://myuser:mypassword@shared-db:5432/shared-db"
+      DJANGO_ALLOWED_HOSTS: "*"
+      ENV: local
+    depends_on:
+      - shared-db
+
+  rustfs:
+    image: rustfs/rustfs
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+#      -v /mnt/rustfs/data:/data
+
+#  strapi:
+#    image: naskio/strapi
+#    ports:
+#      - "1337:1337"
+#    environment:
+#      DATABASE_CLIENT: postgres
+#      DATABASE_HOST: postgres
+#      DATABASE_PORT: 5432
+#      DATABASE_NAME: mydatabase
+#      DATABASE_USERNAME: myuser
+#      DATABASE_PASSWORD: mypassword
+#    depends_on:
+#      - postgres
 
 volumes:
   influxdb2-data:

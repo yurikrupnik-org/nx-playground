@@ -32,6 +32,16 @@ default_config = lambda name: str, pm: str = "bun", languages: [c.Language] = ["
         languages = languages
         nx_cloud = True
         use_affected = True
+
+        #    main_branch = "main"
+         #   monorepo_tool = "nx"
+          #  package_manager = "bun"
+          #  languages = ["typescript", "rust", "kcl"]
+          #  nx_cloud = True
+          #  use_affected = True
+          #  use_mise = False  # Use targeted setup actions instead
+          #  use_sccache = True
+          #  sccache_provider = "gcp"
     }
 }
 
@@ -69,7 +79,7 @@ full_stack = lambda name: str, pm: str = "bun" -> cfg.MonorepoConfig {
         main_branch = "main"
         monorepo_tool = "nx"
         package_manager = pm
-        languages = ["typescript", "rust", "go"]
+        languages = ["typescript", "rust", "go", "python"]
         nx_cloud = True
         use_affected = True
         use_sccache = True

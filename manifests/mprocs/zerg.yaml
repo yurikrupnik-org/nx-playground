@@ -1,0 +1,30 @@
+# Zerg development workflow
+# Usage: mprocs -c manifests/mprocs/zerg.yaml
+
+procs:
+  # =============================================================================
+  # Rust Services (bacon for hot-reload)
+  # =============================================================================
+  zerg-api:
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/mydatabase' bacon zerg-api"
+    stop: "SIGTERM"
+
+  zerg-tasks:
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/mydatabase' bacon zerg-tasks"
+    stop: "SIGTERM"
+
+  zerg-email:
+    shell: "bacon zerg-email-nats"
+    stop: "SIGTERM"
+
+  db-worker:
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/mydatabase' MONGODB_URL='mongodb://localhost:27017' cargo run -p db-worker --features postgres"
+    stop: "SIGTERM"
+    autostart: false
+
+  # =============================================================================
+  # Frontend
+  # =============================================================================
+  zerg-web:
+    shell: "bun nx dev zerg-web"
+    stop: "SIGTERM"

@@ -28,8 +28,6 @@ struct UserRow {
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
     avatar_url: Option<String>,
-    google_id: Option<String>,
-    github_id: Option<String>,
     last_login_at: Option<chrono::DateTime<chrono::Utc>>,
     is_active: bool,
     is_locked: bool,
@@ -59,8 +57,6 @@ impl From<UserRow> for User {
             created_at: row.created_at,
             updated_at: row.updated_at,
             avatar_url: row.avatar_url,
-            google_id: row.google_id,
-            github_id: row.github_id,
             last_login_at: row.last_login_at,
             is_active: row.is_active,
             is_locked: row.is_locked,
@@ -157,8 +153,8 @@ impl UserRepository for PostgresUserRepository {
             UPDATE users
             SET email = $2, name = $3, password_hash = $4, roles = $5,
                 email_verified = $6, updated_at = $7, avatar_url = $8, last_login_at = $9,
-                google_id = $10, github_id = $11, is_active = $12, is_locked = $13,
-                failed_login_attempts = $14, locked_until = $15
+                is_active = $10, is_locked = $11,
+                failed_login_attempts = $12, locked_until = $13
             WHERE id = $1
             RETURNING *
         "#;
@@ -179,8 +175,6 @@ impl UserRepository for PostgresUserRepository {
                 user.updated_at.into(),
                 user.avatar_url.clone().into(),
                 user.last_login_at.into(),
-                user.google_id.clone().into(),
-                user.github_id.clone().into(),
                 user.is_active.into(),
                 user.is_locked.into(),
                 user.failed_login_attempts.into(),
@@ -215,12 +209,22 @@ impl UserRepository for PostgresUserRepository {
         provider: Provider,
         provider_id: &str,
     ) -> UserResult<Option<User>> {
-        let sql = match provider {
-            Provider::Google => "SELECT * FROM users WHERE google_id = $1",
-            Provider::Github => "SELECT * FROM users WHERE github_id = $1",
+        let sql = r#"
+            SELECT u.* FROM users u
+            INNER JOIN oauth_accounts oa ON oa.user_id = u.id
+            WHERE oa.provider = $1 AND oa.provider_user_id = $2
+        "#;
+
+        let provider_str = match provider {
+            Provider::Google => "google",
+            Provider::Github => "github",
         };
 
-        let stmt = Statement::from_sql_and_values(DbBackend::Postgres, sql, [provider_id.into()]);
+        let stmt = Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            sql,
+            [provider_str.into(), provider_id.into()],
+        );
 
         let row = UserRow::find_by_statement(stmt)
             .one(&self.db)
@@ -237,25 +241,43 @@ impl UserRepository for PostgresUserRepository {
         provider_id: &str,
         avatar_url: Option<String>,
     ) -> UserResult<()> {
-        let sql = match provider {
-            Provider::Google => {
-                "UPDATE users SET google_id = $2, avatar_url = COALESCE($3, avatar_url) WHERE id = $1"
-            }
-            Provider::Github => {
-                "UPDATE users SET github_id = $2, avatar_url = COALESCE($3, avatar_url) WHERE id = $1"
-            }
+        let provider_str = match provider {
+            Provider::Google => "google",
+            Provider::Github => "github",
         };
+
+        // Upsert into oauth_accounts
+        let sql = r#"
+            INSERT INTO oauth_accounts (user_id, provider, provider_user_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (provider, provider_user_id) DO NOTHING
+        "#;
 
         let stmt = Statement::from_sql_and_values(
             DbBackend::Postgres,
             sql,
-            [user_id.into(), provider_id.into(), avatar_url.into()],
+            [user_id.into(), provider_str.into(), provider_id.into()],
         );
 
         self.db
             .execute_raw(stmt)
             .await
             .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+
+        // Update avatar if provided
+        if let Some(url) = avatar_url {
+            let avatar_sql =
+                "UPDATE users SET avatar_url = $2 WHERE id = $1 AND avatar_url IS NULL";
+            let avatar_stmt = Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                avatar_sql,
+                [user_id.into(), url.into()],
+            );
+            self.db
+                .execute_raw(avatar_stmt)
+                .await
+                .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+        }
 
         Ok(())
     }

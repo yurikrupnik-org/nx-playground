@@ -1,7 +1,13 @@
 #!/usr/bin/env just --justfile
 
+import 'manifests/db/db.just'
+
 default:
     just -l
+
+# =============================================================================
+# Rust Quality Checks
+# =============================================================================
 
 # Full quality check for Rust monorepo (read-only, CI-safe)
 check: fmt-check lint test audit
@@ -46,12 +52,25 @@ upgrade:
     cargo upgrade --workspace --incompatible
     cargo update
 
+# Sort Cargo.toml dependencies
+sort-deps:
+    cargo fmt
+    cargo sort --workspace
+
+# =============================================================================
+# Docker
+# =============================================================================
+
 _docker-up:
     docker compose -f manifests/dockers/compose.yaml up -d
 
 # Remove local env db
 docker-down:
     docker compose -f manifests/dockers/compose.yaml down
+
+# =============================================================================
+# Local Development
+# =============================================================================
 
 run *args:
     bacon {{ args }}
@@ -60,272 +79,22 @@ run *args:
 web:
     cd apps/zerg/web && bun run dev
 
-# =============================================================================
-# Atlas Migration Configuration
-# =============================================================================
-
-default_db := "mydatabase"
-db_url_local := "postgres://myuser:mypassword@localhost:5432"
-db_url_cluster := "postgres://myuser:mypassword@localhost:5433"
-schemas_dir := "manifests/schemas"
-migrations_dir := "manifests/migrations"
-
-# =============================================================================
-# Schema Development (HCL)
-# =============================================================================
-
-# Validate HCL schema syntax
-schema-validate db=default_db:
-    atlas schema inspect -u "file://{{schemas_dir}}/{{db}}.hcl" --format '{{{{sql .}}}}' > /dev/null
-    @echo "Schema {{db}}.hcl is valid"
-
-# Preview schema as SQL (without applying)
-schema-sql db=default_db:
-    atlas schema inspect -u "file://{{schemas_dir}}/{{db}}.hcl" --format '{{{{sql .}}}}'
-
-# Preview schema diff (what would change)
-schema-diff db=default_db:
-    atlas schema diff \
-      --from "{{db_url_local}}/{{db}}?sslmode=disable" \
-      --to "file://{{schemas_dir}}/{{db}}.hcl" \
-      --dev-url "docker://postgres/18/dev"
-
-# Apply schema directly (dev only - use migrations for prod)
-schema-apply db=default_db:
-    atlas schema apply \
-      --url "{{db_url_local}}/{{db}}?sslmode=disable" \
-      --to "file://{{schemas_dir}}/{{db}}.hcl" \
-      --dev-url "docker://postgres/18/dev"
-
-# =============================================================================
-# Migration Generation (HCL → SQL)
-# =============================================================================
-
-# Generate new migration from schema changes
-migrate-diff db=default_db name="":
-    atlas migrate diff {{name}} \
-      --dir "file://{{migrations_dir}}/{{db}}" \
-      --to "file://{{schemas_dir}}/{{db}}.hcl" \
-      --dev-url "docker://postgres/18/dev"
-    @echo "Migration generated in {{migrations_dir}}/{{db}}/"
-
-# =============================================================================
-# Migration Application
-# =============================================================================
-
-# Apply migrations (local)
-migrate db=default_db:
-    atlas migrate apply --dir "file://{{migrations_dir}}/{{db}}" --url "{{db_url_local}}/{{db}}?sslmode=disable"
-
-# Apply migrations (cluster)
-migrate-cluster db=default_db:
-    atlas migrate apply --dir "file://{{migrations_dir}}/{{db}}" --url "{{db_url_cluster}}/{{db}}?sslmode=disable"
-
-# Apply migrations (alias for migrate mydatabase)
-migrate-all:
-    @echo "Migrating mydatabase..."
-    atlas migrate apply --dir "file://{{migrations_dir}}/mydatabase" --url "{{db_url_local}}/mydatabase?sslmode=disable"
-    @echo "Migrations complete!"
-
-# Apply migrations to cluster
-migrate-all-cluster:
-    atlas migrate apply --dir "file://{{migrations_dir}}/mydatabase" --url "{{db_url_cluster}}/mydatabase?sslmode=disable"
-
-# Check migration status
-migrate-status db=default_db:
-    atlas migrate status --dir "file://{{migrations_dir}}/{{db}}" --url "{{db_url_local}}/{{db}}?sslmode=disable"
-
-# Dry-run migrations
-migrate-dry db=default_db:
-    atlas migrate apply --dir "file://{{migrations_dir}}/{{db}}" --url "{{db_url_local}}/{{db}}?sslmode=disable" --dry-run
-
-# Lint migrations
-migrate-lint db=default_db:
-    atlas migrate lint --dir "file://{{migrations_dir}}/{{db}}" --dev-url "docker://postgres/18/dev" --latest 1
-
-# Hash migrations (after manual edits)
-migrate-hash db=default_db:
-    atlas migrate hash --dir "file://{{migrations_dir}}/{{db}}"
-
-# =============================================================================
-# Development Migration Commands (UNSAFE for production)
-# =============================================================================
-
-# DEV ONLY: Refresh migrations after editing SQL files
-# Usage:
-#   just dev-migrate-refresh          - Re-hash and apply migrations
-#   just dev-migrate-refresh fresh    - Drop DB, re-hash, and apply (clean slate)
-dev-migrate-refresh db=default_db *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    echo "⚠️  DEV ONLY - Do not use in production!"
-    echo ""
-
-    if [[ "{{args}}" == *"fresh"* ]]; then
-        echo "1. Dropping and recreating {{db}}..."
-        psql "{{db_url_local}}/postgres?sslmode=disable" -c "DROP DATABASE IF EXISTS {{db}};"
-        psql "{{db_url_local}}/postgres?sslmode=disable" -c "CREATE DATABASE {{db}};"
-    else
-        echo "1. Skipping database drop (use 'fresh' flag to drop and recreate)"
-    fi
-
-    echo "2. Re-hashing migrations..."
-    atlas migrate hash --dir "file://{{migrations_dir}}/{{db}}"
-
-    echo "3. Applying migrations..."
-    atlas migrate apply --dir "file://{{migrations_dir}}/{{db}}" --url "{{db_url_local}}/{{db}}?sslmode=disable"
-
-    echo ""
-    echo "Done! Migrations refreshed."
-
-# =============================================================================
-# Production Migration Commands (SAFE)
-# =============================================================================
-
-# PROD: Safe migration workflow (lint → status → dry-run → apply)
-prod-migrate db=default_db url=db_url_local:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    echo "=== Production Migration Workflow ==="
-    echo ""
-
-    echo "1. Linting migrations for destructive changes..."
-    atlas migrate lint --dir "file://{{migrations_dir}}/{{db}}" --dev-url "docker://postgres/18/dev" --latest 1 || true
-    echo ""
-
-    echo "2. Current migration status..."
-    atlas migrate status --dir "file://{{migrations_dir}}/{{db}}" --url "{{url}}/{{db}}?sslmode=disable"
-    echo ""
-
-    echo "3. Dry-run (what will be applied)..."
-    atlas migrate apply --dir "file://{{migrations_dir}}/{{db}}" --url "{{url}}/{{db}}?sslmode=disable" --dry-run
-    echo ""
-
-    read -p "4. Apply these migrations? [y/N] " confirm
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Applying migrations..."
-        atlas migrate apply --dir "file://{{migrations_dir}}/{{db}}" --url "{{url}}/{{db}}?sslmode=disable"
-        echo ""
-        echo "=== Migration Complete ==="
-    else
-        echo "Migration cancelled."
-        exit 0
-    fi
-
-# PROD: Preview only (no changes)
-prod-migrate-preview db=default_db url=db_url_local:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    echo "=== Migration Preview (No Changes) ==="
-    echo ""
-
-    echo "1. Linting..."
-    atlas migrate lint --dir "file://{{migrations_dir}}/{{db}}" --dev-url "docker://postgres/18/dev" --latest 1 || true
-    echo ""
-
-    echo "2. Status..."
-    atlas migrate status --dir "file://{{migrations_dir}}/{{db}}" --url "{{url}}/{{db}}?sslmode=disable"
-    echo ""
-
-    echo "3. Dry-run..."
-    atlas migrate apply --dir "file://{{migrations_dir}}/{{db}}" --url "{{url}}/{{db}}?sslmode=disable" --dry-run
-    echo ""
-
-    echo "Run 'just prod-migrate {{db}}' to apply."
-
-# =============================================================================
-# Database Inspection & Docs
-# =============================================================================
-
-# Inspect live database (HCL output)
-db-inspect db=default_db:
-    atlas schema inspect --url "{{db_url_local}}/{{db}}?sslmode=disable"
-
-# Inspect live database (SQL output)
-db-inspect-sql db=default_db:
-    atlas schema inspect --url "{{db_url_local}}/{{db}}?sslmode=disable" --format '{{{{sql .}}}}'
-
-# Generate ERD (Mermaid)
-db-erd db=default_db:
-    atlas schema inspect --url "{{db_url_local}}/{{db}}?sslmode=disable" --format '{{{{mermaid .}}}}' > docs/erd-{{db}}.mmd
-    @echo "ERD saved to docs/erd-{{db}}.mmd"
-
-# Check for schema drift
-db-drift db=default_db:
-    atlas schema diff \
-      --from "{{db_url_local}}/{{db}}?sslmode=disable" \
-      --to "file://{{migrations_dir}}/{{db}}"
-
-# =============================================================================
-# Database Setup
-# =============================================================================
-
-# Create mydatabase
-db-create:
-    @echo "Creating mydatabase..."
-    docker exec dockers-postgres-1 psql -U myuser -d postgres -c "CREATE DATABASE mydatabase;" 2>/dev/null || true
-    @echo "Database created!"
-
-# Reset database (DESTRUCTIVE)
-db-reset db=default_db:
-    @echo "Resetting {{db}} database..."
-    docker exec dockers-postgres-1 psql -U myuser -d postgres -c "DROP DATABASE IF EXISTS {{db}};"
-    docker exec dockers-postgres-1 psql -U myuser -d postgres -c "CREATE DATABASE {{db}};"
-    just migrate {{db}}
-
-# Full schema workflow: edit HCL → generate migration → apply
-schema-push db=default_db name="schema_update":
-    @echo "1. Validating schema..."
-    just schema-validate {{db}}
-    @echo "2. Generating migration..."
-    just migrate-diff {{db}} {{name}}
-    @echo "3. Applying migration..."
-    just migrate {{db}}
-    @echo "Done! Schema changes applied."
-
-sort-deps:
-    cargo fmt
-    cargo sort --workspace
-
-# docker rm $(docker ps -aq) -f
-test-all:
-    cargo nextest run --workspace
-
-# Full reset: down, prune, up, migrate
-reset-db:
-    just docker-down
-    docker volume prune -af
-    docker compose -f manifests/dockers/compose.yaml up -d
-    @sleep 3
-    just db-create
-    just migrate-all
-
 # Start local dev (docker-compose + migrations + apps)
 dev:
-    mprocs -c manifests/mprocs/local.yaml
+    mprocs -c manifests/mprocs/zerg.yaml
 
 # Start Kind dev (port-forward + tilt)
 dev-kind:
     mprocs -c manifests/mprocs/kind.yaml
 
-# Start infrastructure + migrations only
-dev-infra:
-    docker compose -f manifests/dockers/compose.yaml up -d
-    @echo "Waiting for PostgreSQL..."
-    @until docker exec dockers-postgres-1 pg_isready -U myuser -q 2>/dev/null; do sleep 1; done
-    just db-create
-    just migrate-all
-
 kompose:
     kubectl create ns dbs
     kompose convert --file ~/private/nx-playground/manifests/dockers/compose.yaml --namespace dbs --stdout | kubectl apply -f -
-    just migrate-all-cluster
+    just migrate-cluster
 
-# Proto/gRPC workflow (using buf)
-# Directory containing buf configuration
+# =============================================================================
+# Proto/gRPC (buf)
+# =============================================================================
 
 proto_dir := "manifests/grpc"
 
@@ -360,16 +129,13 @@ proto: proto-fmt proto-lint proto-build proto-gen proto-check
 # Alias for backward compatibility
 buf: proto
 
-# Benchmark tasks API endpoints with wrk
-# Directory containing wrk scripts
+# =============================================================================
+# Benchmarks
+# =============================================================================
 
 wrk_dir := "scripts/wrk"
 api_url_local := "http://localhost:8080/api"
 api_url_cluster := "http://localhost:5221/api"
-
-# ============================================================================
-# Local Benchmarks (localhost:8080)
-# ============================================================================
 
 # Benchmark GET /api/tasks (gRPC endpoint) - Local
 bench-tasks-grpc:
@@ -408,10 +174,6 @@ bench-tasks-compare:
     just bench-tasks-grpc-post
     @echo ""
     just bench-tasks-direct-post
-
-# ============================================================================
-# Cluster Benchmarks (Kind via Tilt port-forward on localhost:5221)
-# ============================================================================
 
 # Benchmark GET /api/tasks (gRPC endpoint) - Cluster
 bench-cluster-tasks-grpc:
@@ -469,6 +231,10 @@ bench-tasks-quick:
     @echo "=== Quick Benchmark: Direct DB GET (Local) ==="
     wrk -t2 -c10 -d10s --latency {{ api_url_local }}/tasks-direct
 
+# =============================================================================
+# Backstage
+# =============================================================================
+
 backstage-dev:
     kubectl apply -k manifests/kustomize/backstage/overlays/dev
 
@@ -480,10 +246,6 @@ backstage-logs:
 
 backstage-catalog-generate:
     nu scripts/nu/generate-backstage-catalog.nu
-
-crossplane-functions-install:
-    echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-kcl\nspec:\n  package: docker.io/kcllang/function-kcl:latest' | kubectl apply -f -
-    echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-cue\nspec:\n  package: docker.io/crossplane-contrib/function-cue:latest' | kubectl apply -f -
 
 backstage-setup-github:
     nu scripts/nu/backstage-setup-providers.nu github
@@ -504,35 +266,13 @@ backstage-restart:
     kubectl rollout restart deployment/backstage -n backstage
     kubectl rollout status deployment/backstage -n backstage
 
-# ============================================================================
-# Local Development Environment
-# ============================================================================
+crossplane-functions-install:
+    echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-kcl\nspec:\n  package: docker.io/kcllang/function-kcl:latest' | kubectl apply -f -
+    echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-cue\nspec:\n  package: docker.io/crossplane-contrib/function-cue:latest' | kubectl apply -f -
 
-# Start full local dev environment (Kind + DBs + Secrets + Tilt)
-local-up *args:
-    nu scripts/nu/mod.nu up {{args}}
-
-# Tear down local dev environment
-local-down *args:
-    nu scripts/nu/mod.nu down {{args}}
-
-# Quick restart (keep cluster, redeploy apps)
-local-restart:
-    nu scripts/nu/mod.nu down --keep-cluster
-    tilt up
-
-# Show environment status
-local-status:
-    nu scripts/nu/mod.nu status
-
-# Generate schema docs from live DB
-db-docs db=default_db:
-    atlas schema inspect --url "{{db_url_local}}/{{db}}?sslmode=disable" > docs/schema-{{db}}.hcl
-    @echo "Schema saved to docs/schema-{{db}}.hcl"
-
-# ============================================================================
-# CNPG + Atlas Operator (Kubernetes)
-# ============================================================================
+# =============================================================================
+# K8s Operators
+# =============================================================================
 
 # Install CNPG operator (using server-side apply for large CRDs)
 cnpg-install:
@@ -558,9 +298,6 @@ operators-install:
     @echo "=== Operators Ready ==="
 
 # Full Kind + CNPG + Atlas setup (from scratch)
-# Usage:
-#   just kind-cnpg-setup              - Setup with dev environment
-#   just kind-cnpg-setup staging      - Setup with staging environment
 kind-cnpg-setup env="dev":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -568,7 +305,6 @@ kind-cnpg-setup env="dev":
     echo "=== Kind + CNPG + Atlas Full Setup ==="
     echo ""
 
-    # Check if Kind cluster exists
     if ! kind get clusters 2>/dev/null | grep -q "dev"; then
         echo "1. Creating Kind cluster..."
         kind create cluster --name dev
@@ -577,7 +313,6 @@ kind-cnpg-setup env="dev":
     fi
     echo ""
 
-    # Install operators (idempotent)
     echo "2. Installing operators..."
     if ! kubectl get deployment cnpg-controller-manager -n cnpg-system &>/dev/null; then
         just cnpg-install
@@ -592,110 +327,53 @@ kind-cnpg-setup env="dev":
     fi
     echo ""
 
-    # Deploy CNPG cluster with migrations
-    echo "3. Deploying CNPG cluster ({{env}} environment)..."
-    just cnpg-{{env}}
+    echo "3. Deploying CNPG cluster ({{ env }} environment)..."
+    just cnpg-deploy {{ env }}
     echo ""
 
-    # Wait for cluster to be ready
     echo "4. Waiting for CNPG cluster to be ready..."
-    kubectl wait --for=condition=Ready cluster/dev-mydatabase-db -n mydatabase-{{env}} --timeout=300s 2>/dev/null || \
+    kubectl wait --for=condition=Ready cluster/dev-mydatabase-db -n mydatabase-{{ env }} --timeout=300s 2>/dev/null || \
         echo "   Cluster still initializing (this is normal for first deploy)"
     echo ""
 
-    # Check migration status
     echo "5. Checking migration status..."
-    sleep 5  # Give Atlas operator time to pick up the migration
-    kubectl get atlasmigration -n mydatabase-{{env}} -o wide 2>/dev/null || echo "   Migration pending..."
+    sleep 5
+    kubectl get atlasmigration -n mydatabase-{{ env }} -o wide 2>/dev/null || echo "   Migration pending..."
     echo ""
 
     echo "=== Setup Complete ==="
     echo ""
     echo "To access the database:"
-    echo "  kubectl port-forward -n mydatabase-{{env}} svc/dev-mydatabase-db-rw 5433:5432"
+    echo "  kubectl port-forward -n mydatabase-{{ env }} svc/dev-mydatabase-db-rw 5433:5432"
     echo "  psql 'postgres://mydatabase:dev-password-change-me@localhost:5433/mydatabase'"
     echo ""
     echo "To check status:"
-    echo "  just cnpg-status mydatabase-{{env}}"
+    echo "  just cnpg-status mydatabase-{{ env }}"
 
-# Generate schema ConfigMap for AtlasSchema (dev overlay)
-gen-schema-configmap:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Generating schema ConfigMap..."
-    cat > manifests/k8s/overlays/dev/schema-configmap.yaml << 'HEADER'
-    # Schema ConfigMap for AtlasSchema operator
-    # Auto-generated by: just gen-schema-configmap
-    # Do not edit manually!
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: mydatabase-schema
-      namespace: dbs
-      labels:
-        app.kubernetes.io/name: mydatabase-schema
-        app.kubernetes.io/component: schema
-    data:
-      schema.sql: |
-    HEADER
-    sed 's/^/        /' manifests/schemas/schema.sql >> manifests/k8s/overlays/dev/schema-configmap.yaml
-    echo "ConfigMap generated at manifests/k8s/overlays/dev/schema-configmap.yaml"
+# =============================================================================
+# Local Environment (Kind + Tilt)
+# =============================================================================
 
-# Generate migrations ConfigMap for Kubernetes
-cnpg-gen-migrations:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Generating migrations ConfigMap..."
-    cat > manifests/cnpg/base/migrations-configmap.yaml << 'HEADER'
-    # Migration ConfigMap for Atlas Operator
-    # Auto-generated by: just cnpg-gen-migrations
-    # Do not edit manually!
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: mydatabase-migrations
-      labels:
-        app.kubernetes.io/name: mydatabase-migrations
-        app.kubernetes.io/component: migration
-    data:
-    HEADER
-    # Add each SQL file
-    for f in manifests/migrations/mydatabase/*.sql; do
-      filename=$(basename "$f")
-      echo "  $filename: |" >> manifests/cnpg/base/migrations-configmap.yaml
-      sed 's/^/    /' "$f" >> manifests/cnpg/base/migrations-configmap.yaml
-    done
-    # Add atlas.sum
-    echo "  atlas.sum: |" >> manifests/cnpg/base/migrations-configmap.yaml
-    sed 's/^/    /' manifests/migrations/mydatabase/atlas.sum >> manifests/cnpg/base/migrations-configmap.yaml
-    echo "ConfigMap generated at manifests/cnpg/base/migrations-configmap.yaml"
+# Start full local dev environment (Kind + DBs + Secrets + Tilt)
+local-up *args:
+    nu scripts/nu/mod.nu up {{ args }}
 
-# Deploy CNPG database (dev environment)
-cnpg-dev:
-    just cnpg-gen-migrations
-    kubectl apply -k manifests/cnpg/overlays/dev
+# Tear down local dev environment
+local-down *args:
+    nu scripts/nu/mod.nu down {{ args }}
 
-# Deploy CNPG database (staging)
-cnpg-staging:
-    just cnpg-gen-migrations
-    kubectl apply -k manifests/cnpg/overlays/staging
+# Quick restart (keep cluster, redeploy apps)
+local-restart:
+    nu scripts/nu/mod.nu down --keep-cluster
+    tilt up
 
-# Deploy CNPG database (prod)
-cnpg-prod:
-    just cnpg-gen-migrations
-    kubectl apply -k manifests/cnpg/overlays/prod
+# Show environment status
+local-status:
+    nu scripts/nu/mod.nu status
 
-# Check CNPG cluster status
-cnpg-status ns="mydatabase":
-    kubectl get clusters -n {{ns}}
-    kubectl get pods -n {{ns}} -l cnpg.io/cluster
-    @echo ""
-    @echo "AtlasMigration status:"
-    kubectl get atlasmigration -n {{ns}} -o wide 2>/dev/null || echo "No AtlasMigration resources found"
-
-# View CNPG logs
-cnpg-logs ns="mydatabase":
-    kubectl logs -n {{ns}} -l cnpg.io/cluster --tail=100 -f
+# =============================================================================
+# Misc
+# =============================================================================
 
 # Just how to create a nx repo template
 create-nx-project:

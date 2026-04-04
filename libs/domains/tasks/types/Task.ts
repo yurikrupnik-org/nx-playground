@@ -19,10 +19,6 @@ title: string,
  */
 description: string, 
 /**
- * Whether the task is completed
- */
-completed: boolean, 
-/**
  * Optional project association
  */
 project_id: string | null, 

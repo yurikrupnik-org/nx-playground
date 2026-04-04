@@ -66,7 +66,7 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, gh_config: cfg.GitHubConf
     _env = _env | config.env
 
     gh.GithubWorkflow {
-        name = "CI"
+        name = "CI" # realease.yaml
         on = {
             push = {branches = [config.main_branch]}
             pull_request = {}
@@ -77,6 +77,22 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, gh_config: cfg.GitHubConf
             lint = _monorepo_job(config, "lint")
             test = _monorepo_job(config, "test")
             build = _monorepo_job(config, "build", ["lint", "test"])
+            container = _monorepo_job(config, "container")
+        }
+    }
+    gh.GithubWorkflow {
+        name = "CI" # realease.yaml
+        on = {
+            push = {branches = [config.main_branch]}
+            pull_request = {}
+        }
+        env = _env if _env else Undefined
+        permissions = gh_config.permissions
+        jobs = {
+            lint = _monorepo_job(config, "lint")
+            test = _monorepo_job(config, "test")
+            build = _monorepo_job(config, "build", ["lint", "test"])
+            container = _monorepo_job(config, "container")
         }
     }
 }

@@ -73,7 +73,7 @@ pub async fn run() -> Result<()> {
         .accept_compressed(CompressionEncoding::Zstd)
         .send_compressed(CompressionEncoding::Zstd);
 
-    // Create vector service (with optional embedding provider)
+    // Create a vector service (with an optional embedding provider)
     let vector_service = VectorService::new(qdrant_repository);
     let vector_service = if let Ok(provider) = OpenAIProvider::from_env() {
         info!("OpenAI embedding provider configured");
@@ -92,7 +92,7 @@ pub async fn run() -> Result<()> {
     GrpcServer::setup_health_multiple(&health_reporter, &services).await;
     GrpcServer::log_startup_multiple(&server_config, &services);
 
-    // Build and start server
+    // Build and start a server
     let addr = server_config
         .socket_addr()
         .wrap_err("Invalid server address")?;

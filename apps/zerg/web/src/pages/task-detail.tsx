@@ -14,7 +14,6 @@ export function TaskDetailPage() {
   const descriptionId = createUniqueId();
   const statusId = createUniqueId();
   const priorityId = createUniqueId();
-  const completedId = createUniqueId();
 
   const taskQuery = useQuery(() => ({
     queryKey: ['tasks', params().id],
@@ -34,7 +33,6 @@ export function TaskDetailPage() {
   const [formData, setFormData] = createSignal<UpdateTaskInput>({
     title: null,
     description: null,
-    completed: null,
     project_id: null,
     priority: null,
     status: null,
@@ -49,7 +47,6 @@ export function TaskDetailPage() {
         description: task.description,
         status: task.status,
         priority: task.priority,
-        completed: task.completed,
         project_id: task.project_id,
         due_date: task.due_date,
       });
@@ -114,7 +111,7 @@ export function TaskDetailPage() {
                     </div>
                     <div>
                       <span class="font-semibold">Completed: </span>
-                      <span>{task().completed ? 'Yes' : 'No'}</span>
+                      <span>{task().status === 'done' ? 'Yes' : 'No'}</span>
                     </div>
                   </div>
                   <Show when={task().due_date}>
@@ -215,19 +212,20 @@ export function TaskDetailPage() {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <input
-                    id={completedId}
-                    type="checkbox"
-                    checked={formData().completed || false}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData(),
-                        completed: e.currentTarget.checked,
-                      })
-                    }
-                    class="rounded"
-                  />
-                  <label for={completedId}>Mark as completed</label>
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData().status === 'done'}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData(),
+                          status: e.currentTarget.checked ? 'done' : 'todo',
+                        })
+                      }
+                      class="rounded"
+                    />
+                    Mark as completed
+                  </label>
                 </div>
                 <div class="flex gap-2">
                   <button
