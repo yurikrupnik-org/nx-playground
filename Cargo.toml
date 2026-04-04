@@ -4,7 +4,6 @@ resolver = '2'
 members = [
     'apps/k8s-crd-groupers',
     'apps/zerg/api',
-    'apps/zerg/db-worker',
     'apps/zerg/email-nats',
     'apps/zerg/tasks',
     'libs/core/axum-helpers',

@@ -9165,29 +9165,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zerg_db_worker"
-version = "0.1.0"
-dependencies = [
- "axum 0.8.8",
- "core_config",
- "dapr-client",
- "database",
- "domain_tasks",
- "eyre",
- "influxdb2",
- "messaging",
- "mongodb",
- "neo4rs",
- "qdrant-client",
- "sea-orm",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "zerg_email_nats"
 version = "0.1.0"
 dependencies = [
