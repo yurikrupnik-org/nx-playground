@@ -1,6 +1,6 @@
 [package]
 name = "zerg_email_nats"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Email worker service using NATS JetStream"
 license = "MIT"
