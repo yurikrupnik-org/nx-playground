@@ -1,0 +1,31 @@
+org: paidevo
+clusterName: paidevo-cluster
+clusterProvider: gke
+clusterType: workload
+environment: dev
+gcpProject: bootstrap-491220
+gcpSmSecretName: manager-secrets
+# GKE native Workload Identity — no WIF pool / OIDC bucket needed
+gkeLocation: me-west1
+domain: yurikrupnik.com # TODO change back to paidevo.com
+gatewayMode: platform
+gatewaySuffix: platform.yurikrupnik.com # TODO change back to platform.paidevo.com
+ingressClass: istio
+ingressEnabled: true
+tlsEnabled: true
+githubAccount: yurikrupnik
+githubRepo: nx-playground
+githubBranch: main
+workloads:
+  - name: external-secrets
+    namespace: external-secrets
+    ksa: eso-gcp
+    clouds:
+      gcp:
+        gsaEmail: external-secrets@bootstrap-491220.iam.gserviceaccount.com
+  - name: crossplane
+    namespace: crossplane-system
+    ksa: crossplane-gcp-provider
+    clouds:
+      gcp:
+        gsaEmail: crossplane-controller@bootstrap-491220.iam.gserviceaccount.com

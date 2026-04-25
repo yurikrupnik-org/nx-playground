@@ -1,0 +1,10 @@
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: ${GCP_PROJECT}
+spec:
+  projectID: ${GCP_PROJECT}
+  credentials:
+    source: Filesystem
+    fs:
+      path: /var/run/secrets/gcp/cred-config.json

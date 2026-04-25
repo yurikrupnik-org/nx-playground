@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: flux-system
+data:
+  CLUSTER_NAME: kind-yurik
+  CLUSTER_PROVIDER: kind
+  CLUSTER_TYPE: workload
+  ENVIRONMENT: local
+  ORG: yurikrupnik
+  OIDC_ID: yurik
+  GCP_PROJECT: yk-admin-bootstrap
+  GCP_SM_SECRET_NAME: manager-secrets
+  GKE_LOCATION: ''
+  WIF_PROJECT_NUMBER: '125805393716'
+  OIDC_BUCKET: paidevo-local-oidc
+  OIDC_ISSUER: https://storage.googleapis.com/paidevo-local-oidc/yurik
+  DOMAIN: yurikrupnik.com
+  GATEWAY_MODE: platform
+  GATEWAY_SUFFIX: local.platform.yurikrupnik.com
+  INGRESS_CLASS: istio
+  INGRESS_ENABLED: 'true'
+  TLS_ENABLED: 'true'
+  GITHUB_ACCOUNT: yurikrupnik
+  GITHUB_REPO: nx-playground
+  GITHUB_BRANCH: main
+  POLICY_ACTION: Audit
+  TLS_ISSUER: ca-local
+  ACME_EMAIL: ''

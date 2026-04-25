@@ -1,0 +1,8 @@
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: ${GCP_PROJECT}
+spec:
+  projectID: ${GCP_PROJECT}
+  credentials:
+    source: InjectedIdentity

@@ -1,0 +1,35 @@
+org: paidevo
+oidcId: paidevo-local
+clusterName: kind-paidevo
+clusterProvider: kind
+clusterType: workload
+environment: local
+gcpProject: bootstrap-491220
+gcpSmSecretName: manager-secrets
+# gcloud projects describe bootstrap-491220 --format='value(projectNumber)'
+wifProjectNumber: 781189060618
+oidcBucket: paidevo-local-oidc
+domain: yurikrupnik.com
+gatewayMode: platform
+gatewaySuffix: platform.yurikrupnik.com
+ingressClass: istio
+ingressEnabled: true
+tlsEnabled: true
+githubAccount: yurikrupnik
+githubRepo: nx-playground
+githubBranch: main
+workloads:
+  - name: external-secrets
+    namespace: external-secrets
+    ksa: eso-gcp
+    clouds:
+      gcp:
+        gsaEmail: external-secrets@bootstrap-491220.iam.gserviceaccount.com
+        providerSuffix: eso
+  - name: crossplane
+    namespace: crossplane-system
+    ksa: crossplane-gcp-provider
+    clouds:
+      gcp:
+        gsaEmail: crossplane-controller@bootstrap-491220.iam.gserviceaccount.com
+        providerSuffix: crossplane

@@ -2,6 +2,19 @@
 
 Nx monorepo with Rust backend services, a React frontend, and Kubernetes-native deployment. Uses Tilt for local dev orchestration and KCL for CI/CD generation.
 
+## Start the app - (one-time)
+```sh
+just wif-bootstrap local-yk
+```
+
+## Start the app - (kind)
+```sh
+just cluster-up local-yk
+```
+```sh
+just wif-bootstrap paidevo-local      # creates bucket + pool + providers in bootstrap-491220                      
+just wif-bootstrap yurikrupnik-local  # creates bucket + pool + providers in yk's project  
+```
 ## Prerequisites
 
 | Tool | Purpose | Install |

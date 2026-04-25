@@ -1,0 +1,31 @@
+org: yurikrupnik
+# planned cluster — does not exist yet. cluster-up will fail at get-credentials until created.
+clusterName: yurikrupnik-cluster
+clusterProvider: gke
+clusterType: workload
+environment: dev
+gcpProject: yk-admin-gke
+gcpSmSecretName: manager-secrets
+gkeLocation: me-west1
+domain: yurikrupnik.com
+gatewayMode: platform
+gatewaySuffix: platform.yurikrupnik.com
+ingressClass: istio
+ingressEnabled: true
+tlsEnabled: true
+githubAccount: yurikrupnik
+githubRepo: nx-playground
+githubBranch: main
+workloads:
+  - name: external-secrets
+    namespace: external-secrets
+    ksa: eso-gcp
+    clouds:
+      gcp:
+        gsaEmail: external-secrets@yk-admin-gke.iam.gserviceaccount.com
+  - name: crossplane
+    namespace: crossplane-system
+    ksa: crossplane-gcp-provider
+    clouds:
+      gcp:
+        gsaEmail: crossplane-controller@yk-admin-gke.iam.gserviceaccount.com

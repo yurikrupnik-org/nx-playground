@@ -1,0 +1,38 @@
+org: yurikrupnik
+# oidcId must match the Pulumi-deployed WIF providers: kind-yurik-eso, kind-yurik-crossplane
+oidcId: yurik
+clusterName: kind-yurik
+clusterProvider: kind
+clusterType: workload
+environment: local
+# yk-admin-bootstrap is where Pulumi (apps/bootstrap) created GSAs + WIF pool + OIDC bucket
+gcpProject: yk-admin-bootstrap
+gcpSmSecretName: manager-secrets
+wifProjectNumber: 125805393716
+oidcBucket: paidevo-local-oidc
+domain: yurikrupnik.com
+gatewayMode: platform
+# local subdomain so this cluster's gateway hostnames don't collide with gke later
+gatewaySuffix: local.platform.yurikrupnik.com
+ingressClass: istio
+ingressEnabled: true
+tlsEnabled: true
+githubAccount: yurikrupnik
+githubRepo: nx-playground
+githubBranch: clusters
+workloads:
+  - name: external-secrets
+    namespace: external-secrets
+    ksa: eso-gcp
+    clouds:
+      gcp:
+        gsaEmail: external-secrets@yk-admin-bootstrap.iam.gserviceaccount.com
+        providerSuffix: eso
+  - name: crossplane
+    namespace: crossplane-system
+    ksa: crossplane-gcp-provider
+    clouds:
+      gcp:
+        # NOTE: Pulumi created this GSA with accountId 'crossplane', not 'crossplane-controller'
+        gsaEmail: crossplane@yk-admin-bootstrap.iam.gserviceaccount.com
+        providerSuffix: crossplane

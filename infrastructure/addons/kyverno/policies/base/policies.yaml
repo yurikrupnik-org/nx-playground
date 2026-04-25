@@ -1,0 +1,101 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-gcp-sa-json-keys
+  annotations:
+    policies.kyverno.io/title: Disallow GCP service account JSON keys
+    policies.kyverno.io/description: >-
+      Block Secrets that look like long-lived GCP service account JSON keys.
+      All workloads must use Workload Identity (WIF on kind, native WI on GKE).
+spec:
+  validationFailureAction: ${POLICY_ACTION}
+  background: true
+  rules:
+    - name: no-gcp-key-secret
+      match:
+        any:
+          - resources:
+              kinds:
+                - Secret
+      validate:
+        message: >-
+          Secret looks like a GCP service account JSON key. Use Workload Identity instead.
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.data.\"key.json\" || '' }}"
+                operator: NotEquals
+                value: ""
+              - key: "{{ request.object.data.\"credentials.json\" || '' }}"
+                operator: NotEquals
+                value: ""
+              - key: "{{ request.object.data.\"service-account.json\" || '' }}"
+                operator: NotEquals
+                value: ""
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-pods
+  annotations:
+    policies.kyverno.io/title: Disallow privileged pods
+spec:
+  validationFailureAction: ${POLICY_ACTION}
+  background: true
+  rules:
+    - name: privileged-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Privileged containers are not allowed."
+        pattern:
+          spec:
+            =(initContainers):
+              - =(securityContext):
+                  =(privileged): "false"
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-wif-on-gke
+  annotations:
+    policies.kyverno.io/title: Require Workload Identity annotation on GKE
+    policies.kyverno.io/description: >-
+      KSAs in external-secrets / crossplane-system must carry the
+      iam.gke.io/gcp-service-account annotation when running on GKE.
+spec:
+  validationFailureAction: ${POLICY_ACTION}
+  background: true
+  rules:
+    - name: ksa-must-have-wi-annotation
+      match:
+        any:
+          - resources:
+              kinds:
+                - ServiceAccount
+              namespaces:
+                - external-secrets
+                - crossplane-system
+      context:
+        - name: clusterProvider
+          configMap:
+            name: cluster-config
+            namespace: flux-system
+      preconditions:
+        all:
+          - key: "{{ clusterProvider.data.CLUSTER_PROVIDER }}"
+            operator: Equals
+            value: gke
+      validate:
+        message: >-
+          On GKE, this ServiceAccount must have the iam.gke.io/gcp-service-account annotation.
+        pattern:
+          metadata:
+            annotations:
+              iam.gke.io/gcp-service-account: "?*"

@@ -1,0 +1,28 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  values:
+    extraVolumes:
+      - name: gcp-wif
+        secret:
+          secretName: gcp-wif-config
+      - name: gcp-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                audience: ${OIDC_ISSUER}
+                expirationSeconds: 3600
+                path: token
+    extraVolumeMounts:
+      - name: gcp-wif
+        mountPath: /var/run/secrets/gcp
+        readOnly: true
+      - name: gcp-token
+        mountPath: /var/run/secrets/gcp-token
+        readOnly: true
+    extraEnv:
+      - name: GOOGLE_APPLICATION_CREDENTIALS
+        value: /var/run/secrets/gcp/cred-config.json

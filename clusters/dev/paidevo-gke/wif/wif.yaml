@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crossplane-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-gcp
+  namespace: external-secrets
+  annotations:
+    iam.gke.io/gcp-service-account: external-secrets@bootstrap-491220.iam.gserviceaccount.com
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crossplane-gcp-provider
+  namespace: crossplane-system
+  annotations:
+    iam.gke.io/gcp-service-account: crossplane-controller@bootstrap-491220.iam.gserviceaccount.com

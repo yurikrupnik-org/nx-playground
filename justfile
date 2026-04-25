@@ -1,7 +1,207 @@
 #!/usr/bin/env just --justfile
+# import 'manifests/db/db.just'  # re-enable after removing duplicate db_url_* defs from this file
 
 default:
     just -l
+
+# =============================================================================
+# Cluster lifecycle: kind (local) or gke (real). Provider read from inputs.yaml.
+# Usage: `just cluster-up local-yk` or `just cluster-up paidevo-cluster`
+# =============================================================================
+
+gcp_user := `gcloud config get-value account 2>/dev/null | sed 's/@.*//'`
+github_account := env("GITHUB_ACCOUNT", "yurikrupnik")
+github_repo := env("GITHUB_REPO", "nx-playground")
+
+# Render all KCL outputs for a cluster (cluster-config, wif, kind-only artifacts)
+cluster-render CLUSTER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    test -f "$dir/inputs.yaml" || { echo "missing $dir/inputs.yaml"; exit 1; }
+    mkdir -p "$dir/wif" "$dir/cluster" "$dir/oidc"
+    settings=$(mktemp)
+    yq '{"kcl_options": (to_entries | map({"key": .key, "value": .value}))}' \
+        "$dir/inputs.yaml" > "$settings"
+    provider=$(yq -r '.clusterProvider' "$dir/inputs.yaml")
+    kcl run kcl/main.k -Y "$settings" -D target=cluster-config \
+        > "$dir/cluster-config.yaml"
+    kcl run kcl/main.k -Y "$settings" -D target=wif \
+        > "$dir/wif/wif.yaml"
+    if [ "$provider" = "kind" ]; then
+        kcl run kcl/main.k -Y "$settings" -D target=kind-config \
+            > "$dir/cluster/kind-config.yaml"
+        kcl run kcl/main.k -Y "$settings" -D target=oidc-config \
+            | yq -o=json > "$dir/oidc/openid-configuration"
+    fi
+    rm -f "$settings"
+    echo "Rendered $dir (provider=$provider)"
+
+# Create or attach to the cluster (kind: create; gke: get-credentials)
+cluster-create CLUSTER: (cluster-render CLUSTER)
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    provider=$(yq -r '.clusterProvider' "$dir/inputs.yaml")
+    name=$(yq -r '.clusterName' "$dir/inputs.yaml")
+    if [ "$provider" = "kind" ]; then
+        kind create cluster --name "$name" --config "$dir/cluster/kind-config.yaml"
+    else
+        location=$(yq -r '.gkeLocation' "$dir/inputs.yaml")
+        project=$(yq -r '.gcpProject' "$dir/inputs.yaml")
+        gcloud container clusters get-credentials "$name" \
+            --location "$location" --project "$project"
+    fi
+
+# Publish OIDC discovery to GCS (kind only — GKE uses its own metadata server)
+cluster-oidc-upload CLUSTER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    provider=$(yq -r '.clusterProvider' "$dir/inputs.yaml")
+    if [ "$provider" != "kind" ]; then
+        echo "skip: OIDC upload only applies to kind clusters"; exit 0
+    fi
+    oidc_id=$(yq -r '.oidcId // .clusterName' "$dir/inputs.yaml")
+    bucket=$(yq -r '.oidcBucket' "$dir/inputs.yaml")
+    kubectl get --raw /openid/v1/jwks > /tmp/keys.json
+    gcloud storage cp /tmp/keys.json "gs://$bucket/$oidc_id/keys.json"
+    gcloud storage cp "$dir/oidc/openid-configuration" \
+        "gs://$bucket/$oidc_id/.well-known/openid-configuration"
+    echo "OIDC published to gs://$bucket/$oidc_id/"
+
+# Bootstrap Flux at the per-cluster path
+cluster-bootstrap CLUSTER:
+    flux bootstrap github \
+        --owner={{ github_account }} \
+        --repository={{ github_repo }} \
+        --branch=main \
+        --path=clusters/dev/{{ CLUSTER }} \
+        --personal
+
+# Bind KSAs to GSAs (kind: WIF provider; gke: native Workload Identity)
+# Idempotent — re-run safely.
+cluster-grant CLUSTER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    provider=$(yq -r '.clusterProvider' "$dir/inputs.yaml")
+    project=$(yq -r '.gcpProject' "$dir/inputs.yaml")
+    project_number=$(gcloud projects describe "$project" --format='value(projectNumber)')
+    yq -r '.workloads[] | [.namespace, .ksa, .clouds.gcp.gsaEmail, (.clouds.gcp.providerSuffix // .name)] | @tsv' \
+        "$dir/inputs.yaml" | while IFS=$'\t' read -r ns ksa gsa suffix; do
+        if [ "$provider" = "kind" ]; then
+            member="principal://iam.googleapis.com/projects/$project_number/locations/global/workloadIdentityPools/local-clusters/subject/system:serviceaccount:$ns:$ksa"
+        else
+            member="serviceAccount:$project.svc.id.goog[$ns/$ksa]"
+        fi
+        echo "binding $ksa@$ns -> $gsa ($member)"
+        gcloud iam service-accounts add-iam-policy-binding "$gsa" \
+            --role=roles/iam.workloadIdentityUser \
+            --member="$member" \
+            --project="$project" >/dev/null
+    done
+    echo "WI bindings applied"
+
+# Full lifecycle: render + create + (kind: oidc upload) + grant + flux bootstrap
+cluster-up CLUSTER: (cluster-create CLUSTER) (cluster-oidc-upload CLUSTER) (cluster-grant CLUSTER) (cluster-bootstrap CLUSTER)
+    @echo "Cluster {{ CLUSTER }} ready"
+
+# Tear down (kind only — refuses for gke to avoid wrecking the real cluster)
+cluster-down CLUSTER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    provider=$(yq -r '.clusterProvider' "$dir/inputs.yaml")
+    name=$(yq -r '.clusterName' "$dir/inputs.yaml")
+    if [ "$provider" = "kind" ]; then
+        kind delete cluster --name "$name"
+    else
+        echo "refusing to delete real GKE cluster '$name' — do it manually"; exit 1
+    fi
+
+# One-time per-account: GCS bucket + WIF pool + per-workload providers (kind only).
+# Idempotent: 409 conflicts are swallowed; re-run safely after editing workloads.
+wif-bootstrap CLUSTER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    test -f "$dir/inputs.yaml" || { echo "missing $dir/inputs.yaml"; exit 1; }
+    provider=$(yq -r '.clusterProvider' "$dir/inputs.yaml")
+    if [ "$provider" != "kind" ]; then
+        echo "skip: wif-bootstrap only applies to kind clusters (gke uses native Workload Identity)"
+        exit 0
+    fi
+    project=$(yq -r '.gcpProject' "$dir/inputs.yaml")
+    bucket=$(yq -r '.oidcBucket' "$dir/inputs.yaml")
+    oidc_id=$(yq -r '.oidcId // .clusterName' "$dir/inputs.yaml")
+    issuer="https://storage.googleapis.com/$bucket/$oidc_id"
+    pool=local-clusters
+
+    echo "==> ensuring bucket gs://$bucket (public read)"
+    gcloud storage buckets create "gs://$bucket" \
+        --project="$project" --location=US --uniform-bucket-level-access 2>/dev/null \
+        || echo "    bucket exists"
+    gcloud storage buckets add-iam-policy-binding "gs://$bucket" \
+        --member=allUsers --role=roles/storage.objectViewer >/dev/null
+
+    echo "==> ensuring WIF pool '$pool' in $project"
+    gcloud iam workload-identity-pools create "$pool" \
+        --location=global --project="$project" \
+        --display-name="Local kind clusters" 2>/dev/null \
+        || echo "    pool exists"
+
+    yq -r '.workloads[] | [.namespace, .ksa, (.clouds.gcp.providerSuffix // .name)] | @tsv' \
+        "$dir/inputs.yaml" | while IFS=$'\t' read -r ns ksa suffix; do
+        provider_id="kind-$oidc_id-$suffix"
+        echo "==> ensuring WIF provider '$provider_id' (sub=system:serviceaccount:$ns:$ksa)"
+        gcloud iam workload-identity-pools providers create-oidc "$provider_id" \
+            --workload-identity-pool="$pool" \
+            --location=global \
+            --project="$project" \
+            --issuer-uri="$issuer" \
+            --allowed-audiences="$issuer" \
+            --attribute-mapping="google.subject=assertion.sub" \
+            --attribute-condition="assertion.sub == 'system:serviceaccount:$ns:$ksa'" 2>/dev/null \
+            || echo "    provider exists (delete + recreate to change subject mapping)"
+    done
+
+    echo
+    echo "WIF bootstrap done. Next: just cluster-up {{ CLUSTER }}"
+
+# Install mkcert root CA into a kind cluster's cert-manager namespace as Secret
+# 'mkcert-root-ca' so the ca-local ClusterIssuer can sign certs. Idempotent.
+# Run AFTER flux has reconciled cert-manager (the namespace must exist).
+kind-ca-install CLUSTER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    provider=$(yq -r '.clusterProvider' "$dir/inputs.yaml")
+    if [ "$provider" != "kind" ]; then
+        echo "skip: kind-ca-install only applies to kind clusters"; exit 0
+    fi
+    command -v mkcert >/dev/null || { echo "mkcert not installed (brew install mkcert)"; exit 1; }
+    mkcert -install >/dev/null 2>&1 || true
+    caroot=$(mkcert -CAROOT)
+    test -f "$caroot/rootCA.pem" || { echo "mkcert root CA missing at $caroot"; exit 1; }
+    test -f "$caroot/rootCA-key.pem" || { echo "mkcert root CA key missing at $caroot"; exit 1; }
+
+    name=$(yq -r '.clusterName' "$dir/inputs.yaml")
+    ctx="kind-$name"
+    echo "==> waiting for cert-manager namespace in $ctx (flux must reconcile first)"
+    until kubectl --context="$ctx" get ns cert-manager >/dev/null 2>&1; do sleep 5; done
+
+    echo "==> applying Secret cert-manager/mkcert-root-ca"
+    kubectl --context="$ctx" -n cert-manager create secret tls mkcert-root-ca \
+        --cert="$caroot/rootCA.pem" --key="$caroot/rootCA-key.pem" \
+        --dry-run=client -o yaml | kubectl --context="$ctx" apply -f -
+    echo "ca-local ClusterIssuer should report Ready shortly"
+
+# Convenience aliases — pass the cluster directory name from clusters/dev/
+# Default to yurikrupnik-local for kind, paidevo-gke for gke; override per call.
+kind-up CLUSTER="yurikrupnik-local": (cluster-up CLUSTER)
+kind-down CLUSTER="yurikrupnik-local": (cluster-down CLUSTER)
+gke-up CLUSTER="paidevo-gke": (cluster-up CLUSTER)
 
 # Full quality check for Rust monorepo (read-only, CI-safe)
 check: fmt-check lint test audit
