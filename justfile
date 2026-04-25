@@ -79,17 +79,30 @@ cluster-bootstrap CLUSTER:
     branch=$(yq -r '.githubBranch // "main"' "$dir/inputs.yaml")
     owner=$(yq -r ".githubAccount // \"{{ github_account }}\"" "$dir/inputs.yaml")
     repo=$(yq -r ".githubRepo // \"{{ github_repo }}\"" "$dir/inputs.yaml")
-    # personal=true (default) → user-owned repo, adds --personal; false → GitHub org
-    personal=$(yq -r '.githubPersonal // true' "$dir/inputs.yaml")
-    personal_flag=""
-    if [ "$personal" = "true" ]; then personal_flag="--personal"; fi
-    echo "==> flux bootstrap github owner=$owner repo=$repo branch=$branch path=$dir personal=$personal"
-    flux bootstrap github \
-        --owner="$owner" \
-        --repository="$repo" \
-        --branch="$branch" \
-        --path="$dir" \
-        $personal_flag
+    auth=$(yq -r '.githubAuth // "pat"' "$dir/inputs.yaml")
+    echo "==> flux bootstrap github owner=$owner repo=$repo branch=$branch path=$dir auth=$auth"
+    case "$auth" in
+      app)
+        app_id=$(yq -r '.githubAppId' "$dir/inputs.yaml")
+        install_id=$(yq -r '.githubAppInstallationId' "$dir/inputs.yaml")
+        pem_path=$(yq -r '.githubAppPemPath' "$dir/inputs.yaml" | sed "s|^~|$HOME|")
+        test -f "$pem_path" || { echo "missing PEM at $pem_path"; exit 1; }
+        flux bootstrap github \
+            --owner="$owner" --repository="$repo" --branch="$branch" --path="$dir" \
+            --app-id="$app_id" \
+            --app-installation-id="$install_id" \
+            --app-private-key="$pem_path"
+        ;;
+      pat)
+        personal=$(yq -r '.githubPersonal // true' "$dir/inputs.yaml")
+        personal_flag=""
+        if [ "$personal" = "true" ]; then personal_flag="--personal"; fi
+        flux bootstrap github \
+            --owner="$owner" --repository="$repo" --branch="$branch" --path="$dir" \
+            $personal_flag
+        ;;
+      *) echo "unknown githubAuth: $auth (expected pat or app)"; exit 1 ;;
+    esac
 
 # Bind KSAs to GSAs (kind: WIF provider; gke: native Workload Identity)
 # Idempotent — re-run safely.

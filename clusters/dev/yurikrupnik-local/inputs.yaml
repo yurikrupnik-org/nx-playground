@@ -22,6 +22,11 @@ githubRepo: nx-playground
 githubBranch: clusters
 # yurikrupnik-org is a GitHub organization, not a user — disable --personal flag
 githubPersonal: false
+# Flux auth: "pat" (default, uses GITHUB_TOKEN) or "app" (GitHub App, recommended for orgs)
+githubAuth: app
+githubAppId: 2727409
+githubAppInstallationId: 125927191
+githubAppPemPath: ~/.config/flux-keys/yurikrupnik-org-flux.pem
 workloads:
   - name: external-secrets
     namespace: external-secrets
