@@ -1,6 +1,7 @@
 # vals configuration for GCP Secret Manager
 # Usage: vals env -f .vals.yaml
 # Docs: https://github.com/helmfile/vals#gcp-secrets-manager
+# todo
 
 APP_SECRETS: ref+gcpsecrets://playground-447016/app-secrets
 CRATES_TOKEN: ref+gcpsecrets://playground-447016/crates-token
