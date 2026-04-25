@@ -24,7 +24,7 @@ data:
   TLS_ENABLED: 'true'
   GITHUB_ACCOUNT: yurikrupnik
   GITHUB_REPO: nx-playground
-  GITHUB_BRANCH: main
+  GITHUB_BRANCH: clusters
   POLICY_ACTION: Audit
   TLS_ISSUER: ca-local
   ACME_EMAIL: ''

@@ -70,13 +70,21 @@ cluster-oidc-upload CLUSTER:
         "gs://$bucket/$oidc_id/.well-known/openid-configuration"
     echo "OIDC published to gs://$bucket/$oidc_id/"
 
-# Bootstrap Flux at the per-cluster path
+# Bootstrap Flux at the per-cluster path. Reads githubBranch / githubAccount / githubRepo
+# from inputs.yaml so kind/gke clusters can track different branches per cluster.
 cluster-bootstrap CLUSTER:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="clusters/dev/{{ CLUSTER }}"
+    branch=$(yq -r '.githubBranch // "main"' "$dir/inputs.yaml")
+    owner=$(yq -r ".githubAccount // \"{{ github_account }}\"" "$dir/inputs.yaml")
+    repo=$(yq -r ".githubRepo // \"{{ github_repo }}\"" "$dir/inputs.yaml")
+    echo "==> flux bootstrap github owner=$owner repo=$repo branch=$branch path=$dir"
     flux bootstrap github \
-        --owner={{ github_account }} \
-        --repository={{ github_repo }} \
-        --branch=main \
-        --path=clusters/dev/{{ CLUSTER }} \
+        --owner="$owner" \
+        --repository="$repo" \
+        --branch="$branch" \
+        --path="$dir" \
         --personal
 
 # Bind KSAs to GSAs (kind: WIF provider; gke: native Workload Identity)
