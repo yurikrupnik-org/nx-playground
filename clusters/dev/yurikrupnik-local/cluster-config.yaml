@@ -22,7 +22,7 @@ data:
   INGRESS_CLASS: istio
   INGRESS_ENABLED: 'true'
   TLS_ENABLED: 'true'
-  GITHUB_ACCOUNT: yurikrupnik
+  GITHUB_ACCOUNT: yurikrupnik-org
   GITHUB_REPO: nx-playground
   GITHUB_BRANCH: clusters
   POLICY_ACTION: Audit

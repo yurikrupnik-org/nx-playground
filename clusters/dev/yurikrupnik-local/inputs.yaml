@@ -17,9 +17,11 @@ gatewaySuffix: local.platform.yurikrupnik.com
 ingressClass: istio
 ingressEnabled: true
 tlsEnabled: true
-githubAccount: yurikrupnik
+githubAccount: yurikrupnik-org
 githubRepo: nx-playground
 githubBranch: clusters
+# yurikrupnik-org is a GitHub organization, not a user — disable --personal flag
+githubPersonal: false
 workloads:
   - name: external-secrets
     namespace: external-secrets

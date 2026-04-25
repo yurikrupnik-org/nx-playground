@@ -79,13 +79,17 @@ cluster-bootstrap CLUSTER:
     branch=$(yq -r '.githubBranch // "main"' "$dir/inputs.yaml")
     owner=$(yq -r ".githubAccount // \"{{ github_account }}\"" "$dir/inputs.yaml")
     repo=$(yq -r ".githubRepo // \"{{ github_repo }}\"" "$dir/inputs.yaml")
-    echo "==> flux bootstrap github owner=$owner repo=$repo branch=$branch path=$dir"
+    # personal=true (default) → user-owned repo, adds --personal; false → GitHub org
+    personal=$(yq -r '.githubPersonal // true' "$dir/inputs.yaml")
+    personal_flag=""
+    if [ "$personal" = "true" ]; then personal_flag="--personal"; fi
+    echo "==> flux bootstrap github owner=$owner repo=$repo branch=$branch path=$dir personal=$personal"
     flux bootstrap github \
         --owner="$owner" \
         --repository="$repo" \
         --branch="$branch" \
         --path="$dir" \
-        --personal
+        $personal_flag
 
 # Bind KSAs to GSAs (kind: WIF provider; gke: native Workload Identity)
 # Idempotent — re-run safely.
