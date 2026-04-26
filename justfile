@@ -4,6 +4,14 @@
 default:
     just -l
 
+dam:
+  just cluster-create yurikrupnik-local
+  just cluster-oidc-upload yurikrupnik-local
+  # just cluster-grant yurikrupnik-local # check if needed
+  export GITHUB_TOKEN=$(gh auth token)
+  just cluster-bootstrap yurikrupnik-local
+#  just cluster-bootstrap yurikrupnik-local
+#  kubectl config use-context kind-kind-yurik
 # =============================================================================
 # Cluster lifecycle: kind (local) or gke (real). Provider read from inputs.yaml.
 # Usage: `just cluster-up local-yk` or `just cluster-up paidevo-cluster`
@@ -83,21 +91,72 @@ cluster-bootstrap CLUSTER:
     echo "==> flux bootstrap github owner=$owner repo=$repo branch=$branch path=$dir auth=$auth"
     case "$auth" in
       app)
+        # GitHub App auth is not supported by `flux bootstrap` — do it manually:
+        #   1. flux install         (deploys flux-system components)
+        #   2. create Secret with App credentials
+        #   3. create GitRepository with provider=github + secretRef
+        #   4. create root Kustomization pointing at $dir
         app_id=$(yq -r '.githubAppId' "$dir/inputs.yaml")
         install_id=$(yq -r '.githubAppInstallationId' "$dir/inputs.yaml")
         pem_path=$(yq -r '.githubAppPemPath' "$dir/inputs.yaml" | sed "s|^~|$HOME|")
         test -f "$pem_path" || { echo "missing PEM at $pem_path"; exit 1; }
-        flux bootstrap github \
-            --owner="$owner" --repository="$repo" --branch="$branch" --path="$dir" \
-            --app-id="$app_id" \
-            --app-installation-id="$install_id" \
-            --app-private-key="$pem_path"
+
+        echo "==> flux install"
+        flux install --components-extra=image-reflector-controller,image-automation-controller >/dev/null
+        kubectl -n flux-system wait --for=condition=Ready pod -l app=source-controller --timeout=2m
+
+        echo "==> creating Secret flux-system/flux-system (GitHub App credentials)"
+        kubectl -n flux-system create secret generic flux-system \
+            --from-literal=githubAppID="$app_id" \
+            --from-literal=githubAppInstallationID="$install_id" \
+            --from-file=githubAppPrivateKey="$pem_path" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+        echo "==> creating GitRepository + root Kustomization"
+        # Write YAML to tmp file (heredoc + just dedent leave column-4 indent — strip it)
+        cat <<EOF | sed 's/^    //' > /tmp/flux-source.yaml
+    apiVersion: source.toolkit.fluxcd.io/v1
+    kind: GitRepository
+    metadata:
+      name: flux-system
+      namespace: flux-system
+    spec:
+      interval: 1m
+      ref:
+        branch: $branch
+      provider: github
+      secretRef:
+        name: flux-system
+      url: https://github.com/$owner/$repo.git
+    ---
+    apiVersion: kustomize.toolkit.fluxcd.io/v1
+    kind: Kustomization
+    metadata:
+      name: flux-system
+      namespace: flux-system
+    spec:
+      interval: 10m
+      path: ./$dir
+      prune: true
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+    EOF
+        kubectl apply -f /tmp/flux-source.yaml
+        rm -f /tmp/flux-source.yaml
+
+        echo "==> reconcile"
+        flux reconcile source git flux-system
+        flux reconcile kustomization flux-system
         ;;
       pat)
         personal=$(yq -r '.githubPersonal // true' "$dir/inputs.yaml")
         personal_flag=""
         if [ "$personal" = "true" ]; then personal_flag="--personal"; fi
+        # --token-auth uses HTTPS+GITHUB_TOKEN instead of SSH deploy keys
+        # (orgs commonly disable deploy keys; HTTPS auth always works)
         flux bootstrap github \
+            --token-auth \
             --owner="$owner" --repository="$repo" --branch="$branch" --path="$dir" \
             $personal_flag
         ;;

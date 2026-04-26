@@ -22,7 +22,10 @@ githubRepo: nx-playground
 githubBranch: clusters
 # yurikrupnik-org is a GitHub organization, not a user — disable --personal flag
 githubPersonal: false
-# Flux auth: "pat" (default, uses GITHUB_TOKEN) or "app" (GitHub App, recommended for orgs)
+# Flux auth: "pat" or "app".
+# NOTE: flux bootstrap itself only supports PAT/SSH. App auth is post-bootstrap
+# (we migrate the GitRepository's secretRef to a GitHub App Secret after).
+# Keep these App fields populated — we use them in the post-bootstrap migration.
 githubAuth: app
 githubAppId: 2727409
 githubAppInstallationId: 125927191

@@ -18,6 +18,6 @@ spec:
   values:
     serviceAccount:
       create: false
-      name: eso-gcp
+      name: ${ESO_KSA}
     webhook:
       port: 9443

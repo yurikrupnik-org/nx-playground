@@ -11,7 +11,7 @@ wifProjectNumber: 781189060618
 oidcBucket: paidevo-local-oidc
 domain: yurikrupnik.com
 gatewayMode: platform
-gatewaySuffix: platform.yurikrupnik.com
+gatewaySuffix: local.platform.yurikrupnik.com
 ingressClass: istio
 ingressEnabled: true
 tlsEnabled: true

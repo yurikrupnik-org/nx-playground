@@ -28,3 +28,5 @@ data:
   POLICY_ACTION: Audit
   TLS_ISSUER: ca-local
   ACME_EMAIL: ''
+  ESO_KSA: eso-gcp
+  XP_KSA: crossplane-gcp-provider

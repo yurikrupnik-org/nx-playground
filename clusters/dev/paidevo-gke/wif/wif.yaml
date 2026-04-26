@@ -11,7 +11,7 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: eso-gcp
+  name: external-secrets
   namespace: external-secrets
   annotations:
     iam.gke.io/gcp-service-account: external-secrets@bootstrap-491220.iam.gserviceaccount.com

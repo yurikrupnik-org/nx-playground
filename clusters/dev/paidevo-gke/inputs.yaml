@@ -13,18 +13,25 @@ gatewaySuffix: platform.yurikrupnik.com # TODO change back to platform.paidevo.c
 ingressClass: istio
 ingressEnabled: true
 tlsEnabled: true
-githubAccount: yurikrupnik
+# Let's Encrypt account email — required for ACME registration
+acmeEmail: slava@yurikrupnik.com
+githubAccount: yurikrupnik-org
 githubRepo: nx-playground
-githubBranch: main
+githubBranch: clusters
+githubPersonal: false
+githubAuth: pat
 workloads:
   - name: external-secrets
     namespace: external-secrets
-    ksa: eso-gcp
+    # KSA name MUST match what Pulumi GkeWorkloads bound:
+    # platformWorkloads.kubernetesServiceAccount = 'external-secrets'
+    ksa: external-secrets
     clouds:
       gcp:
         gsaEmail: external-secrets@bootstrap-491220.iam.gserviceaccount.com
   - name: crossplane
     namespace: crossplane-system
+    # Matches Pulumi: kubernetesServiceAccount = 'crossplane-gcp-provider'
     ksa: crossplane-gcp-provider
     clouds:
       gcp:

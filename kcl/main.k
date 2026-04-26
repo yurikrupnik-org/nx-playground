@@ -37,6 +37,12 @@ _oidcId = oidcIdInput if oidcIdInput != "" else clusterName
 _issuer = "https://storage.googleapis.com/${oidcBucket}/${_oidcId}" if _isKind else ""
 _gatewaySuffix = gatewaySuffix if gatewaySuffix != "" else domain
 
+# KSA names per workload — used by helmrelease/serviceAccount.name substitution
+_esoMatches = [w for w in workloads if w.name == "external-secrets"]
+_xpMatches = [w for w in workloads if w.name == "crossplane"]
+_esoKsa = _esoMatches[0].ksa if len(_esoMatches) > 0 else "external-secrets"
+_xpKsa = _xpMatches[0].ksa if len(_xpMatches) > 0 else "crossplane-gcp-provider"
+
 _kindCluster = {
     kind = "Cluster"
     apiVersion = "kind.x-k8s.io/v1alpha4"
@@ -86,6 +92,8 @@ _clusterConfig = {
         POLICY_ACTION = _policyAction
         TLS_ISSUER = _tlsIssuer
         ACME_EMAIL = acmeEmail
+        ESO_KSA = _esoKsa
+        XP_KSA = _xpKsa
     }
 }
 
