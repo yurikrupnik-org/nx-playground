@@ -88,6 +88,22 @@ cluster-bootstrap CLUSTER:
     owner=$(yq -r ".githubAccount // \"{{ github_account }}\"" "$dir/inputs.yaml")
     repo=$(yq -r ".githubRepo // \"{{ github_repo }}\"" "$dir/inputs.yaml")
     auth=$(yq -r '.githubAuth // "pat"' "$dir/inputs.yaml")
+
+    # flux bootstrap pushes a commit to the remote BEFORE applying in-cluster.
+    # If a previous attempt pushed but failed in-cluster, local is now behind.
+    # Sync with remote before re-running so the next push is fast-forward.
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$current_branch" = "$branch" ]; then
+        echo "==> syncing local '$branch' with origin (rebase)"
+        git fetch origin "$branch"
+        if ! git pull --rebase origin "$branch"; then
+            echo "✗ rebase failed — resolve conflicts manually then re-run"
+            exit 1
+        fi
+    else
+        echo "warning: local branch is '$current_branch' but cluster wants '$branch' — skipping pre-pull"
+    fi
+
     echo "==> flux bootstrap github owner=$owner repo=$repo branch=$branch path=$dir auth=$auth"
     case "$auth" in
       app)
