@@ -5,3 +5,6 @@ resources:
   - ../../base
   - atlas-schema.yaml
   - schema-configmap.yaml
+images:
+  - name: europe-west1-docker.pkg.dev/yk-artifact-registry/docker/zerg-api
+    newTag: 0.0.3 # {"$imagepolicy": "flux-system:api:tag"}

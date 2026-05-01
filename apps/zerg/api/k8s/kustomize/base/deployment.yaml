@@ -7,6 +7,7 @@ metadata:
     app.kubernetes.io/name: zerg-api
     app.kubernetes.io/component: api-server
     app.kubernetes.io/part-of: zerg
+    #    app.kubernetes.io/version: myAwesomeWorkloadVersion
 spec:
   replicas: 1
   selector:
@@ -31,7 +32,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: zerg-api
-          image: yurikrupnik/zerg-api:latest
+          image: europe-west1-docker.pkg.dev/yk-artifact-registry/docker/zerg-api:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
