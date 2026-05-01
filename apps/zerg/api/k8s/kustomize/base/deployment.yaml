@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: zerg-api
     app.kubernetes.io/component: api-server
     app.kubernetes.io/part-of: zerg
-    #    app.kubernetes.io/version: myAwesomeWorkloadVersion
+    app.kubernetes.io/version: "0.1.0"
 spec:
   replicas: 1
   selector:
@@ -19,6 +19,8 @@ spec:
         app: zerg-api
         app.kubernetes.io/name: zerg-api
         app.kubernetes.io/component: api-server
+        app.kubernetes.io/part-of: zerg
+        app.kubernetes.io/version: "0.1.0"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"

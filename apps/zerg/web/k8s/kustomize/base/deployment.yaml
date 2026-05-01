@@ -6,6 +6,8 @@ metadata:
     app: zerg-web
     app.kubernetes.io/name: zerg-web
     app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: zerg
+    app.kubernetes.io/version: "0.1.0"
 spec:
   replicas: 1
   selector:
@@ -17,6 +19,8 @@ spec:
         app: zerg-web
         app.kubernetes.io/name: zerg-web
         app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: zerg
+        app.kubernetes.io/version: "0.1.0"
     spec:
       securityContext:
         runAsNonRoot: true
