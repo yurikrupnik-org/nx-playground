@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: zerg-email-nats
-          image: yurikrupnik/zerg-email-nats:latest
+          image: europe-west1-docker.pkg.dev/yk-artifact-registry/docker/zerg-email-nats:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8081

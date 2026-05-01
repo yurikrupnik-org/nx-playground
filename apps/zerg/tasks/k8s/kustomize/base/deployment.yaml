@@ -31,7 +31,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: zerg-tasks
-          image: yurikrupnik/zerg-tasks:latest
+          image: europe-west1-docker.pkg.dev/yk-artifact-registry/docker/zerg-tasks:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 50051

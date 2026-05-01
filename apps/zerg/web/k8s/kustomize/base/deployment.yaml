@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: zerg-web
-          image: yurikrupnik/zerg-web
+          image: europe-west1-docker.pkg.dev/yk-artifact-registry/docker/zerg-web:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
