@@ -51,6 +51,22 @@ spec:
             - secretRef:
                 name: zerg-tasks-secrets
                 optional: true
+          env:
+            # Redis credentials replicated from dbs/redis-redis-account-default
+            # by the sync-redis-creds-secret Kyverno policy (gitops-v1).
+            # Optional so local-kind dev (no Kyverno + no KubeBlocks) keeps working.
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: redis-redis-account-default
+                  key: username
+                  optional: true
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-redis-account-default
+                  key: password
+                  optional: true
           # Startup probe: allows up to 30s for container to start (6 * 5s)
           startupProbe:
             grpc:
