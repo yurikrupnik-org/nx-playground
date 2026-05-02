@@ -5,6 +5,7 @@ namespace: zerg
 
 resources:
   - ../../base
+  - smtp.yaml
 
 replicas:
   - name: zerg-email-nats

@@ -6,7 +6,8 @@ namespace: zerg
 resources:
   - ../../base
   - scaledobject.yaml
-  - external-secret.yaml
+#  activete es when we have sendgrid or ses
+#  - external-secret.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

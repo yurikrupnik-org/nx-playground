@@ -5,6 +5,7 @@ namespace: zerg
 
 resources:
   - external-secret.yaml
+  - ../../../../../email-nats/k8s/kustomize/overlays/dev
 
 generatorOptions:
   disableNameSuffixHash: true
