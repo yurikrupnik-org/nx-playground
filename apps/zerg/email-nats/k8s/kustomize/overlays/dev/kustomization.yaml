@@ -1,15 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: zerg
+#namespace: zerg
 
 resources:
   - ../../base
   - smtp.yaml
 
-replicas:
-  - name: zerg-email-nats
-    count: 1
+#replicas:
+#  - name: zerg-email-nats
+#    count: 1
 
 generatorOptions:
   disableNameSuffixHash: true
@@ -18,7 +18,7 @@ configMapGenerator:
   - name: zerg-email-nats-config
     literals:
       - HEALTH_PORT=8081
-      - SMTP_HOST=mailhog.dbs.svc.cluster.local
+      - SMTP_HOST=mailhog.zerg-dev.svc.cluster.local
       - SMTP_PORT=1025
       - EMAIL_FROM_ADDRESS=noreply@zerg.local
       - EMAIL_FROM_NAME=Zerg Dev
