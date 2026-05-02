@@ -5,3 +5,4 @@ namespace: zerg
 
 resources:
   - ../../base
+  - httproute.yaml

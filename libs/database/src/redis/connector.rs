@@ -1,9 +1,35 @@
-use redis::Client;
 use redis::aio::ConnectionManager;
+use redis::{Client, ConnectionInfo, IntoConnectionInfo};
 use tracing::info;
 
 use super::RedisConfig;
 use crate::common::{RetryConfig, retry, retry_with_backoff};
+
+/// Fold a `RedisConfig` (URL + optional username/password) into a `ConnectionInfo`.
+/// Credentials supplied via env vars (`REDIS_USERNAME`/`REDIS_PASSWORD`) override
+/// anything embedded in the URL — this is what allows mounting creds from a Secret
+/// without rewriting the URL.
+fn build_info(config: &RedisConfig) -> redis::RedisResult<ConnectionInfo> {
+    let info = config.url.as_str().into_connection_info()?;
+    let mut redis_settings = info.redis_settings().clone();
+    if let Some(u) = &config.username {
+        redis_settings = redis_settings.set_username(u);
+    }
+    if let Some(p) = &config.password {
+        redis_settings = redis_settings.set_password(p);
+    }
+    Ok(info.set_redis_settings(redis_settings))
+}
+
+async fn connect_info(info: ConnectionInfo, url_for_log: &str) -> redis::RedisResult<ConnectionManager> {
+    info!("Attempting to connect to Redis at {}", url_for_log);
+    let client = Client::open(info)?;
+    let manager = ConnectionManager::new(client).await?;
+    let mut conn = manager.clone();
+    let _: String = redis::cmd("PING").query_async(&mut conn).await?;
+    info!("Successfully connected to Redis");
+    Ok(manager)
+}
 
 /// Connect to Redis and return a ConnectionManager
 ///
@@ -55,7 +81,8 @@ pub async fn connect(url: &str) -> redis::RedisResult<ConnectionManager> {
 /// let conn = connect_from_config(config).await?;
 /// ```
 pub async fn connect_from_config(config: RedisConfig) -> redis::RedisResult<ConnectionManager> {
-    connect(&config.url).await
+    let info = build_info(&config)?;
+    connect_info(info, &config.url).await
 }
 
 /// Connect to Redis with automatic retry on failure
@@ -104,7 +131,15 @@ pub async fn connect_from_config_with_retry(
     config: RedisConfig,
     retry_config: Option<RetryConfig>,
 ) -> redis::RedisResult<ConnectionManager> {
-    connect_with_retry(&config.url, retry_config).await
+    let info = build_info(&config)?;
+    let url_owned = config.url.clone();
+
+    match retry_config {
+        Some(rc) => {
+            retry_with_backoff(|| connect_info(info.clone(), &url_owned), rc).await
+        }
+        None => retry(|| connect_info(info.clone(), &url_owned)).await,
+    }
 }
 
 /// Simple wrapper for Redis ConnectionManager (kept for compatibility)

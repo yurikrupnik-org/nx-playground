@@ -14,9 +14,9 @@ configMapGenerator:
   - name: zerg-api-config
     literals:
       - PORT=8080
-      - CORS_ALLOWED_ORIGIN=https://your-production-domain.com
-      - REDIRECT_BASE_URL=https://api.your-production-domain.com
-      - FRONTEND_URL=https://your-production-domain.com
+      - CORS_ALLOWED_ORIGIN=https://zerg.${GATEWAY_SUFFIX}
+      - REDIRECT_BASE_URL=https://zerg.${GATEWAY_SUFFIX}
+      - FRONTEND_URL=https://zerg.${GATEWAY_SUFFIX}
       - OAUTH_AUTO_LINK_VERIFIED_EMAILS=false
       - FLAGSMITH_API_URL=http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1
       - TASKS_SERVICE_ADDR=http://zerg-tasks:50051
