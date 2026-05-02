@@ -19,7 +19,7 @@ configMapGenerator:
       - FRONTEND_URL=https://your-production-domain.com
       - OAUTH_AUTO_LINK_VERIFIED_EMAILS=false
       - FLAGSMITH_API_URL=http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1
-      - TASKS_SERVICE_ADDR=http://zerg-tasks.zerg.svc.cluster.local:50051
+      - TASKS_SERVICE_ADDR=http://zerg-tasks:50051
       - RATE_LIMIT_REQUESTS_PER_WINDOW=200
       - RATE_LIMIT_WINDOW_SECS=60
       - RATE_LIMIT_ENABLED=true
