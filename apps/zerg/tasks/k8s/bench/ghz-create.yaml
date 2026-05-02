@@ -1,0 +1,167 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zerg-tasks-ghz-proto
+data:
+  tasks.proto: |
+    syntax = "proto3";
+
+    package tasks.v1;
+
+    option go_package = "grpc/tasks/v1";
+
+    service TasksService {
+      rpc Create(CreateRequest) returns (CreateResponse) {}
+      rpc GetById(GetByIdRequest) returns (GetByIdResponse) {}
+      rpc DeleteById(DeleteByIdRequest) returns (DeleteByIdResponse) {}
+      rpc UpdateById(UpdateByIdRequest) returns (UpdateByIdResponse) {}
+      rpc List(ListRequest) returns (ListResponse) {}
+      rpc ListStream(ListStreamRequest) returns (stream ListStreamResponse) {}
+    }
+
+    enum Priority {
+      PRIORITY_UNSPECIFIED = 0;
+      PRIORITY_LOW = 1;
+      PRIORITY_MEDIUM = 2;
+      PRIORITY_HIGH = 3;
+      PRIORITY_URGENT = 4;
+    }
+
+    enum Status {
+      STATUS_UNSPECIFIED = 0;
+      STATUS_TODO = 1;
+      STATUS_IN_PROGRESS = 2;
+      STATUS_DONE = 3;
+    }
+
+    message CreateRequest {
+      string title = 1;
+      string description = 2;
+      optional bytes project_id = 3;
+      Priority priority = 4;
+      Status status = 5;
+      optional int64 due_date = 6;
+    }
+
+    message CreateResponse {
+      bytes id = 1;
+      string title = 2;
+      string description = 3;
+      bool completed = 4;
+      optional bytes project_id = 5;
+      Priority priority = 6;
+      Status status = 7;
+      optional int64 due_date = 8;
+      int64 created_at = 9;
+      int64 updated_at = 10;
+    }
+
+    message GetByIdRequest { bytes id = 1; }
+    message GetByIdResponse {
+      bytes id = 1;
+      string title = 2;
+      string description = 3;
+      bool completed = 4;
+      optional bytes project_id = 5;
+      Priority priority = 6;
+      Status status = 7;
+      optional int64 due_date = 8;
+      int64 created_at = 9;
+      int64 updated_at = 10;
+    }
+
+    message UpdateByIdRequest {
+      bytes id = 1;
+      optional string title = 2;
+      optional string description = 3;
+      optional bool completed = 4;
+      optional bytes project_id = 5;
+      optional Priority priority = 6;
+      optional Status status = 7;
+      optional int64 due_date = 8;
+    }
+
+    message UpdateByIdResponse {
+      bytes id = 1;
+      string title = 2;
+      string description = 3;
+      bool completed = 4;
+      optional bytes project_id = 5;
+      Priority priority = 6;
+      Status status = 7;
+      optional int64 due_date = 8;
+      int64 created_at = 9;
+      int64 updated_at = 10;
+    }
+
+    message DeleteByIdRequest { bytes id = 1; }
+    message DeleteByIdResponse {}
+
+    message ListRequest {
+      optional bytes project_id = 1;
+      optional Status status = 2;
+      optional Priority priority = 3;
+      optional bool completed = 4;
+      int32 limit = 5;
+      int32 offset = 6;
+    }
+
+    message ListResponse { repeated CreateResponse data = 1; }
+
+    message ListStreamRequest {
+      optional bytes project_id = 1;
+      optional Status status = 2;
+      optional Priority priority = 3;
+      optional bool completed = 4;
+      int32 limit = 5;
+    }
+
+    message ListStreamResponse {
+      bytes id = 1;
+      string title = 2;
+      string description = 3;
+      bool completed = 4;
+      optional bytes project_id = 5;
+      Priority priority = 6;
+      Status status = 7;
+      optional int64 due_date = 8;
+      int64 created_at = 9;
+      int64 updated_at = 10;
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zerg-tasks-ghz-create
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ghz
+          image: ghcr.io/bojand/ghz:latest
+          args:
+            - --insecure
+            - --proto=/protos/tasks.proto
+            - --call=tasks.v1.TasksService.Create
+            - --data={"title":"bench","description":"load test","priority":2,"status":1}
+            - --concurrency=50
+            - --total=10000
+            - --connections=4
+            - zerg-tasks:50051
+          volumeMounts:
+            - name: proto
+              mountPath: /protos
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 256Mi
+      volumes:
+        - name: proto
+          configMap:
+            name: zerg-tasks-ghz-proto
