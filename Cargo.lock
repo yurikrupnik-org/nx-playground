@@ -7136,6 +7136,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tonic 0.14.6",
+ "tonic-health",
  "tower 0.5.3",
  "tower-http",
  "tracing",

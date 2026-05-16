@@ -31,9 +31,15 @@ async fn main() -> eyre::Result<()> {
     let tasks_addr =
         std::env::var("TASKS_SERVICE_ADDR").unwrap_or_else(|_| "http://[::1]:50051".to_string());
 
-    info!("Connecting to TasksService at {} (optimized)", tasks_addr);
+    info!(
+        "Configured lazy TasksService client at {} (connects on first RPC)",
+        tasks_addr
+    );
 
-    let tasks_client = grpc_pool::create_optimized_tasks_client(tasks_addr).await?;
+    let grpc_pool::TasksClients {
+        tasks: tasks_client,
+        health: tasks_health,
+    } = grpc_pool::create_optimized_tasks_clients(tasks_addr)?;
 
     // Initialize database connections concurrently
     let postgres_future = async {
@@ -113,6 +119,7 @@ async fn main() -> eyre::Result<()> {
     let state = AppState {
         config,
         tasks_client,
+        tasks_health,
         db,
         redis,
         jwt_auth,

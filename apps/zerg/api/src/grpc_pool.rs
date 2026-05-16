@@ -1,28 +1,29 @@
 use rpc::tasks::tasks_service_client::TasksServiceClient;
 use tonic::transport::Channel;
+use tonic_health::pb::health_client::HealthClient;
 
-/// Creates an optimized gRPC client with HTTP/2 tuning and compression
+/// Lazy gRPC channel + the clients that share it.
 ///
-/// This function uses the shared grpc-client library to create a TasksServiceClient
-/// with production-ready configuration:
-/// - HTTP/2 keep-alive and flow control tuning
-/// - Zstd compression (3-5x faster than gzip)
-/// - 8MB message size limits
-/// - TCP optimizations (nodelay, keepalive)
-///
-/// All settings have been validated through benchmarking to deliver 15K+ req/s
-/// throughput with sub-4ms P99 latency.
-pub async fn create_optimized_tasks_client(
-    addr: String,
-) -> eyre::Result<TasksServiceClient<Channel>> {
-    let channel = grpc_client::create_channel(addr).await?;
-    // Note: We need to manually configure the client because TasksServiceClient
-    // doesn't directly implement the ConfigurableClient trait
-    let client = TasksServiceClient::new(channel)
+/// The channel is built lazily: no TCP/HTTP-2 handshake happens at construction,
+/// so the api can boot independently of the tasks service. Tonic establishes
+/// the connection on the first RPC and auto-reconnects with backoff if it
+/// drops. Readiness is signalled separately via the `/ready` health endpoint
+/// using `health_client`, which exercises the same channel.
+pub struct TasksClients {
+    pub tasks: TasksServiceClient<Channel>,
+    pub health: HealthClient<Channel>,
+}
+
+pub fn create_optimized_tasks_clients(addr: String) -> eyre::Result<TasksClients> {
+    let channel = grpc_client::create_channel_lazy(addr)?;
+
+    let tasks = TasksServiceClient::new(channel.clone())
         .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
         .send_compressed(tonic::codec::CompressionEncoding::Zstd)
-        .max_decoding_message_size(8 * 1024 * 1024) // 8MB max
-        .max_encoding_message_size(8 * 1024 * 1024); // 8MB max
+        .max_decoding_message_size(8 * 1024 * 1024)
+        .max_encoding_message_size(8 * 1024 * 1024);
 
-    Ok(client)
+    let health = HealthClient::new(channel);
+
+    Ok(TasksClients { tasks, health })
 }

@@ -5,7 +5,7 @@ namespace: zerg
 
 resources:
   - external-secret.yaml
-  - ../../../../../email-nats/k8s/kustomize/overlays/dev
+  - ../../../../../email-nats/k8s/kustomize/overlays/dev # todo change back to prod - testing with mailhog still
 
 generatorOptions:
   disableNameSuffixHash: true
