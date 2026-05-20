@@ -39,7 +39,10 @@ pub async fn create_app(router: Router, server_config: &ServerConfig) -> io::Res
     let listener = tokio::net::TcpListener::bind(server_config.address()).await?;
 
     info!("Server starting on {}", listener.local_addr()?);
-    axum::serve(listener, router.into_make_service())
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
         .with_graceful_shutdown(shutdown_signal())
         .await
         .inspect_err(|e| {
@@ -262,7 +265,10 @@ where
     });
 
     // Start server with graceful shutdown
-    let serve_result = axum::serve(listener, router.into_make_service())
+    let serve_result = axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
         .with_graceful_shutdown(coordinated_shutdown(coordinator))
         .await
         .inspect_err(|e| {

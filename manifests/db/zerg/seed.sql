@@ -4,14 +4,15 @@
 -- =============================================================================
 -- Seed Users
 -- =============================================================================
--- Password hash is bcrypt of "password123" for testing purposes
+-- Password hash is Argon2id of "Password123!" for testing purposes
+-- Must match the algorithm used by libs/domains/users/src/service.rs (Argon2::default())
 INSERT INTO users (id, email, name, password_hash, roles, email_verified, is_active, created_at, updated_at)
 VALUES
     (
         '01930b3c-7c5f-7000-8000-000000000001',
         'admin@example.com',
         'Admin User',
-        '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYxFyL8rKYmK',
+        '$argon2id$v=19$m=19456,t=2,p=1$7wJqLxclQpjU8EzDUfs9Fg$VxpCRqecyydLPMYp6lKeHLxEPZMz6EeSK9g+CY1+S3M',
         ARRAY['user', 'admin'],
         true,
         true,
@@ -22,7 +23,7 @@ VALUES
         '01930b3c-7c5f-7001-8000-000000000002',
         'user@example.com',
         'Regular User',
-        '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYxFyL8rKYmK',
+        '$argon2id$v=19$m=19456,t=2,p=1$7wJqLxclQpjU8EzDUfs9Fg$VxpCRqecyydLPMYp6lKeHLxEPZMz6EeSK9g+CY1+S3M',
         ARRAY['user'],
         true,
         true,
@@ -33,7 +34,7 @@ VALUES
         '01930b3c-7c5f-7001-8000-000000000099',
         'developer@example.com',
         'Developer User',
-        '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYxFyL8rKYmK',
+        '$argon2id$v=19$m=19456,t=2,p=1$7wJqLxclQpjU8EzDUfs9Fg$VxpCRqecyydLPMYp6lKeHLxEPZMz6EeSK9g+CY1+S3M',
         ARRAY['user', 'developer'],
         true,
         true,
@@ -44,7 +45,7 @@ VALUES
       '01930b3c-7c5f-7001-8000-000000000322',
       'yuri@example.com',
       'Manager',
-      '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYxFyL8rKYmK',
+      '$argon2id$v=19$m=19456,t=2,p=1$7wJqLxclQpjU8EzDUfs9Fg$VxpCRqecyydLPMYp6lKeHLxEPZMz6EeSK9g+CY1+S3M',
       ARRAY['user', 'developer'],
       true,
       true,
