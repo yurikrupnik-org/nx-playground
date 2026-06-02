@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: flux-system
+data:
+  CLUSTER_NAME: yurikrupnik-cluster
+  CLUSTER_PROVIDER: gke
+  CLUSTER_TYPE: workload
+  ENVIRONMENT: dev
+  ORG: yurikrupnik
+  OIDC_ID: yurikrupnik-cluster
+  GCP_PROJECT: yk-admin-gke
+  GCP_SM_SECRET_NAME: manager-secrets
+  GKE_LOCATION: me-west1
+  WIF_PROJECT_NUMBER: ''
+  OIDC_BUCKET: ''
+  OIDC_ISSUER: ''
+  DOMAIN: yurikrupnik.com
+  GATEWAY_MODE: platform
+  GATEWAY_SUFFIX: platform.yurikrupnik.com
+  INGRESS_CLASS: istio
+  INGRESS_ENABLED: 'true'
+  TLS_ENABLED: 'true'
+  GITHUB_ACCOUNT: yurikrupnik
+  GITHUB_REPO: nx-playground
+  GITHUB_BRANCH: main
+  POLICY_ACTION: Enforce
+  TLS_ISSUER: letsencrypt-prod
+  ACME_EMAIL: ''

@@ -105,7 +105,7 @@ pub async fn get_collection(
     let collection = service
         .get_collection(&tenant, &name)
         .await?
-        .ok_or_else(|| domain_vector::error::VectorError::CollectionNotFound(name))?;
+        .ok_or(domain_vector::error::VectorError::CollectionNotFound(name))?;
 
     Ok(Json(collection))
 }

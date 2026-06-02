@@ -30,12 +30,12 @@ procs:
   # Note: Start these manually after infra is ready (press 's' to start)
   # =============================================================================
   zerg-api:
-    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/mydatabase' bacon zerg-api"
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/zerg' bacon zerg-api"
     stop: "SIGTERM"
     # autostart: false
 
   zerg-tasks:
-    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/mydatabase' bacon zerg-tasks"
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/zerg' bacon zerg-tasks"
     stop: "SIGTERM"
     # autostart: false
 

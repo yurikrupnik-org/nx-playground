@@ -64,7 +64,7 @@ jobs:
       - run: bun install --no-cache
 
       - name: Install KCL CLI
-        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash -s -- -v v0.12.3
 
 #      # Free up disk space before linting
 #      - name: Clean up disk space
@@ -135,7 +135,7 @@ jobs:
       - run: bun install --no-cache
 
       - name: Install KCL CLI
-        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash -s -- -v v0.12.3
 
 #       Free up disk space before testing
 #      - name: Clean up disk space
@@ -206,7 +206,7 @@ jobs:
       - run: bun install --no-cache
 
       - name: Install KCL CLI
-        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash -s -- -v v0.12.3
 
       # Free up disk space before building
 #      - name: Clean up disk space

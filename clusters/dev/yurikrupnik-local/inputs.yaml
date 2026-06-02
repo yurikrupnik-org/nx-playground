@@ -1,0 +1,48 @@
+org: yurikrupnik
+# oidcId must match the Pulumi-deployed WIF providers: kind-yurik-eso, kind-yurik-crossplane
+oidcId: yurik
+clusterName: kind-yurik
+clusterProvider: kind
+clusterType: workload
+environment: local
+# yk-admin-bootstrap is where Pulumi (apps/bootstrap) created GSAs + WIF pool + OIDC bucket
+gcpProject: yk-admin-bootstrap
+gcpSmSecretName: manager-secrets
+wifProjectNumber: 125805393716
+oidcBucket: paidevo-local-oidc
+domain: yurikrupnik.com
+gatewayMode: platform
+# local subdomain so this cluster's gateway hostnames don't collide with gke later
+gatewaySuffix: local.platform.yurikrupnik.com
+ingressClass: istio
+ingressEnabled: true
+tlsEnabled: true
+githubAccount: yurikrupnik-org
+githubRepo: nx-playground
+githubBranch: clusters
+# yurikrupnik-org is a GitHub organization, not a user — disable --personal flag
+githubPersonal: false
+# Flux auth: "pat" or "app".
+# NOTE: flux bootstrap itself only supports PAT/SSH. App auth is post-bootstrap
+# (we migrate the GitRepository's secretRef to a GitHub App Secret after).
+# Keep these App fields populated — we use them in the post-bootstrap migration.
+githubAuth: app
+githubAppId: 2727409
+githubAppInstallationId: 125927191
+githubAppPemPath: ~/.config/flux-keys/yurikrupnik-org-flux.pem
+workloads:
+  - name: external-secrets
+    namespace: external-secrets
+    ksa: eso-gcp
+    clouds:
+      gcp:
+        gsaEmail: external-secrets@yk-admin-bootstrap.iam.gserviceaccount.com
+        providerSuffix: eso
+  - name: crossplane
+    namespace: crossplane-system
+    ksa: crossplane-gcp-provider
+    clouds:
+      gcp:
+        # NOTE: Pulumi created this GSA with accountId 'crossplane', not 'crossplane-controller'
+        gsaEmail: crossplane@yk-admin-bootstrap.iam.gserviceaccount.com
+        providerSuffix: crossplane

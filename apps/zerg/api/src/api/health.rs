@@ -6,6 +6,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use axum_helpers::server::{HealthCheckFuture, run_health_checks};
+use std::time::Duration;
+use tonic_health::pb::HealthCheckRequest;
 
 /// Readiness check endpoint that actually checks database and redis connections.
 ///
@@ -32,6 +34,22 @@ pub async fn ready_handler(State(state): State<AppState>) -> Response {
                     .await
                     .map(|_| ())
                     .map_err(|e| format!("Redis ping failed: {}", e))
+            }),
+        ),
+        (
+            "tasks_grpc",
+            Box::pin(async {
+                let mut health = state.tasks_health.clone();
+                let mut req = tonic::Request::new(HealthCheckRequest {
+                    // Empty service name = overall server health
+                    service: String::new(),
+                });
+                req.set_timeout(Duration::from_secs(2));
+                health
+                    .check(req)
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| format!("Tasks gRPC health check failed: {}", e))
             }),
         ),
     ];

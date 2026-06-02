@@ -63,7 +63,7 @@ services:
   postgres:
     image: "postgres"
     environment:
-      POSTGRES_DB: mydatabase
+      POSTGRES_DB: zerg
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
       # Performance tuning for development/benchmarking

@@ -43,9 +43,10 @@ use crate::vector_service::VectorServiceImpl;
 /// - Server binding fails
 /// - Server runtime encounters an error
 pub async fn run() -> Result<()> {
-    // Initialize tracing (env-aware: JSON for prod, pretty for dev)
+    // Initialize tracing (env-aware: JSON for prod, pretty for dev).
+    // Guard must outlive run() so OTEL spans flush before the tokio runtime drops.
     let environment = Environment::from_env();
-    core_config::tracing::init_tracing(&environment);
+    let _tracing_guard = core_config::tracing::init_tracing(&environment, core_config::app_info!());
 
     // Load gRPC server configuration
     let server_config = ServerConfig::from_env().wrap_err("Failed to load server configuration")?;

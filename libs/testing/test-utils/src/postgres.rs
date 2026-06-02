@@ -1,7 +1,7 @@
 //! PostgreSQL test infrastructure
 //!
 //! Provides a `TestDatabase` helper that creates a PostgreSQL container for testing.
-//! Uses sqlx to run migrations from the manifests/migrations directory.
+//! Uses sqlx to run migrations from manifests/db/zerg/migrations/.
 
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
 use std::path::PathBuf;
@@ -100,19 +100,17 @@ impl TestDatabase {
         }
     }
 
-    /// Run migrations from SQL files in manifests/migrations/mydatabase/
+    /// Run migrations from SQL files in manifests/db/zerg/migrations/
     async fn run_migrations(connection: &DatabaseConnection) {
         // Find workspace root by looking for Cargo.toml with [workspace]
         let workspace_root = Self::find_workspace_root();
-        let migrations_dir = workspace_root.join("manifests/migrations/mydatabase");
+        let migrations_dir = workspace_root.join("manifests/db/zerg/migrations");
 
-        if !migrations_dir.exists() {
-            tracing::warn!(
-                "Migrations directory not found: {:?}. Run 'just migrate-diff mydatabase initial' first.",
-                migrations_dir
-            );
-            return;
-        }
+        assert!(
+            migrations_dir.exists(),
+            "Migrations directory not found: {migrations_dir:?}. \
+             Run 'just migrate-diff zerg initial' to regenerate."
+        );
 
         // Read and sort migration files
         let mut migrations: Vec<_> = std::fs::read_dir(migrations_dir)
@@ -146,12 +144,13 @@ impl TestDatabase {
                     let trimmed = line.trim();
                     trimmed.is_empty() || trimmed.starts_with("--")
                 });
-                if !statement.is_empty() && !is_comment_only {
-                    if let Err(e) = connection.execute_unprepared(statement).await {
-                        // Log but don't fail for certain expected errors
-                        if !e.to_string().contains("already exists") {
-                            tracing::warn!("Migration statement failed: {}", e);
-                        }
+                if !statement.is_empty()
+                    && !is_comment_only
+                    && let Err(e) = connection.execute_unprepared(statement).await
+                {
+                    // Log but don't fail for certain expected errors
+                    if !e.to_string().contains("already exists") {
+                        tracing::warn!("Migration statement failed: {}", e);
                     }
                 }
             }

@@ -1,7 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: zerg
+# namespace omitted — Flux's parent Kustomization sets targetNamespace
+# (zerg-dev on paidevo). Setting it here was dead code (overridden by Flux).
 
 resources:
   - ../../base
@@ -19,4 +20,6 @@ configMapGenerator:
       - FRONTEND_URL=http://localhost:5206
       - OAUTH_AUTO_LINK_VERIFIED_EMAILS=true
       - FLAGSMITH_API_URL=http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1
-      - TASKS_SERVICE_ADDR=http://zerg-tasks.zerg.svc.cluster.local:50051
+      # Same-namespace short DNS — works wherever the Kustomization lands
+      # (zerg-dev on paidevo, zerg on a hypothetical default deploy).
+      - TASKS_SERVICE_ADDR=http://zerg-tasks:50051

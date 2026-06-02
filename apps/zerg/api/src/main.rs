@@ -1,4 +1,5 @@
 use axum_helpers::server::{create_production_app, health_router};
+use core_config::app_info;
 use core_config::tracing::{init_tracing, install_color_eyre};
 use domain_vector::{OpenAIProvider, QdrantConfig, QdrantRepository, VectorService};
 use email::NotificationService;
@@ -23,15 +24,22 @@ async fn main() -> eyre::Result<()> {
     // Load configuration from environment variables
     let config = Config::from_env()?;
 
-    // Initialize tracing with ErrorLayer for span trace capture
-    init_tracing(&config.environment);
+    // Initialize tracing with ErrorLayer for span trace capture.
+    // Guard must outlive main so OTEL spans flush before the tokio runtime drops.
+    let _tracing_guard = init_tracing(&config.environment, app_info!());
 
     let tasks_addr =
         std::env::var("TASKS_SERVICE_ADDR").unwrap_or_else(|_| "http://[::1]:50051".to_string());
 
-    info!("Connecting to TasksService at {} (optimized)", tasks_addr);
+    info!(
+        "Configured lazy TasksService client at {} (connects on first RPC)",
+        tasks_addr
+    );
 
-    let tasks_client = grpc_pool::create_optimized_tasks_client(tasks_addr).await?;
+    let grpc_pool::TasksClients {
+        tasks: tasks_client,
+        health: tasks_health,
+    } = grpc_pool::create_optimized_tasks_clients(tasks_addr)?;
 
     // Initialize database connections concurrently
     let postgres_future = async {
@@ -111,6 +119,7 @@ async fn main() -> eyre::Result<()> {
     let state = AppState {
         config,
         tasks_client,
+        tasks_health,
         db,
         redis,
         jwt_auth,

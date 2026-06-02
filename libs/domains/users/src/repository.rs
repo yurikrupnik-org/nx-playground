@@ -133,7 +133,7 @@ impl UserRepository for InMemoryUserRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        result.sort_by_key(|u| std::cmp::Reverse(u.created_at));
 
         // Apply pagination
         let result: Vec<User> = result

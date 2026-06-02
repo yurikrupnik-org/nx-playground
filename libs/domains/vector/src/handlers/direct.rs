@@ -202,7 +202,7 @@ pub async fn get_collection<R: VectorRepository>(
     let collection = service
         .get_collection(&tenant, &name)
         .await?
-        .ok_or_else(|| crate::error::VectorError::CollectionNotFound(name))?;
+        .ok_or(crate::error::VectorError::CollectionNotFound(name))?;
 
     Ok(Json(collection))
 }

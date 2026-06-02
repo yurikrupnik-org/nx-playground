@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crossplane-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-gcp
+  namespace: external-secrets
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crossplane-gcp-provider
+  namespace: crossplane-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gcp-wif-config
+  namespace: external-secrets
+type: Opaque
+stringData:
+  cred-config.json: '{"type": "external_account", "audience": "//iam.googleapis.com/projects/781189060618/locations/global/workloadIdentityPools/local-clusters/providers/kind-paidevo-local-eso", "subject_token_type": "urn:ietf:params:oauth:token-type:jwt", "token_url": "https://sts.googleapis.com/v1/token", "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/external-secrets@bootstrap-491220.iam.gserviceaccount.com:generateAccessToken", "credential_source": {"file": "/var/run/secrets/gcp-token/token", "format": {"type": "text"}}}'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gcp-wif-config
+  namespace: crossplane-system
+type: Opaque
+stringData:
+  cred-config.json: '{"type": "external_account", "audience": "//iam.googleapis.com/projects/781189060618/locations/global/workloadIdentityPools/local-clusters/providers/kind-paidevo-local-crossplane", "subject_token_type": "urn:ietf:params:oauth:token-type:jwt", "token_url": "https://sts.googleapis.com/v1/token", "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/crossplane-controller@bootstrap-491220.iam.gserviceaccount.com:generateAccessToken", "credential_source": {"file": "/var/run/secrets/gcp-token/token", "format": {"type": "text"}}}'

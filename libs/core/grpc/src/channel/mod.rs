@@ -79,6 +79,41 @@ pub async fn create_channel_with_config(
     })
 }
 
+/// Creates a gRPC channel that defers the TCP/HTTP-2 handshake to the first request.
+///
+/// Unlike [`create_channel`], this does not perform any I/O — it returns
+/// immediately with a `Channel` whose connection is established lazily on the
+/// first RPC. Tonic will also auto-reconnect with backoff if the upstream
+/// becomes unreachable later.
+///
+/// Use this when the caller must boot independently of the upstream service.
+/// Pair it with a readiness probe that issues a cheap RPC, so traffic is only
+/// routed once the upstream is actually reachable.
+pub fn create_channel_lazy(addr: impl Into<String>) -> GrpcResult<Channel> {
+    create_channel_lazy_with_config(addr, ChannelConfig::default())
+}
+
+/// Lazy variant of [`create_channel_with_config`].
+pub fn create_channel_lazy_with_config(
+    addr: impl Into<String>,
+    config: ChannelConfig,
+) -> GrpcResult<Channel> {
+    let addr_string = addr.into();
+
+    let endpoint = Endpoint::from_shared(addr_string.clone()).map_err(|e| {
+        tracing::error!(target: "grpc_client", addr = %addr_string, error = ?e, "Invalid URI");
+        GrpcError::InvalidUri(e)
+    })?;
+
+    tracing::debug!(
+        target: "grpc_client",
+        addr = %addr_string,
+        "Creating lazy gRPC channel"
+    );
+
+    Ok(config.apply_to_endpoint(endpoint).connect_lazy())
+}
+
 /// Creates a channel with retry logic
 ///
 /// This function will retry connection establishment with exponential backoff

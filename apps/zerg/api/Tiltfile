@@ -29,4 +29,4 @@ docker_build(
 
 k8s_yaml(kustomize('k8s/kustomize/overlays/dev'))
 
-k8s_resource("zerg-api", port_forwards="5221:8080", labels=['backend'], resource_deps=['zerg-tasks', 'zerg-shared-config'])
+k8s_resource("zerg-api", port_forwards="5221:8080", labels=['backend'], resource_deps=['zerg-shared-config'])

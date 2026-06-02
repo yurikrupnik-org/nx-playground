@@ -1,5 +1,6 @@
 #k8s_yaml(kustomize('./manifests/cnpg/base'))
 k8s_yaml(kustomize('./manifests/k8s/overlays/dev'))
+k8s_yaml(kustomize('./manifests/db/zerg/k8s/overlays/dev'))
 
 # =============================================================================
 # Database Port Forwards
@@ -56,36 +57,16 @@ local_resource(
     )
 )
 # =============================================================================
-# Schema ConfigMap Generation
-# Regenerates and applies the schema ConfigMap when schema.sql changes
+# Migrations ConfigMap Generation (zerg)
+# Regenerates the zerg migrations ConfigMap when migration files change.
+# Atlas Operator (loaded via manifests/db/zerg/k8s/overlays/dev) applies them.
 # =============================================================================
 local_resource(
-    'schema-configmap',
-    cmd='just gen-schema-configmap',
+    'zerg-migrations-configmap',
+    cmd='just gen-migrations-configmap zerg',
     labels=['migrations'],
     deps=[
-        'manifests/schemas/schema.sql',
-    ],
-)
-
-# =============================================================================
-# Database Setup - Seed Data Only
-# Atlas operator handles schema via AtlasSchema CR
-# =============================================================================
-local_resource(
-    'db-seed',
-    cmd='''
-        echo "Applying schema..."
-        kubectl exec -i -n dbs deployment/postgres -- psql -U myuser -d mydatabase < manifests/schemas/schema.sql
-        echo "Applying seed data..."
-        kubectl exec -i -n dbs deployment/postgres -- psql -U myuser -d mydatabase < manifests/schemas/seed.sql
-        echo "Schema + seed data applied!"
-    ''',
-    labels=['migrations'],
-    resource_deps=['postgres'],
-    deps=[
-        'manifests/schemas/schema.sql',
-        'manifests/schemas/seed.sql',
+        'manifests/db/zerg/migrations',
     ],
 )
 
