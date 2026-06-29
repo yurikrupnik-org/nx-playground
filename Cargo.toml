@@ -23,6 +23,7 @@ members = [
     'libs/notifications/email',
     'libs/rpc',
     'libs/testing/test-utils',
+    'tools/cli',
 ]
 
 [workspace.dependencies]

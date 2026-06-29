@@ -1,0 +1,7 @@
+{
+  "name": "@zerg/nx",
+  "version": "0.0.1",
+  "description": "Nx inference plugin: infers build/test/lint/run/container/scan for Rust + static apps from a Tiltfile. Thin shim over the zergctl binary.",
+  "private": true,
+  "main": "./index.js"
+}

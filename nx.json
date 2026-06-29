@@ -26,6 +26,18 @@
         "defaultEngine": "docker",
         "defaultRegistry": "docker.io"
       }
+    },
+    {
+      "plugin": "./tools/nx-zerg",
+      "options": {
+        "appsDir": "apps/zerg",
+        "imagePrefix": "zerg-",
+        "cratePrefix": "zerg_",
+        "rustDockerfile": "manifests/dockers/rust.Dockerfile",
+        "staticDockerfile": "manifests/dockers/Dockerfile",
+        "registryEnv": "REGISTRY",
+        "tiltRegistry": "yurikrupnik"
+      }
     }
   ]
 }

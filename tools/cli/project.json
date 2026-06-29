@@ -1,0 +1,26 @@
+{
+  "name": "zergctl",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "tools/cli/src",
+  "targets": {
+    "build": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": { "command": "cargo build --package zergctl", "cwd": "{workspaceRoot}" },
+      "configurations": { "production": { "command": "cargo build --package zergctl --release" } },
+      "outputs": ["{workspaceRoot}/dist/target"]
+    },
+    "test": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": { "command": "cargo test --package zergctl", "cwd": "{workspaceRoot}" }
+    },
+    "lint": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "options": { "command": "cargo clippy --package zergctl", "cwd": "{workspaceRoot}" }
+    }
+  },
+  "tags": []
+}
