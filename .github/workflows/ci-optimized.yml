@@ -12,6 +12,7 @@ permissions:
   contents: read
   id-token: write        # Required for WIF authentication
   security-events: write
+  packages: write        # Push/pull buildx layer cache to GHCR
 
 jobs:
   lint:
@@ -232,9 +233,40 @@ jobs:
       - run: bun nx fix-ci
         if: always()
 
-  container:
+  affected:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.affected.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        uses: nrwl/nx-set-shas@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --no-cache
+
+      - name: Compute affected projects with a scan target
+        id: affected
+        run: |
+          projects=$(bun nx show projects --affected --with-target=scan --json)
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
+          echo "Affected scan projects: $projects"
+
+  container:
+    needs: affected
+    if: ${{ needs.affected.outputs.projects != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(needs.affected.outputs.projects) }}
     env:
       ENABLE_VERSION: "false"
     steps:
@@ -268,8 +300,18 @@ jobs:
       - name: Install Trivy
         run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
-      - name: Build, push and scan container images
-        run: bun nx affected -t scan --configuration=ci
+      - name: Log in to GHCR (buildx layer cache)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute GHCR cache prefix
+        run: echo "BUILDCACHE=ghcr.io/${GITHUB_REPOSITORY,,}/buildcache" >> "$GITHUB_ENV"
+
+      - name: Build, push and scan container image
+        run: bun nx run ${{ matrix.project }}:scan --configuration=ci
         continue-on-error: true
         env:
           INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
