@@ -33,13 +33,13 @@ jobs:
       has_apps: ${{ steps.affected.outputs.has_apps }}
       release_sha: ${{ steps.push.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
       - name: Derive SHAs for nx affected
-        uses: nrwl/nx-set-shas@v4
+        uses: nrwl/nx-set-shas@v5
 
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal
@@ -174,7 +174,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.version.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.version.outputs.release_sha || github.sha }}
 
@@ -237,7 +237,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.version.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.version.outputs.release_sha || github.sha }}
           fetch-depth: 0
