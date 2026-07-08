@@ -150,9 +150,8 @@ pub async fn connect_from_config_with_retry(
     }
 }
 
-// Note: Migrations are now managed by Atlas CLI
-// See manifests/migrations/ for SQL migration files
-// Run `just migrate` to apply migrations
+// Note: Migrations live per-DB under manifests/db/<db>/migrations
+// Run `just migrate <db>` (sqlx) to apply them
 
 #[cfg(test)]
 mod tests {

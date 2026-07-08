@@ -43,5 +43,10 @@
       }
     }
   },
+  "metadata": {
+    "tilt": {
+      "portForwards": "5206:8080"
+    }
+  },
   "tags": []
 }

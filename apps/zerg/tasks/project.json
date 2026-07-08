@@ -83,5 +83,11 @@
       }
     }
   },
+  "metadata": {
+    "tilt": {
+      "portForwards": "50051:50051",
+      "resourceDeps": ["zerg-shared-config"]
+    }
+  },
   "tags": []
 }

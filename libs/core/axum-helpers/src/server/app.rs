@@ -39,12 +39,15 @@ pub async fn create_app(router: Router, server_config: &ServerConfig) -> io::Res
     let listener = tokio::net::TcpListener::bind(server_config.address()).await?;
 
     info!("Server starting on {}", listener.local_addr()?);
-    axum::serve(listener, router.into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .inspect_err(|e| {
-            tracing::error!("Server encountered an error: {:?}", e);
-        })?;
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .inspect_err(|e| {
+        tracing::error!("Server encountered an error: {:?}", e);
+    })?;
 
     Ok(())
 }
@@ -262,12 +265,15 @@ where
     });
 
     // Start server with graceful shutdown
-    let serve_result = axum::serve(listener, router.into_make_service())
-        .with_graceful_shutdown(coordinated_shutdown(coordinator))
-        .await
-        .inspect_err(|e| {
-            tracing::error!("Server encountered an error: {:?}", e);
-        });
+    let serve_result = axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(coordinated_shutdown(coordinator))
+    .await
+    .inspect_err(|e| {
+        tracing::error!("Server encountered an error: {:?}", e);
+    });
 
     // Wait for cleanup to complete
     cleanup_handle.await.ok();

@@ -46,6 +46,16 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         )
     };
 
+    // Mandatory auth on every business router: unauthenticated/forged requests are
+    // rejected before the handler (the global layer below is *optional* and only feeds
+    // rate-limit keying). Public auth-flow routes (/auth) are intentionally excluded.
+    let auth_mw = || {
+        middleware::from_fn_with_state(state.jwt_auth.clone(), axum_helpers::jwt_auth_middleware)
+    };
+    // CSRF double-submit on cookie-authed mutations; safe methods and Bearer are exempt.
+    let csrf_cfg = axum_helpers::CsrfConfig::new("csrf_token");
+    let csrf_mw = || middleware::from_fn_with_state(csrf_cfg.clone(), axum_helpers::csrf_protect);
+
     let router = Router::new()
         .nest(
             "/auth",
@@ -57,31 +67,41 @@ pub fn routes(state: &crate::state::AppState) -> Router {
             "/tasks",
             tasks::router(state.clone())
                 .layer(rl_layer())
-                .layer(Extension(standard.clone())),
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
         )
         .nest(
             "/tasks-direct",
             tasks_direct::router(state)
                 .layer(rl_layer())
-                .layer(Extension(standard.clone())),
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
         )
         .nest(
             domain_projects::entity::Model::URL,
             projects::router(state)
                 .layer(rl_layer())
-                .layer(Extension(standard.clone())),
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
         )
         .nest(
             domain_cloud_resources::entity::Model::URL,
             cloud_resources::router(state)
                 .layer(rl_layer())
-                .layer(Extension(standard.clone())),
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
         )
         .nest(
             "/users",
             users::router(state)
                 .layer(rl_layer())
-                .layer(Extension(standard.clone())),
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
         );
 
     // Add vector routes with stricter tier if Qdrant is configured
@@ -90,7 +110,9 @@ pub fn routes(state: &crate::state::AppState) -> Router {
             "/vector",
             vector_router
                 .layer(rl_layer())
-                .layer(Extension(vector_tier)),
+                .layer(Extension(vector_tier))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
         )
     } else {
         router

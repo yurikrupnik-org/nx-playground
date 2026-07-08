@@ -25,9 +25,12 @@ tokio = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true, optional = true }
 
-# Tracing
+# Tracing + OpenTelemetry W3C context propagation
 tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
+opentelemetry_sdk = { workspace = true }

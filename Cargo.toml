@@ -43,6 +43,7 @@ darling = '0.23.0'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
 domain_projects = { path = 'libs/domains/projects' }
+domain_tasks = { path = 'libs/domains/tasks' }
 domain_users = { path = 'libs/domains/users' }
 domain_vector = { path = 'libs/domains/vector' }
 email = { path = 'libs/notifications/email' }
@@ -63,6 +64,10 @@ metrics-exporter-prometheus = '0.18.1'
 mockall = '0.14.0'
 #mongodb = '3.4.1'
 oauth2 = '5.0.0'
+opentelemetry = '0.32'
+opentelemetry-otlp = { version = '0.32', features = ['grpc-tonic', 'trace'], default-features = false }
+opentelemetry-semantic-conventions = '0.32'
+opentelemetry_sdk = { version = '0.32', features = ['rt-tokio', 'trace'] }
 pluralizer = '0.5.0'
 proc-macro2 = "1.0.106"
 prost = '0.14.3'
@@ -97,6 +102,7 @@ tower = '0.5.3'
 tower-http = { version = '0.6.8', features = ['timeout', 'trace', 'compression-full', 'decompression-full', 'cors'] }
 tracing = "0.1.44"
 tracing-error = '0.2.1'
+tracing-opentelemetry = '0.33.0'
 tracing-subscriber = { version = '0.3.22', features = ['env-filter', 'json', 'serde_json'] }
 trybuild = "1.0.116"
 ts-rs = { version = "12.0.1", features = ["chrono-impl", "uuid-impl"] }

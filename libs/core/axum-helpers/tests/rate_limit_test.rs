@@ -84,7 +84,10 @@ async fn test_separate_keys_independent() {
         .check_with_config("user:bob", "standard", limit, 60)
         .await
         .unwrap();
-    assert!(result.allowed, "bob should not be affected by alice's limit");
+    assert!(
+        result.allowed,
+        "bob should not be affected by alice's limit"
+    );
 }
 
 #[tokio::test]

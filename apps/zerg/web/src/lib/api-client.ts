@@ -1,4 +1,5 @@
 import type { CreateTask, Task, UpdateTask } from '@domain/tasks';
+import { csrfHeaders } from './csrf';
 
 const API_BASE_URL = '/api';
 
@@ -40,7 +41,7 @@ export const tasksApi = {
   create: async (input: CreateTask): Promise<Task> => {
     const response = await fetch(`${API_BASE_URL}/tasks`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
       credentials: 'include',
       body: JSON.stringify(input),
     });
@@ -52,7 +53,7 @@ export const tasksApi = {
   update: async (id: string, input: UpdateTask): Promise<Task> => {
     const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
       credentials: 'include',
       body: JSON.stringify(input),
     });
@@ -64,6 +65,7 @@ export const tasksApi = {
   delete: async (id: string): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'DELETE',
+      headers: { ...csrfHeaders() },
       credentials: 'include',
     });
     checkAuth(response);

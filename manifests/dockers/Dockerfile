@@ -7,6 +7,7 @@ WORKDIR /app
 ARG DIST_PATH
 RUN test -n "$DIST_PATH" || (echo "DIST_PATH not set" && false)
 COPY ./$DIST_PATH /usr/share/nginx/html
+COPY manifests/dockers/default.conf.template /etc/nginx/templates/default.conf.template
 ENV PORT=8080
 EXPOSE ${PORT}
 CMD ["nginx", "-g", "daemon off;"]

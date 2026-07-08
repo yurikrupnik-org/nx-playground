@@ -11,9 +11,11 @@
 use axum_helpers::{JwtRedisAuth, RateLimiter};
 use domain_vector::{QdrantRepository, VectorService};
 use email::NotificationService;
+use grpc_client::TracedChannel;
 use rpc::tasks::tasks_service_client::TasksServiceClient;
 use std::sync::Arc;
 use tonic::transport::Channel;
+use tonic_health::pb::health_client::HealthClient;
 
 /// Shared application state.
 ///
@@ -31,7 +33,10 @@ pub struct AppState {
     pub config: crate::config::Config,
     /// gRPC client for the task service (cloneable, shares HTTP/2 connection pool)
     /// No lock needed - cloning is cheap and thread-safe
-    pub tasks_client: TasksServiceClient<Channel>,
+    pub tasks_client: TasksServiceClient<TracedChannel>,
+    /// gRPC health client for the task service, sharing the same lazy channel.
+    /// Used by `/ready` to gate traffic on tasks reachability without blocking startup.
+    pub tasks_health: HealthClient<Channel>,
     /// PostgreSQL database connection pool (SeaORM)
     pub db: database::postgres::DatabaseConnection,
     /// Redis connection manager

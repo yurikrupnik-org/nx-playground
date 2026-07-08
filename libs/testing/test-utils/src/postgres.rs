@@ -1,7 +1,7 @@
 //! PostgreSQL test infrastructure
 //!
 //! Provides a `TestDatabase` helper that creates a PostgreSQL container for testing.
-//! Uses sqlx to run migrations from the manifests/migrations directory.
+//! Uses sqlx to run migrations from manifests/db/zerg/migrations/.
 
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
 use std::path::PathBuf;
@@ -33,6 +33,13 @@ impl TestDatabase {
     /// # }
     /// ```
     pub async fn new() -> Self {
+        Self::with_migrations_dir("manifests/db/zerg/migrations").await
+    }
+
+    /// Create a test database applying SQL migrations from `rel_dir`
+    /// (relative to the workspace root). Lets non-zerg verticals (e.g. todo)
+    /// own their schema instead of the hardcoded zerg path.
+    pub async fn with_migrations_dir(rel_dir: &str) -> Self {
         // Use Postgres 18 to match production
         let postgres = Postgres::default().with_tag("18-alpine");
 
@@ -57,7 +64,7 @@ impl TestDatabase {
             .expect("Failed to connect to test database");
 
         // Run migrations using sqlx
-        Self::run_migrations(&connection).await;
+        Self::run_migrations_from(&connection, rel_dir).await;
 
         tracing::info!(port = host_port, "Test database ready (Postgres 18)");
 
@@ -100,19 +107,17 @@ impl TestDatabase {
         }
     }
 
-    /// Run migrations from SQL files in manifests/migrations/mydatabase/
-    async fn run_migrations(connection: &DatabaseConnection) {
+    /// Run migrations from SQL files in manifests/db/zerg/migrations/
+    async fn run_migrations_from(connection: &DatabaseConnection, rel_dir: &str) {
         // Find workspace root by looking for Cargo.toml with [workspace]
         let workspace_root = Self::find_workspace_root();
-        let migrations_dir = workspace_root.join("manifests/migrations/mydatabase");
+        let migrations_dir = workspace_root.join(rel_dir);
 
-        if !migrations_dir.exists() {
-            tracing::warn!(
-                "Migrations directory not found: {:?}. Run 'just migrate-diff mydatabase initial' first.",
-                migrations_dir
-            );
-            return;
-        }
+        assert!(
+            migrations_dir.exists(),
+            "Migrations directory not found: {migrations_dir:?}. \
+             Run 'just migrate-diff zerg initial' to regenerate."
+        );
 
         // Read and sort migration files
         let mut migrations: Vec<_> = std::fs::read_dir(migrations_dir)
@@ -146,12 +151,13 @@ impl TestDatabase {
                     let trimmed = line.trim();
                     trimmed.is_empty() || trimmed.starts_with("--")
                 });
-                if !statement.is_empty() && !is_comment_only {
-                    if let Err(e) = connection.execute_unprepared(statement).await {
-                        // Log but don't fail for certain expected errors
-                        if !e.to_string().contains("already exists") {
-                            tracing::warn!("Migration statement failed: {}", e);
-                        }
+                if !statement.is_empty()
+                    && !is_comment_only
+                    && let Err(e) = connection.execute_unprepared(statement).await
+                {
+                    // Log but don't fail for certain expected errors
+                    if !e.to_string().contains("already exists") {
+                        tracing::warn!("Migration statement failed: {}", e);
                     }
                 }
             }
@@ -223,7 +229,7 @@ impl TestDatabase {
             .expect("Failed to set search path");
 
         // Run migrations in this schema
-        Self::run_migrations(&db.connection).await;
+        Self::run_migrations_from(&db.connection, "manifests/db/zerg/migrations").await;
 
         db
     }

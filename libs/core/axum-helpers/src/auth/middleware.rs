@@ -67,8 +67,9 @@ pub async fn jwt_auth_middleware(
         }
     };
 
-    // Verify JWT signature and decode claims
-    let claims = match auth.verify_token(&token) {
+    // Verify signature + claims; require an access token (a refresh token must not
+    // authenticate API calls).
+    let claims = match auth.verify_access_token(&token) {
         Ok(c) => c,
         Err(e) => {
             tracing::debug!("JWT verification failed: {}", e);
@@ -124,7 +125,7 @@ pub async fn optional_jwt_auth_middleware(
     next: Next,
 ) -> Response {
     if let Some(token) = extract_token_from_request(&headers)
-        && let Ok(claims) = auth.verify_token(&token)
+        && let Ok(claims) = auth.verify_access_token(&token)
     {
         // Check if token is valid (not blacklisted, is whitelisted)
         let is_blacklisted = auth.is_token_blacklisted(&claims.jti).await.unwrap_or(true);

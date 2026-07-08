@@ -1,13 +1,15 @@
--- Desired Database Schema (Declarative)
--- Used by AtlasSchema operator in dev to compute diffs automatically.
--- PostgreSQL 17+ required for uuidv7()
+-- Desired Database Schema (Single source of truth)
+-- Local dev: `just db-fresh` applies this directly via psql
+-- K8s dev:   `just migrate` applies migrations via sqlx (port-forwarded)
+-- K8s prod:  Atlas Operator applies migrations via ConfigMaps
+-- PostgreSQL 18 (uuidv7() is a built-in function, no extension required)
 
 -- =============================================================================
 -- Extensions
 -- =============================================================================
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
--- CREATE EXTENSION IF NOT EXISTS vector; -- not installed by default
-CREATE EXTENSION IF NOT EXISTS hstore; -- not installed by default
+CREATE EXTENSION IF NOT EXISTS hstore;
+-- CREATE EXTENSION IF NOT EXISTS vector;
 -- CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- =============================================================================
@@ -102,13 +104,15 @@ CREATE TABLE projects (
   tags JSONB NOT NULL DEFAULT '{}',
   enabled BOOLEAN NOT NULL DEFAULT true,
   repository_url VARCHAR(500),
-  dam VARCHAR(500) DEFAULT 'aris',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT fk_projects_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  CONSTRAINT fk_projects_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT chk_budget_positive CHECK (budget_limit >= 0)
 );
 
 CREATE INDEX idx_projects_user_id ON projects(user_id);
+CREATE INDEX idx_projects_user_status ON projects(user_id, status);
+CREATE UNIQUE INDEX uq_project_name_per_user ON projects(user_id, name);
 
 -- Tasks table
 CREATE TABLE tasks (
@@ -116,16 +120,21 @@ CREATE TABLE tasks (
   title VARCHAR(255) NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   completed BOOLEAN NOT NULL DEFAULT false,
+  user_id UUID NOT NULL,
   project_id UUID,
   priority task_priority NOT NULL DEFAULT 'medium',
   status task_status NOT NULL DEFAULT 'todo',
   due_date TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT fk_tasks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_tasks_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 
+CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_project_id ON tasks(project_id);
+CREATE INDEX idx_tasks_project_status ON tasks(project_id, status);
+CREATE INDEX idx_tasks_due_date ON tasks(due_date) WHERE due_date IS NOT NULL;
 
 -- Cloud resources table
 CREATE TABLE cloud_resources (
@@ -140,11 +149,11 @@ CREATE TABLE cloud_resources (
   monthly_cost_estimate DOUBLE PRECISION,
   tags JSONB NOT NULL DEFAULT '{}',
   enabled BOOLEAN NOT NULL DEFAULT true,
-  shit BOOLEAN NOT NULL DEFAULT true, -- for testing
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at TIMESTAMPTZ,
-  CONSTRAINT fk_cloud_resources_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  CONSTRAINT fk_cloud_resources_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  CONSTRAINT chk_cost_positive CHECK (cost_per_hour >= 0 AND monthly_cost_estimate >= 0)
 );
 
 CREATE INDEX idx_cloud_resources_project_id ON cloud_resources(project_id);

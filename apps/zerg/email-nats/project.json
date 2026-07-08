@@ -83,5 +83,13 @@
       }
     }
   },
+  "metadata": {
+    "tilt": {
+      "resourceDeps": ["zerg-shared-config"],
+      "extraResources": [
+        { "name": "mailhog", "portForwards": "8025:8025", "labels": ["port-forward"] }
+      ]
+    }
+  },
   "tags": []
 }

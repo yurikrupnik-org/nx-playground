@@ -10,6 +10,14 @@ use uuid::Uuid;
 pub const ACCESS_TOKEN_TTL: i64 = 900; // 15 minutes
 pub const REFRESH_TOKEN_TTL: i64 = 604800; // 7 days
 
+/// Token-type discriminator in the `token_type` claim, so an access token and a
+/// refresh token (otherwise identical) cannot be substituted for one another.
+pub const TOKEN_TYPE_ACCESS: &str = "access";
+pub const TOKEN_TYPE_REFRESH: &str = "refresh";
+/// Issuer/audience bound into every token and enforced on verify.
+pub const TOKEN_ISSUER: &str = "zerg-api";
+pub const TOKEN_AUDIENCE: &str = "zerg-api";
+
 /// JWT claims structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JwtClaims {
@@ -20,6 +28,9 @@ pub struct JwtClaims {
     pub exp: i64,           // Expiration time
     pub iat: i64,           // Issued at
     pub jti: String,        // JWT ID (for whitelist/blacklist)
+    pub iss: String,        // Issuer
+    pub aud: String,        // Audience
+    pub token_type: String, // "access" | "refresh"
 }
 
 /// Hybrid JWT + Redis authentication
@@ -61,7 +72,14 @@ impl JwtRedisAuth {
         name: &str,
         roles: &[String],
     ) -> eyre::Result<String> {
-        self.create_token(user_id, email, name, roles, ACCESS_TOKEN_TTL)
+        self.create_token(
+            user_id,
+            email,
+            name,
+            roles,
+            ACCESS_TOKEN_TTL,
+            TOKEN_TYPE_ACCESS,
+        )
     }
 
     /// Create refresh token (7 days)
@@ -72,7 +90,14 @@ impl JwtRedisAuth {
         name: &str,
         roles: &[String],
     ) -> eyre::Result<String> {
-        self.create_token(user_id, email, name, roles, REFRESH_TOKEN_TTL)
+        self.create_token(
+            user_id,
+            email,
+            name,
+            roles,
+            REFRESH_TOKEN_TTL,
+            TOKEN_TYPE_REFRESH,
+        )
     }
 
     /// Create JWT token with specified TTL
@@ -83,6 +108,7 @@ impl JwtRedisAuth {
         name: &str,
         roles: &[String],
         ttl_seconds: i64,
+        token_type: &str,
     ) -> eyre::Result<String> {
         let now = Utc::now();
         let exp = (now + Duration::seconds(ttl_seconds)).timestamp();
@@ -97,6 +123,9 @@ impl JwtRedisAuth {
             exp,
             iat,
             jti,
+            iss: TOKEN_ISSUER.to_string(),
+            aud: TOKEN_AUDIENCE.to_string(),
+            token_type: token_type.to_string(),
         };
 
         let header = Header {
@@ -115,13 +144,35 @@ impl JwtRedisAuth {
 
     /// Verify JWT token signature and decode claims
     pub fn verify_token(&self, token: &str) -> eyre::Result<JwtClaims> {
+        let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
+        validation.set_issuer(&[TOKEN_ISSUER]);
+        validation.set_audience(&[TOKEN_AUDIENCE]);
         let token_data = decode::<JwtClaims>(
             token,
             &DecodingKey::from_secret(self.secret.as_bytes()),
-            &Validation::default(),
+            &validation,
         )?;
-
         Ok(token_data.claims)
+    }
+
+    /// Verify a token and require it to be an **access** token (rejects a refresh
+    /// token replayed on the API auth path).
+    pub fn verify_access_token(&self, token: &str) -> eyre::Result<JwtClaims> {
+        let claims = self.verify_token(token)?;
+        if claims.token_type != TOKEN_TYPE_ACCESS {
+            return Err(eyre::eyre!("expected an access token"));
+        }
+        Ok(claims)
+    }
+
+    /// Verify a token and require it to be a **refresh** token (the only token the
+    /// refresh endpoint accepts).
+    pub fn verify_refresh_token(&self, token: &str) -> eyre::Result<JwtClaims> {
+        let claims = self.verify_token(token)?;
+        if claims.token_type != TOKEN_TYPE_REFRESH {
+            return Err(eyre::eyre!("expected a refresh token"));
+        }
+        Ok(claims)
     }
 
     /// Add token to whitelist in Redis

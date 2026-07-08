@@ -1,0 +1,12 @@
+apiVersion: db.atlasgo.io/v1alpha1
+kind: AtlasMigration
+metadata:
+  name: zerg-migration
+spec:
+  urlFrom:
+    secretKeyRef:
+      name: zerg-shared-secrets
+      key: DATABASE_URL
+  dir:
+    configMapRef:
+      name: zerg-migrations

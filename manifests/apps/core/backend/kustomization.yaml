@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Shared backend application base (HTTP service) — the reusable "core" that
+# per-app overlays consume locally and patch:
+#   - identity:  `labels` (app.kubernetes.io/name) + name patches
+#   - image:     `images`
+#   - env:       configMapGenerator app-config / secretGenerator app-secrets
+#   - grpc apps: patch the container port + probes to grpc
+# Namespace is set by the consumer overlay (or Flux targetNamespace).
+resources:
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml

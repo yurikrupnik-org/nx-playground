@@ -5,9 +5,14 @@ edition = "2024"
 
 [dependencies]
 color-eyre = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry-semantic-conventions = { workspace = true }
+opentelemetry_sdk = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-error = { workspace = true }
+tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [dev-dependencies]

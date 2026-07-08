@@ -6,7 +6,7 @@ use axum::{
 };
 use rpc::tasks::tasks_service_client::TasksServiceClient;
 use rpc::tasks::{DeleteByIdRequest, GetByIdRequest, ListRequest, UpdateByIdRequest};
-use tonic::transport::Channel;
+use grpc_client::TracedChannel;
 use uuid::Uuid;
 
 use crate::error::{TaskError, TaskResult};
@@ -26,7 +26,7 @@ use crate::conversions::*;
     )
 )]
 pub async fn list_tasks(
-    State(mut client): State<TasksServiceClient<Channel>>,
+    State(mut client): State<TasksServiceClient<TracedChannel>>,
 ) -> TaskResult<Json<Vec<Task>>> {
     let response = client
         .list(ListRequest {
@@ -62,7 +62,7 @@ pub async fn list_tasks(
     )
 )]
 pub async fn get_task(
-    State(mut client): State<TasksServiceClient<Channel>>,
+    State(mut client): State<TasksServiceClient<TracedChannel>>,
     Path(id): Path<String>,
 ) -> TaskResult<impl IntoResponse> {
     let uuid =
@@ -102,7 +102,7 @@ pub async fn get_task(
     )
 )]
 pub async fn create_task(
-    State(mut client): State<TasksServiceClient<Channel>>,
+    State(mut client): State<TasksServiceClient<TracedChannel>>,
     Json(input): Json<CreateTask>,
 ) -> TaskResult<impl IntoResponse> {
     let response = client
@@ -135,7 +135,7 @@ pub async fn create_task(
     )
 )]
 pub async fn update_task(
-    State(mut client): State<TasksServiceClient<Channel>>,
+    State(mut client): State<TasksServiceClient<TracedChannel>>,
     Path(id): Path<String>,
     Json(input): Json<UpdateTask>,
 ) -> TaskResult<impl IntoResponse> {
@@ -177,7 +177,7 @@ pub async fn update_task(
     )
 )]
 pub async fn delete_task(
-    State(mut client): State<TasksServiceClient<Channel>>,
+    State(mut client): State<TasksServiceClient<TracedChannel>>,
     Path(id): Path<String>,
 ) -> TaskResult<impl IntoResponse> {
     let uuid =

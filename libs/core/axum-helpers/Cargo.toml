@@ -16,11 +16,16 @@ eyre.workspace = true
 futures.workspace = true
 jsonwebtoken.workspace = true
 
+# Prometheus metrics (RED middleware + /metrics endpoint)
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+
 # Redis - no longer optional, required for auth
 redis = { workspace = true }
 
 # Database dependencies - required for error handling
 sea-orm = { workspace = true }
+sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -42,3 +47,4 @@ validator.workspace = true
 temp-env = "0.3"
 test-utils = { workspace = true, features = ["redis"] }
 tokio-test = "0.4"
+tower = { workspace = true, features = ["util"] }

@@ -40,6 +40,7 @@ pub mod auth;
 pub mod errors;
 pub mod extractors;
 pub mod http;
+pub mod metrics;
 pub mod rate_limit;
 pub mod server;
 
@@ -56,9 +57,12 @@ pub use server::{
     shutdown_signal,
 };
 
+// Re-export metrics helpers
+pub use metrics::{init_metrics, metrics_router, spawn_pool_metrics, track_metrics};
+
 // Re-export HTTP middleware
 pub use http::{
-    create_cors_layer, create_permissive_cors_layer, csrf_validation_middleware, security_headers,
+    CsrfConfig, create_cors_layer, create_permissive_cors_layer, csrf_protect, security_headers,
 };
 
 // Re-export error types

@@ -1,57 +1,4 @@
 services:
-  #  vault-test:
-  #    image: vault:latest
-  #    volumes:
-  #      - ./vault/config:/vault/config
-  #      - ./vault/policies:/vault/policies
-  #      - ./vault/data:/vault/data
-  #    ports:
-  #      - 8200:8200
-  #    environment:
-  #      - VAULT_ADDR=http://0.0.0.0:8200
-  #      - VAULT_API_ADDR=http://0.0.0.0:8200
-  #      - VAULT_ADDRESS=http://0.0.0.0:8200
-  #    cap_add:
-  #      - IPC_LOCK
-  #    command: vault server -config=/vault/config/vault.json
-  #  vault:
-  #    image: hashicorp/vault:latest
-  #    container_name: vault
-  #    restart: unless-stopped
-  ##    healthcheck:
-  ##      retries: 5
-  #    environment:
-  #      VAULT_ADDR: "https://127.0.0.1:8200"
-  #      VAULT_API_ADDR: "https://127.0.0.1:8200"
-  #      VAULT_LOCAL_CONFIG: |
-  #        {
-  #          "listener": [
-  #            {
-  #              "tcp": {
-  #                "address": "0.0.0.0:8200",
-  #                "tls_disable": 0,
-  #                "tls_cert_file": "/vault/config/certs/vault-cert.pem",
-  #                "tls_key_file": "/vault/config/certs/vault-key.pem"
-  #              }
-  #            }
-  #          ],
-  #          "storage": {
-  #            "file": {
-  #              "path": "/vault/data"
-  #            }
-  #          },
-  #          "default_lease_ttl": "168h",
-  #          "max_lease_ttl": "720h",
-  #          "ui": true
-  #        }
-  #    ports:
-  #      - "8200:8200"
-  #    volumes:
-  #      - "<CUSTOM_USER_DIRECTORY>/data:/vault/data"
-  #      - "<CUSTOM_USER_DIRECTORY>/certs:/vault/config/certs"
-  #    cap_add:
-  #      - IPC_LOCK
-  #    command: "vault server -config vault/config/local.json"
   mongo:
     image: "mongo"
     ports:
@@ -63,7 +10,7 @@ services:
   postgres:
     image: "postgres"
     environment:
-      POSTGRES_DB: mydatabase
+      POSTGRES_DB: zerg
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
       # Performance tuning for development/benchmarking
@@ -103,6 +50,13 @@ services:
       - "min_wal_size=1GB"
       - "-c"
       - "max_wal_size=4GB"
+    volumes:
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydatabase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   mailhog:
     image: mailhog/mailhog
     ports:
@@ -156,7 +110,39 @@ services:
       retries: 3
     networks:
       - qdrant-network
-
+  flagsmith:
+    image: flagsmith/flagsmith:latest
+    container_name: flagsmith
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://myuser:mypassword@postgres:5432/flagsmith
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_SECRET_KEY: local-dev-flagsmith-secret-change-me
+      ENABLE_ADMIN_ACCESS_USER_PASS: "True"
+    ports:
+      - "8000:8000"
+  directus:
+    image: directus/directus:latest
+    container_name: directus
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KEY: local-dev-directus-key
+      SECRET: local-dev-directus-secret
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: directus
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+      ADMIN_EMAIL: admin@terran.dev
+      ADMIN_PASSWORD: admin
+      WEBSOCKETS_ENABLED: "true"
+    ports:
+      - "8055:8055"
 volumes:
   influxdb2-data:
   influxdb2-config:

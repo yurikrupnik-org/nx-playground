@@ -155,6 +155,7 @@ impl RateLimiter {
     ///
     /// Uses the provided `tier_name` as a key prefix, and the given
     /// `requests_per_window` and `window_secs` instead of `self.config`.
+    #[tracing::instrument(skip(self))]
     pub async fn check_with_config(
         &self,
         key: &str,

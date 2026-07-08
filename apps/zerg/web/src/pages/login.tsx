@@ -1,4 +1,4 @@
-import { Link, useNavigate } from '@tanstack/solid-router';
+import { Link } from '@tanstack/solid-router';
 import { createSignal, createUniqueId, Show } from 'solid-js';
 import { SocialLogin } from '../components/SocialLogin';
 import { Button } from '../components/ui/button';
@@ -24,7 +24,6 @@ export function LoginPage() {
   const passwordId = createUniqueId();
 
   const auth = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -36,7 +35,9 @@ export function LoginPage() {
         email: email(),
         password: password(),
       });
-      await navigate({ to: '/tasks' });
+      // Hard redirect on auth success: a full reload gives a clean app/query/router
+      // state and avoids the SPA-navigate reactive storm at the auth boundary.
+      window.location.href = '/tasks';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

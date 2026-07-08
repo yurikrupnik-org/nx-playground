@@ -1,8 +1,4 @@
-import {
-  createMutation,
-  createQuery,
-  useQueryClient,
-} from '@tanstack/solid-query';
+import { createMutation, createQuery } from '@tanstack/solid-query';
 import { createContext, type ParentComponent, useContext } from 'solid-js';
 import type { LoginRequest, RegisterRequest, UserResponse } from './auth-api';
 import * as authApi from './auth-api';
@@ -20,8 +16,6 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>();
 
 export const AuthProvider: ParentComponent = (props) => {
-  const queryClient = useQueryClient();
-
   // Query for current user
   const userQuery = createQuery(() => ({
     queryKey: ['currentUser'],
@@ -32,31 +26,20 @@ export const AuthProvider: ParentComponent = (props) => {
     throwOnError: false,
   }));
 
-  // Login mutation
-  const loginMutation = createMutation(() => ({
-    mutationFn: authApi.login,
-    onSuccess: (data) => {
-      // Update user in cache
-      queryClient.setQueryData(['currentUser'], data.user);
-    },
-  }));
+  // Auth mutations. On success the login/register pages and the logout handler below
+  // perform a hard redirect; the destination page refetches /me. We deliberately do
+  // NOT call queryClient.setQueryData(['currentUser'], …) here — mutating the auth
+  // query from a mutation callback triggers a synchronous reactive storm in this Solid
+  // app and freezes the tab. A full reload yields clean app/query/router state instead.
+  const loginMutation = createMutation(() => ({ mutationFn: authApi.login }));
 
-  // Register mutation
   const registerMutation = createMutation(() => ({
     mutationFn: authApi.register,
-    onSuccess: (data) => {
-      // Update user in cache
-      queryClient.setQueryData(['currentUser'], data.user);
-    },
   }));
 
-  // Logout mutation
   const logoutMutation = createMutation(() => ({
     mutationFn: authApi.logout,
     onSuccess: () => {
-      // Clear user from cache
-      queryClient.setQueryData(['currentUser'], null);
-      // Redirect to login
       window.location.href = '/login';
     },
   }));

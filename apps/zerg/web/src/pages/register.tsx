@@ -1,4 +1,4 @@
-import { Link, useNavigate } from '@tanstack/solid-router';
+import { Link } from '@tanstack/solid-router';
 import { createMemo, createSignal, createUniqueId, Show } from 'solid-js';
 import { Button } from '../components/ui/button';
 import {
@@ -27,7 +27,6 @@ export function RegisterPage() {
   const confirmPasswordId = createUniqueId();
 
   const auth = useAuth();
-  const navigate = useNavigate();
 
   // Password validation
   const passwordRequirements = createMemo(() => ({
@@ -75,7 +74,8 @@ export function RegisterPage() {
         email: email(),
         password: password(),
       });
-      navigate({ to: '/tasks' });
+      // Hard redirect on auth success (see login.tsx): avoids the SPA-navigate storm.
+      window.location.href = '/tasks';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {

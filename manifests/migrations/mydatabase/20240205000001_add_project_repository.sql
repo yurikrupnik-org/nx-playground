@@ -1,2 +1,0 @@
--- -- Add repository URL for project source code link
--- ALTER TABLE projects ADD COLUMN repository_url VARCHAR(500);

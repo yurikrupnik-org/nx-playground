@@ -1,0 +1,12 @@
+apiVersion: db.atlasgo.io/v1alpha1
+kind: AtlasMigration
+metadata:
+  name: terran-migration
+spec:
+  urlFrom:
+    secretKeyRef:
+      name: terran-shared-secrets
+      key: DATABASE_URL
+  dir:
+    configMapRef:
+      name: terran-migrations
