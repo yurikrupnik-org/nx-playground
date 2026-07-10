@@ -19,5 +19,6 @@ docker_build(
     dockerfile='../../../manifests/dockers/Dockerfile',
     target='nginx',
 )
-k8s_yaml(local('kcl run k8s -D env=dev -D image=yurikrupnik/zerg-web -D namespace=zerg', quiet=True))
+#k8s_yaml(local('kcl run k8s -D env=dev -D image=yurikrupnik/zerg-web -D namespace=zerg', quiet=True))
+k8s_yaml(kustomize('k8s/kustomize/overlays/dev'))
 k8s_resource('zerg-web', port_forwards='5206:8080', resource_deps=['build-zerg-web'])

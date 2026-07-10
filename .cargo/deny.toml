@@ -11,6 +11,7 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 ignore = [
     "RUSTSEC-2025-0134",  # rustls-pemfile unmaintained - no fix available yet
+    "RUSTSEC-2026-0173",  # proc-macro-error2 unmaintained - transitive via sea-orm-rc, no fix available
 ]
 
 # Licenses - allow common open source licenses

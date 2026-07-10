@@ -4,9 +4,9 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use grpc_client::TracedChannel;
 use rpc::tasks::tasks_service_client::TasksServiceClient;
 use rpc::tasks::{DeleteByIdRequest, GetByIdRequest, ListRequest, UpdateByIdRequest};
-use grpc_client::TracedChannel;
 use uuid::Uuid;
 
 use crate::error::{TaskError, TaskResult};

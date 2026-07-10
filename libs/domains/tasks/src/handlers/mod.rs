@@ -2,9 +2,9 @@ mod direct;
 mod grpc;
 
 use axum::{routing::get, Router};
+use grpc_client::TracedChannel;
 use rpc::tasks::tasks_service_client::TasksServiceClient;
 use std::sync::Arc;
-use grpc_client::TracedChannel;
 use utoipa::OpenApi;
 
 use crate::models::{CreateTask, Task, UpdateTask};

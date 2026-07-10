@@ -9,6 +9,9 @@ set dotenv-load := true
 default:
     just -l
 
+generate-env:
+  devkit secrets fetch -o .env.local
+
 # Full quality check for Rust monorepo (read-only, CI-safe)
 check: fmt-check lint test audit
     @echo "All checks passed!"
@@ -53,11 +56,11 @@ upgrade:
     cargo update
 
 _docker-up:
-    docker compose -f manifests/dockers/compose.yaml up -d
+    devkit dev up -d
 
 # Remove local env db
 docker-down:
-    docker compose -f manifests/dockers/compose.yaml down
+    devkit dev down
 
 run *args:
     bacon {{ args }}
@@ -67,7 +70,7 @@ web:
     cd apps/zerg/web && bun run dev
 
 sort-deps:
-    cargo fmt
+    just fmt
     cargo sort --workspace
 
 # docker rm $(docker ps -aq) -f

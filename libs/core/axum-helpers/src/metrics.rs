@@ -12,11 +12,11 @@
 
 use std::time::{Duration, Instant};
 
+use axum::Router;
 use axum::extract::{MatchedPath, Request};
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::get;
-use axum::Router;
 // Leading `::` forces the external crates, since this module is itself named `metrics`.
 use ::metrics::{counter, gauge, histogram};
 use ::metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};

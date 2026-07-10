@@ -352,10 +352,11 @@ impl VectorRepository for QdrantRepository {
                     .transpose()?
                     .ok_or_else(|| VectorError::Internal("Missing point ID".to_string()))?;
 
-                let values = Self::extract_vector_from_output(&point.vectors).unwrap_or_else(|| {
-                    tracing::warn!("Missing vector data for point {id}, returning empty");
-                    Vec::new()
-                });
+                let values =
+                    Self::extract_vector_from_output(&point.vectors).unwrap_or_else(|| {
+                        tracing::warn!("Missing vector data for point {id}, returning empty");
+                        Vec::new()
+                    });
 
                 Ok(Vector {
                     id,

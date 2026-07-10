@@ -1,4 +1,4 @@
-use axum_helpers::{AppError, impl_into_response_via_app_error};
+use axum_helpers::{impl_into_response_via_app_error, AppError};
 use thiserror::Error;
 use uuid::Uuid;
 

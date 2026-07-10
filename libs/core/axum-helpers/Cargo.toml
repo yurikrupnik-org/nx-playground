@@ -25,9 +25,9 @@ redis = { workspace = true }
 
 # Database dependencies - required for error handling
 sea-orm = { workspace = true }
-sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tower.workspace = true

@@ -13,8 +13,8 @@ core_config = { workspace = true }
 database = { workspace = true, features = ["all"] }
 domain_cloud_resources = { workspace = true }
 domain_projects = { workspace = true }
-domain_users = { workspace = true, features = ["notifications"] }
 domain_tasks = { workspace = true }
+domain_users = { workspace = true, features = ["notifications"] }
 domain_vector = { workspace = true }
 email = { workspace = true }
 eyre = { workspace = true }

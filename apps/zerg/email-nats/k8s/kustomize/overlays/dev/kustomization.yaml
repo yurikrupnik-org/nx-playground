@@ -5,7 +5,7 @@ kind: Kustomization
 
 resources:
   - ../../base
-  - smtp.yaml
+#  - smtp.yaml
 
 #replicas:
 #  - name: zerg-email-nats

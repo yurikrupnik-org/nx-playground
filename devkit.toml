@@ -1,0 +1,82 @@
+# devkit configuration — copy to your monorepo root as `devkit.toml`.
+#
+# Every key is optional: it overrides a built-in default from devkit/config.nu.
+# Only set what differs for your repo. Nested tables deep-merge; lists replace
+# the default wholesale. devkit discovers this file by walking up from $PWD.
+
+# --- Top-level keys MUST come before any [table] header (TOML rule) ---
+
+# Explicit app namespaces created on `devkit up`.
+# Leave empty ([]) to auto-derive from top-level dirs under paths.apps_dir.
+app_namespaces = []
+
+[cluster]
+name = "arus"                 # Kind cluster name
+workers = 2                  # worker node count
+db_workers = 1              # tainted db-dedicated workers
+ingress = true              # expose ports 80/443
+# kcl_package = "oci://.../kcl/cluster"   # OCI url WITHOUT a tag
+# kcl_tag = "0.0.6"                        # version passed to kcl via --tag
+
+[namespaces]
+dbs = "dbs"
+monitoring = "monitoring"
+external_secrets = "external-secrets"
+
+[paths]
+apps_dir = "apps"
+compose_file = "manifests/dockers/compose.yaml"
+default_target = "dev"      # default --target for overlay commands
+
+[paths.overlays]
+# `{target}` is replaced by the --target flag (dev/staging/prod).
+core = "manifests/k8s/overlays/{target}"
+gitops = "manifests/k8s/overlays/{target}"
+observability = "manifests/k8s/overlays/{target}"
+
+[database]
+port = 5433
+user = "myuser"
+password = "mypassword"
+name = "mydatabase"
+migration_cmd = ["cargo", "run", "-p", "migration", "--", "up"]
+wait_timeout = "120s"
+
+[secrets]
+config = "manifests/secrets/.vals.yaml"       # vals config file
+output = ".env"             # generated env file
+
+[external_secrets]
+gcp_credentials = "~/dotconfig/tmp/secret-puller.json"
+secret_name = "gcp-sm-credentials"
+
+[flux]
+# owner = "my-org"          # GitHub user/org; leave unset to derive from `gh api user`
+repository = "gitops"
+branch = "main"
+path = "clusters/local"
+personal = true
+
+[tilt]
+enabled = true
+
+# Endpoints printed after `devkit up`.
+[[endpoints]]
+label = "Tilt UI"
+url = "http://localhost:10350"
+
+[[endpoints]]
+label = "API"
+url = "http://localhost:5221/api"
+
+[[endpoints]]
+label = "Web"
+url = "http://localhost:5173"
+
+[[endpoints]]
+label = "Postgres"
+url = "localhost:5433"
+
+[[endpoints]]
+label = "Redis"
+url = "localhost:6379"

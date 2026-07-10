@@ -34,7 +34,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: zerg-api
-          image: europe-west1-docker.pkg.dev/yk-artifact-registry/docker/zerg-api:main
+          image: yurikrupnik/zerg-api:main
+#          image: europe-west1-docker.pkg.dev/yk-artifact-registry/docker/zerg-api:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

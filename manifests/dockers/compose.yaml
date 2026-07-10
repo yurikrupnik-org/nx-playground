@@ -129,6 +129,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       KEY: local-dev-directus-key
       SECRET: local-dev-directus-secret
@@ -141,6 +143,7 @@ services:
       ADMIN_EMAIL: admin@terran.dev
       ADMIN_PASSWORD: admin
       WEBSOCKETS_ENABLED: "true"
+      REDIS: "redis://redis:6379"
     ports:
       - "8055:8055"
 volumes:

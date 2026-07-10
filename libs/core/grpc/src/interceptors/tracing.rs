@@ -92,7 +92,9 @@ impl Injector for MetadataInjector<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
+    use opentelemetry::trace::{
+        SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState,
+    };
     use opentelemetry_sdk::propagation::TraceContextPropagator;
     use tonic::service::Interceptor;
 

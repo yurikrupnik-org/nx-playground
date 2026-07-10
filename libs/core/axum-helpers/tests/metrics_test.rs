@@ -21,12 +21,7 @@ async fn metrics_endpoint_renders_tracked_requests() {
     // Drive one tracked request through the middleware.
     let res = app
         .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/ping")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/ping").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);

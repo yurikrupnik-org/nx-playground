@@ -121,7 +121,7 @@ impl QueueConfig {
     /// Create a new queue configuration with the given queue name.
     pub fn new(queue_name: impl Into<String>) -> Self {
         let queue_name = queue_name.into();
-        let dlq_name = format!("{}:dlq", &queue_name);
+        let dlq_name = format!("{}:dlq", queue_name);
         Self {
             queue_name,
             dlq_name,
