@@ -23,6 +23,7 @@ ARG RUST_TARGET
 # Compile dependencies first; this layer is reused until the manifests/lockfile change.
 COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/app/target,id=rust-target,sharing=locked \
     cargo chef cook --release --locked --recipe-path recipe.json --target ${RUST_TARGET}
 
 COPY Cargo.toml Cargo.lock ./
@@ -30,6 +31,7 @@ COPY apps/ apps/
 COPY libs/ libs/
 
 RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/app/target,id=rust-target,sharing=locked \
     cargo build --release --locked -p ${APP_NAME} --target ${RUST_TARGET} \
     && cp target/${RUST_TARGET}/release/${APP_NAME} /app-bin
 
@@ -41,7 +43,7 @@ COPY --from=builder /app-bin /app
 
 # scratch has no /etc/passwd, so use a numeric UID:GID. This makes the image
 # genuinely non-root and satisfies Kubernetes runAsNonRoot / restricted PSS.
-USER 10001:10001
+USER 65534:65534
 
 ENV PORT=8080 \
     RUST_BACKTRACE=1

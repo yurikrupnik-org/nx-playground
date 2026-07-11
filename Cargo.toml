@@ -85,12 +85,12 @@ sea_orm_resource = { path = 'libs/core/proc_macros/sea_orm_resource' }
 selectable_fields = { path = 'libs/core/proc_macros/selectable_fields' }
 serde = { version = '1.0.228', features = ['derive'] }
 serde_json = { version = "1.0.150" }
-sha2 = '0.10.9'
+sha2 = '0.11.0'
 sqlx = { version = '0.8', default-features = false, features = ['postgres', 'macros', 'uuid', 'chrono', 'migrate'] }
 strum = { version = '0.28.0', features = ['derive'] }
-syn = { version = "2.0.117", features = ['full', 'extra-traits', 'visit'] }
+syn = { version = "2.0.118", features = ['full', 'extra-traits', 'visit'] }
 test-utils = { path = 'libs/testing/test-utils' }
-testcontainers = "0.27.1"
+testcontainers = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
 thiserror = '2.0.18'
 tokio = { version = "1.50.0", features = ['full'] }

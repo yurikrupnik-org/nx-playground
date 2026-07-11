@@ -47,7 +47,7 @@ spec:
             - configMapRef:
                 name: zerg-tasks-config
             - secretRef:
-                name: zerg-shared-secrets
+                name: zerg-api-secrets
                 optional: true
             - secretRef:
                 name: zerg-tasks-secrets

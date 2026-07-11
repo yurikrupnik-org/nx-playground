@@ -8,9 +8,13 @@ namespace: zerg
 # (see gitops-v1), so this overlay is the local-only path — safe to base on
 # the shared core without touching any cluster-managed Deployment selector.
 resources:
-  - ../../../../../../../manifests/apps/core/backend
-  - external-secret.yaml
-  - database.yaml
+#  - ../../../../../../../manifests/apps/core/backend
+  - ../../base
+  # - external-secret.yaml
+
+#patches:
+#  - path: tilt-dev-patch.yaml
+  # - database.yaml
 
 # identity: stable selector label, then descriptive labels (metadata + template).
 labels:
@@ -24,10 +28,10 @@ labels:
     includeTemplates: true
 
 # local image built by Tilt.
-images:
-  - name: app
-    newName: yurikrupnik/zerg-api
-    newTag: latest
+#images:
+#  - name: zerg-api
+#    newName: yurikrupnik/zerg-api
+#    newTag: main
 
 generatorOptions:
   disableNameSuffixHash: true
@@ -43,52 +47,57 @@ configMapGenerator:
       - FLAGSMITH_API_URL=http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1
       # Same-namespace short DNS — works wherever the Kustomization lands.
       - TASKS_SERVICE_ADDR=http://zerg-tasks:50051
+secretGenerator:
+  - name: zerg-api-secrets
+    literals:
+      - DATABASE_URL=postgres://myuser:mypassword@postgres.dbs.svc.cluster.local/zerg
+      - JWT_SECRET=HsAOZo0qOc/9WhnXrNeobVQEuZnm5QAggSwBlxeUm8U=
 
-patches:
-  # rename the generic `app` workload -> zerg-api
-  - target:
-      kind: Deployment
-      name: app
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: zerg-api
-  - target:
-      kind: Service
-      name: app
-    patch: |
-      - op: replace
-        path: /metadata/name
-        value: zerg-api
+#patches:
+#  # rename the generic `app` workload -> zerg-api
+#  - target:
+#      kind: Deployment
+#      name: app
+#    patch: |
+#      - op: replace
+#        path: /metadata/name
+#        value: zerg-api
+#  - target:
+#      kind: Service
+#      name: app
+#    patch: |
+#      - op: replace
+#        path: /metadata/name
+#        value: zerg-api
   # zerg env wiring: shared + app config/secrets (the core ships generic
   # app-config/app-secrets; here we point it at zerg's real ConfigMaps/Secrets).
-  - target:
-      kind: Deployment
-      name: app
-    patch: |
-      - op: replace
-        path: /spec/template/spec/containers/0/envFrom
-        value:
-          - configMapRef:
-              name: zerg-shared-config
-          - configMapRef:
-              name: zerg-api-config
-          - secretRef:
-              name: zerg-shared-secrets
-              optional: true
-          - secretRef:
-              name: zerg-api-secrets
-              optional: true
-          - secretRef:
-              name: zerg-api-db
-              optional: true
+#  - target:
+#      kind: Deployment
+#      name: app
+#    patch: |
+#      - op: replace
+#        path: /spec/template/spec/containers/0/envFrom
+#        value:
+#          - configMapRef:
+#              name: zerg-shared-config
+#          - configMapRef:
+#              name: zerg-api-config
+#          - secretRef:
+#              name: zerg-shared-secrets
+#              optional: true
+#          - secretRef:
+#              name: zerg-api-secrets
+#              optional: true
+#          - secretRef:
+#              name: zerg-api-db
+#              optional: true
   # no autoscaling on local kind
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: app
-    patch: |
-      $patch: delete
-      apiVersion: autoscaling/v2
-      kind: HorizontalPodAutoscaler
-      metadata:
-        name: app
+#  - target:
+#      kind: HorizontalPodAutoscaler
+#      name: app
+#    patch: |
+#      $patch: delete
+#      apiVersion: autoscaling/v2
+#      kind: HorizontalPodAutoscaler
+#      metadata:
+#        name: app

@@ -5,30 +5,30 @@
 #   kubectl exec -it zerg-db-1 -n zerg -- pg_dump -U zerg zerg > backup.sql
 #
 #  mydatabase
-apiVersion: postgresql.cnpg.io/v1
-kind: ScheduledBackup
-metadata:
-  name: zerg-db-backup
-  namespace: zerg
-spec:
-  # Reference to the cluster
-  cluster:
-    name: zerg-db
-
-  # Backup schedule (cron format)
-  # Daily at 2:00 AM UTC
-  schedule: "0 2 * * *"
-
-  # Backup method
-  # - barmanObjectStore: Full backup to object storage
-  # - volumeSnapshot: Use CSI volume snapshots
-  backupOwnerReference: self
-
-  # Immediate backup on creation
-  immediate: false
-
-  # Suspend backups (useful for maintenance)
-  suspend: false
+#apiVersion: postgresql.cnpg.io/v1
+#kind: ScheduledBackup
+#metadata:
+#  name: zerg-db-backup
+#  namespace: zerg
+#spec:
+#  # Reference to the cluster
+#  cluster:
+#    name: zerg-db
+#
+#  # Backup schedule (cron format)
+#  # Daily at 2:00 AM UTC
+#  schedule: "0 2 * * *"
+#
+#  # Backup method
+#  # - barmanObjectStore: Full backup to object storage
+#  # - volumeSnapshot: Use CSI volume snapshots
+#  backupOwnerReference: self
+#
+#  # Immediate backup on creation
+#  immediate: false
+#
+#  # Suspend backups (useful for maintenance)
+#  suspend: false
 
 ---
 # On-demand backup (apply when needed)

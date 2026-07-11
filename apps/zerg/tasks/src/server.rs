@@ -56,7 +56,7 @@ pub async fn run() -> Result<()> {
     info!("Connecting to PostgreSQL...");
     let db = database::postgres::connect_from_config_with_retry(db_config, None)
         .await
-        .wrap_err("Failed to connect to database")?;
+        .wrap_err("Failed to connect to database!")?;
     info!("Connected to PostgreSQL");
 
     // Connect to Qdrant

@@ -3,6 +3,10 @@ name = "zerg_api"
 version = "0.1.2"
 edition = "2024"
 
+[[bin]]
+name = "zerg_api"
+path = "src/main.rs"
+
 [dependencies]
 async-nats = { workspace = true }
 axum = { workspace = true }

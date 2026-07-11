@@ -26,6 +26,15 @@ local_resource(
     )
 )
 
+local_resource(
+    'mailhog',
+    serve_cmd='kubectl port-forward -n dbs deployment/mailhog 8025:8025',
+    labels=['port-forward'],
+    readiness_probe=probe(
+        period_secs=5,
+        exec=exec_action(['sh', '-c', 'nc -z localhost 8025'])
+    )
+)
 # local_resource(
 #     'istio-gateway',
 #     serve_cmd='kubectl port-forward -n gateway svc/main-gateway-istio 8080:80 8443:443',
@@ -82,17 +91,17 @@ local_resource(
 # # =============================================================================
 # # Shared k8s objects
 # # =============================================================================
-# k8s_yaml(kustomize('apps/zerg/shared/k8s/kustomize/overlays/dev'))
-# k8s_resource(
-#     objects=['zerg-shared-config:configmap', 'zerg-shared-secrets:secret'],
-#     new_name='zerg-shared-config',
-#     labels=['config'],
-# )
+k8s_yaml(kustomize('apps/zerg/shared/k8s/kustomize/overlays/dev'))
+k8s_resource(
+    objects=['zerg-shared-config:configmap', 'zerg-shared-secrets:secret'],
+    new_name='zerg-shared-config',
+    labels=['config'],
+)
 # # =============================================================================
 # # Applications
 # # =============================================================================
 # #include('./apps/zerg/shared/Tiltfile')
-# include('./apps/zerg/api/Tiltfile')
-# include('./apps/zerg/tasks/Tiltfile')
-# include('./apps/zerg/web/Tiltfile')
-# include('./apps/zerg/email-nats/Tiltfile')
+include('./apps/zerg/api/Tiltfile')
+include('./apps/zerg/tasks/Tiltfile')
+include('./apps/zerg/web/Tiltfile')
+include('./apps/zerg/email-nats/Tiltfile')

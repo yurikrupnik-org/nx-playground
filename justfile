@@ -62,8 +62,12 @@ _docker-up:
 docker-down:
     devkit dev down
 
+# Run bacon, layering secrets resolved from vals (GCP Secret Manager) on top of
+# the inherited shell env (DATABASE_URL, REDIS_HOST, ... from direnv). `-i` keeps
+# the parent env; vals injects the secret keys. No plaintext .env needed.
+#   just run zerg-api    just run zerg-tasks
 run *args:
-    bacon {{ args }}
+    vals exec -i -f manifests/secrets/.vals.yaml -- bacon {{ args }}
 
 # Run zerg web dev server
 web:
@@ -77,13 +81,30 @@ sort-deps:
 test-all:
     cargo nextest run --workspace
 
-# Start local dev (docker-compose + migrations + apps)
+# Start local dev (bacon apps via mprocs). Wrapped in `vals exec -i` so every
+# proc mprocs spawns inherits the vals-resolved secrets (fetched once) on top of
+# the shell env — same source as `just run`, no plaintext .env needed.
 dev:
-    mprocs -c manifests/mprocs/local.yaml
+  vals exec -i -f manifests/secrets/.vals.yaml -- mprocs -c manifests/mprocs/local.yaml
 
 # Start Kind dev (port-forward + tilt)
 dev-kind:
     mprocs -c manifests/mprocs/kind.yaml
+
+# Generate + apply the shared Secret into the local kind cluster from vals refs.
+# `vals eval` resolves each ref+gcpsecrets:// at apply time (no plaintext on disk
+# or in git). A RANDOM name is stamped so it won't clobber the kustomize-managed
+# `zerg-shared-secrets` during migration — rename once deployments point at it.
+#   just kind-secret                   # random name, namespace zerg
+#   just kind-secret my-secrets        # explicit name (POSITIONAL, not name=...)
+#   just kind-secret my-secrets apps   # explicit name + namespace
+kind-secret name=`printf "zerg-secrets-%s" "$(openssl rand -hex 4)"` namespace="zerg":
+    @echo "{{ name }}" | grep -Eq '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$' || { echo "✗ invalid Secret name '{{ name }}' — pass it POSITIONALLY (RFC1123: lowercase alphanumeric/-). Use: just kind-secret <name> [namespace]"; exit 1; }
+    kubectl create namespace {{ namespace }} --dry-run=client -o yaml | kubectl apply -f -
+    vals eval -f manifests/secrets/secret.vals.yaml \
+      | sed "s/SECRET_NAME_PLACEHOLDER/{{ name }}/" \
+      | kubectl apply -n {{ namespace }} -f -
+    @echo "✓ applied Secret '{{ name }}' to namespace '{{ namespace }}' (random name — update refs, then rename)"
 
 kompose:
     kubectl create ns dbs
