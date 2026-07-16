@@ -8,7 +8,6 @@ name = "zerg_api"
 path = "src/main.rs"
 
 [dependencies]
-async-nats = { workspace = true }
 axum = { workspace = true }
 axum-helpers = { workspace = true }
 chrono = { workspace = true }
@@ -23,6 +22,7 @@ domain_vector = { workspace = true }
 email = { workspace = true }
 eyre = { workspace = true }
 grpc-client = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
 # migration crate removed - using Atlas for migrations
 oauth2 = { workspace = true }
 redis = { workspace = true }

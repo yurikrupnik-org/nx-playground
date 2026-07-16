@@ -10,8 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
     println!("Connecting to NATS at {}...", nats_url);
-    let client = async_nats::connect(&nats_url).await?;
-    let jetstream = async_nats::jetstream::new(client);
+    let jetstream = messaging::nats::jetstream(&nats_url).await?;
 
     // Ensure stream exists
     println!("Creating/getting EMAILS stream...");

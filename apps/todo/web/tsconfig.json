@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "target": "ESNext",
+
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    "strict": true,
+    "types": ["vite/client", "@testing-library/jest-dom"],
+
+    "baseUrl": ".",
+    "paths": {
+      "@domain/todo": ["../../../libs/domains/todo/types/index.ts"]
+    }
+  }
+}

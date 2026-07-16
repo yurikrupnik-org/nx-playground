@@ -57,18 +57,15 @@ async fn main() -> eyre::Result<()> {
             .map_err(|e| eyre::eyre!("Redis connection failed: {}", e))
     };
 
-    // Initialize NATS connection for notifications
+    // Initialize NATS JetStream for notifications (with retry).
     let nats_future = async {
         info!("Connecting to NATS at {}", config.nats_url);
-        async_nats::connect(&config.nats_url)
+        messaging::nats::jetstream_with_retry(&config.nats_url, None)
             .await
             .map_err(|e| eyre::eyre!("NATS connection failed: {}", e))
     };
 
-    let (db, redis, nats_client) = tokio::try_join!(postgres_future, redis_future, nats_future)?;
-
-    // Create JetStream context for notifications.
-    let jetstream = async_nats::jetstream::new(nats_client);
+    let (db, redis, jetstream) = tokio::try_join!(postgres_future, redis_future, nats_future)?;
     let notifications = NotificationService::from_jetstream_default(jetstream);
     info!("NotificationService initialized with NATS JetStream");
 

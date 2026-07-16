@@ -1,0 +1,172 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/*
+ * Shared Todo UI theme — consumed by BOTH frontends.
+ *  - SolidJS app imports it via Vite (apps/todo/web-solid).
+ *  - Leptos/WASM app links it via Trunk (apps/todo/web-rust).
+ * Self-contained plain CSS (no preprocessor) so both build pipelines use it
+ * verbatim. Both apps render the same DOM with the same class names, so the
+ * two UIs look identical.
+ */
+
+:root {
+  --todo-bg: #f7f8fa;
+  --todo-surface: #ffffff;
+  --todo-border: #e2e5ea;
+  --todo-text: #1f2430;
+  --todo-muted: #8b93a3;
+  --todo-primary: #2563eb;
+  --todo-primary-text: #ffffff;
+  --todo-danger: #dc2626;
+  --todo-radius: 8px;
+  --todo-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+}
+
+body {
+  margin: 0;
+  background: var(--todo-bg);
+  color: var(--todo-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.todo-app {
+  max-width: 36rem;
+  margin: 2.5rem auto;
+  padding: 1.5rem;
+  background: var(--todo-surface);
+  border: 1px solid var(--todo-border);
+  border-radius: 12px;
+  box-shadow: var(--todo-shadow);
+}
+
+.todo-app__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--todo-border);
+}
+.todo-app__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.todo-app__subtitle {
+  color: var(--todo-muted);
+  font-size: 0.8rem;
+}
+
+.todo-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.todo-input,
+.todo-select {
+  border: 1px solid var(--todo-border);
+  border-radius: var(--todo-radius);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  background: #fff;
+}
+.todo-input {
+  flex: 1;
+}
+.todo-input:focus,
+.todo-select:focus {
+  outline: 2px solid var(--todo-primary);
+  outline-offset: 1px;
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: var(--todo-radius);
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  background: #eef1f5;
+  color: var(--todo-text);
+}
+.btn:hover {
+  filter: brightness(0.97);
+}
+.btn--primary {
+  background: var(--todo-primary);
+  color: var(--todo-primary-text);
+}
+.btn--danger {
+  background: transparent;
+  color: var(--todo-danger);
+  padding: 0.25rem 0.5rem;
+}
+.btn--danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.todo-error {
+  color: var(--todo-danger);
+  min-height: 1.25rem;
+  margin: 0 0 0.5rem;
+}
+.todo-status {
+  color: var(--todo-muted);
+  margin: 0.5rem 0;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--todo-border);
+  border-radius: var(--todo-radius);
+  padding: 0.6rem 0.75rem;
+}
+.todo-checkbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--todo-primary);
+}
+.todo-item__title {
+  flex: 1;
+}
+.todo-item__title--done {
+  text-decoration: line-through;
+  color: var(--todo-muted);
+}
+
+.badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: var(--todo-muted);
+}
+.badge--low {
+  background: #eaf6ee;
+  color: #1a7f43;
+}
+.badge--medium {
+  background: #fef6e7;
+  color: #9a6700;
+}
+.badge--high {
+  background: #fdeaea;
+  color: #c0271f;
+}

@@ -54,6 +54,7 @@
 //! ```
 
 mod config;
+mod connection;
 mod consumer;
 mod dlq;
 mod error;
@@ -63,6 +64,7 @@ mod producer;
 mod worker;
 
 pub use config::{StreamConfig, WorkerConfig};
+pub use connection::{connect, connect_with_retry, jetstream, jetstream_with_retry, RetryConfig};
 pub use consumer::{NatsConsumer, NatsMessage, StreamInfo};
 pub use dlq::{DlqEntry, DlqManager, DlqStats};
 pub use error::NatsError;

@@ -1498,6 +1498,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "domain_todo"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "async-trait",
+ "axum 0.8.9",
+ "axum-helpers",
+ "chrono",
+ "core_proc_macros",
+ "database",
+ "futures",
+ "http-body-util",
+ "messaging",
+ "mockall",
+ "parking_lot",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "strum",
+ "test-utils",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "ts-rs",
+ "utoipa",
+ "uuid",
+ "validator",
+]
+
+[[package]]
 name = "domain_users"
 version = "0.1.0"
 dependencies = [
@@ -5571,6 +5602,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
+name = "todo_api"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.9",
+ "axum-helpers",
+ "core_config",
+ "database",
+ "domain_todo",
+ "eyre",
+ "messaging",
+ "sea-orm",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
+name = "todo_worker"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "async-trait",
+ "chrono",
+ "core_config",
+ "domain_todo",
+ "eyre",
+ "futures",
+ "messaging",
+ "test-utils",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "tokio"
 version = "1.52.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7088,7 +7155,6 @@ dependencies = [
 name = "zerg_api"
 version = "0.1.2"
 dependencies = [
- "async-nats",
  "axum 0.8.9",
  "axum-helpers",
  "chrono",
@@ -7103,6 +7169,7 @@ dependencies = [
  "email",
  "eyre",
  "grpc-client",
+ "messaging",
  "oauth2",
  "redis",
  "rpc",

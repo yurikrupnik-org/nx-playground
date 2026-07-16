@@ -1,0 +1,21 @@
+# Todo group — local Docker development workflow
+# Usage: just dev-todo (or: mprocs -c manifests/mprocs/todo.yaml)
+#
+# Starts the whole todo vertical: API (bacon hot-reload) + event worker (bacon)
+# + SolidJS web (vite). DATABASE_URL for todo-api is pinned to the `todo`
+# database in bacon.toml ([jobs.todo-api]); reset it with `just db-fresh todo`.
+
+procs:
+  # Rust services (bacon hot-reload)
+  todo-api:
+    shell: "bacon todo-api"
+    stop: "SIGTERM"
+
+  todo-worker:
+    shell: "bacon todo-worker"
+    stop: "SIGTERM"
+
+  # Frontend (vite HMR; bacon just supervises, watch disabled in bacon.toml)
+  todo-web:
+    shell: "bacon todo-web"
+    stop: "SIGTERM"

@@ -87,6 +87,14 @@ test-all:
 dev:
   vals exec -i -f manifests/secrets/.vals.yaml -- mprocs -c manifests/mprocs/local.yaml
 
+# Start just the todo group (todo-api + todo-worker + todo-web) via mprocs.
+dev-todo:
+  mprocs -c manifests/mprocs/todo.yaml
+
+# Start just the zerg group via mprocs (same set as `just dev`).
+dev-zerg:
+  vals exec -i -f manifests/secrets/.vals.yaml -- mprocs -c manifests/mprocs/local.yaml
+
 # Start Kind dev (port-forward + tilt)
 dev-kind:
     mprocs -c manifests/mprocs/kind.yaml
