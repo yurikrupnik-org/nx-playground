@@ -2,6 +2,8 @@ pub mod server;
 pub mod tracing;
 
 use std::env;
+use std::fmt::Display;
+use std::str::FromStr;
 use thiserror::Error;
 
 /// Application metadata from Cargo.toml (compile-time)
@@ -100,6 +102,26 @@ pub fn env_or_default(key: &str, default: &str) -> String {
 /// Helper to load and parse environment variable or return error
 pub fn env_required(key: &str) -> Result<String, ConfigError> {
     env::var(key).map_err(|_| ConfigError::MissingEnvVar(key.to_string()))
+}
+
+/// Load an environment variable and parse it into `T`, falling back to
+/// `default` when the variable is unset.
+///
+/// A present-but-unparseable value is a hard [`ConfigError::ParseError`] that
+/// names both the key and the offending value, so misconfiguration fails fast
+/// with a message that is useful in logs rather than silently defaulting.
+pub fn env_parse_or<T>(key: &str, default: T) -> Result<T, ConfigError>
+where
+    T: FromStr,
+    T::Err: Display,
+{
+    match env::var(key) {
+        Ok(v) => v.parse().map_err(|e: T::Err| ConfigError::ParseError {
+            key: key.to_string(),
+            details: format!("invalid value {v:?}: {e}"),
+        }),
+        Err(_) => Ok(default),
+    }
 }
 
 #[cfg(test)]

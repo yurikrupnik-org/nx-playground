@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
         .layer(TraceLayer::new_for_http());
 
     let server_config = config.server;
-    info!(addr = %server_config.address(), "todo-api listening");
+    info!(addr = %server_config.addr(), "todo-api listening");
     create_app(app, &server_config)
         .await
         .wrap_err("server error")?;

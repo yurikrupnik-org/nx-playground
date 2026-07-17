@@ -36,7 +36,7 @@ use utoipa::OpenApi;
 /// }
 /// ```
 pub async fn create_app(router: Router, server_config: &ServerConfig) -> io::Result<()> {
-    let listener = tokio::net::TcpListener::bind(server_config.address()).await?;
+    let listener = tokio::net::TcpListener::bind(server_config.addr()).await?;
 
     info!("Server starting on {}", listener.local_addr()?);
     axum::serve(
@@ -243,7 +243,7 @@ where
     let (coordinator, _rx) = ShutdownCoordinator::new();
     let shutdown_handle = coordinator.clone();
 
-    let listener = tokio::net::TcpListener::bind(server_config.address()).await?;
+    let listener = tokio::net::TcpListener::bind(server_config.addr()).await?;
     info!("Server starting on {}", listener.local_addr()?);
 
     // Spawn cleanup task
