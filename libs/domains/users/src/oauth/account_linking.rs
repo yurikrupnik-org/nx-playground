@@ -1,12 +1,9 @@
 use crate::error::{UserError, UserResult};
 use crate::models::{Role, User};
-use crate::oauth::types::OAuthUserInfo;
+use crate::oauth::types::{OAuthUserInfo, Provider};
 use crate::oauth::{CreateOAuthAccountParams, OAuthAccountRepository};
+use crate::password;
 use crate::repository::UserRepository;
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
-};
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -22,6 +19,20 @@ pub enum AccountLinkingResult {
         existing_user_id: Uuid,
         provider_data: OAuthUserInfo,
     },
+}
+
+/// Parameters for an OAuth login callback.
+#[derive(Debug, Clone)]
+pub struct OAuthLogin {
+    pub provider: Provider,
+    pub user_info: OAuthUserInfo,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    /// Token lifetime in seconds, as reported by the provider.
+    pub expires_in: Option<u64>,
+    /// Auto-link to an existing account when BOTH the provider-reported email
+    /// and the local account email are verified.
+    pub auto_link_verified_emails: bool,
 }
 
 /// Service for handling OAuth account linking logic
@@ -47,19 +58,20 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
     ///    - If both emails verified + auto_link_verified_emails -> auto-link
     ///    - Otherwise -> return LinkRequired (manual linking needed)
     /// 3. Create new user if no match
-    pub async fn handle_oauth_login(
-        &self,
-        provider: &str,
-        user_info: OAuthUserInfo,
-        access_token: Option<String>,
-        refresh_token: Option<String>,
-        expires_in: Option<u64>,
-        auto_link_verified_emails: bool,
-    ) -> UserResult<AccountLinkingResult> {
+    pub async fn handle_oauth_login(&self, login: OAuthLogin) -> UserResult<AccountLinkingResult> {
+        let OAuthLogin {
+            provider,
+            user_info,
+            access_token,
+            refresh_token,
+            expires_in,
+            auto_link_verified_emails,
+        } = login;
+
         // Check if OAuth account already exists
         if let Some(existing_account) = self
             .oauth_repo
-            .find_by_provider_and_user_id(provider, &user_info.provider_user_id)
+            .find_by_provider_and_user_id(provider.as_str(), &user_info.provider_user_id)
             .await?
         {
             let user = self
@@ -89,7 +101,9 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
         if let Some(email) = &user_info.email
             && let Some(existing_user) = self.user_repo.get_by_email(email).await?
         {
-            // Auto-link if both emails are verified
+            // Auto-link ONLY when the provider attests the email is verified
+            // AND the local account's email is verified; anything less allows
+            // account takeover via an attacker-controlled provider account.
             if auto_link_verified_emails && user_info.email_verified && existing_user.email_verified
             {
                 self.link_oauth_to_user(
@@ -130,7 +144,7 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
     pub async fn link_oauth_to_user(
         &self,
         user_id: Uuid,
-        provider: &str,
+        provider: Provider,
         user_info: &OAuthUserInfo,
         access_token: Option<String>,
         refresh_token: Option<String>,
@@ -139,14 +153,11 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
         // Check if this provider is already linked to this user
         let existing_link = self
             .oauth_repo
-            .find_by_user_id_and_provider(user_id, provider)
+            .find_by_user_id_and_provider(user_id, provider.as_str())
             .await?;
 
         if existing_link.is_some() {
-            return Err(UserError::Internal(format!(
-                "{} account already linked to this user",
-                provider
-            )));
+            return Err(UserError::OAuthAlreadyLinked(provider));
         }
 
         let token_expires_at =
@@ -155,7 +166,7 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
         self.oauth_repo
             .create(CreateOAuthAccountParams {
                 user_id,
-                provider,
+                provider: provider.as_str(),
                 provider_user_id: &user_info.provider_user_id,
                 provider_username: user_info.username.as_deref(),
                 email: user_info.email.as_deref(),
@@ -175,14 +186,16 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
     /// Create a new user from OAuth data
     async fn create_user_from_oauth(
         &self,
-        provider: &str,
+        provider: Provider,
         user_info: &OAuthUserInfo,
         access_token: Option<String>,
         refresh_token: Option<String>,
         expires_in: Option<u64>,
     ) -> UserResult<User> {
         let email = user_info.email.as_ref().ok_or_else(|| {
-            UserError::Internal("Email required for new user creation".to_string())
+            UserError::OAuth(format!(
+                "{provider} did not provide an email address for the new account"
+            ))
         })?;
 
         let name = user_info
@@ -191,13 +204,7 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
             .unwrap_or_else(|| email.split('@').next().unwrap_or("User").to_string());
 
         // Create user with random password (OAuth users don't use password login)
-        let random_password = Uuid::new_v4().to_string();
-        let salt = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::default();
-        let password_hash = argon2
-            .hash_password(random_password.as_bytes(), &salt)
-            .map(|hash| hash.to_string())
-            .map_err(|e| UserError::Internal(format!("Failed to hash password: {}", e)))?;
+        let password_hash = password::hash_password(Uuid::new_v4().to_string()).await?;
 
         let mut user = User::new(email.clone(), name, password_hash, vec![Role::User]);
 
@@ -218,7 +225,7 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
         self.oauth_repo
             .create(CreateOAuthAccountParams {
                 user_id: user.id,
-                provider,
+                provider: provider.as_str(),
                 provider_user_id: &user_info.provider_user_id,
                 provider_username: user_info.username.as_deref(),
                 email: user_info.email.as_deref(),
@@ -238,7 +245,7 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
     /// Unlink OAuth account from user
     ///
     /// Safety: Prevents unlinking the only OAuth account if user has no password
-    pub async fn unlink_oauth(&self, user_id: Uuid, provider: &str) -> UserResult<bool> {
+    pub async fn unlink_oauth(&self, user_id: Uuid, provider: Provider) -> UserResult<bool> {
         let user_oauth_accounts = self.oauth_repo.find_by_user_id(user_id).await?;
 
         // Prevent unlinking if this is the only OAuth account and user has no password
@@ -252,14 +259,12 @@ impl<R: UserRepository, O: OAuthAccountRepository> AccountLinkingService<R, O> {
             // Check if user has a real password (not the random OAuth password)
             // A real password would have been set via password reset or account creation
             if user.password_hash.is_empty() || user.password_hash == "oauth_only" {
-                return Err(UserError::Internal(
-                    "Cannot unlink the only OAuth account without a password set".to_string(),
-                ));
+                return Err(UserError::CannotUnlinkOnlyAuthMethod);
             }
         }
 
         self.oauth_repo
-            .delete_by_user_and_provider(user_id, provider)
+            .delete_by_user_and_provider(user_id, provider.as_str())
             .await
     }
 

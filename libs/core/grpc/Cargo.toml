@@ -11,11 +11,8 @@ server = ["dep:tonic-health"]
 
 # Conversions
 chrono = { workspace = true }
-eyre = { workspace = true }
-futures = { workspace = true }
-http = { workspace = true }
+core_retry = { workspace = true }
 opentelemetry = { workspace = true }
-prost = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
@@ -34,3 +31,4 @@ uuid = { workspace = true, features = ["v4"] }
 [dev-dependencies]
 opentelemetry_sdk = { workspace = true }
 tokio-test = "0.4"
+temp-env = "0.3"

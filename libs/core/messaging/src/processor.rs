@@ -2,7 +2,7 @@
 
 use crate::error::ProcessingError;
 use crate::job::Job;
-use async_trait::async_trait;
+use std::future::Future;
 
 /// Job processor trait.
 ///
@@ -20,14 +20,12 @@ use async_trait::async_trait;
 ///
 /// ```rust,ignore
 /// use messaging::{Job, Processor, ProcessingError};
-/// use async_trait::async_trait;
 ///
 /// struct EmailProcessor {
 ///     provider: Arc<dyn EmailProvider>,
 ///     templates: Arc<TemplateEngine>,
 /// }
 ///
-/// #[async_trait]
 /// impl Processor<EmailJob> for EmailProcessor {
 ///     async fn process(&self, job: &EmailJob) -> Result<(), ProcessingError> {
 ///         // Render template
@@ -60,7 +58,6 @@ use async_trait::async_trait;
 ///     }
 /// }
 /// ```
-#[async_trait]
 pub trait Processor<J: Job>: Send + Sync {
     /// Process a job.
     ///
@@ -72,7 +69,7 @@ pub trait Processor<J: Job>: Send + Sync {
     ///
     /// * `Ok(())` - Job processed successfully
     /// * `Err(ProcessingError)` - Processing failed (retry or DLQ based on category)
-    async fn process(&self, job: &J) -> Result<(), ProcessingError>;
+    fn process(&self, job: &J) -> impl Future<Output = Result<(), ProcessingError>> + Send;
 
     /// Get the processor name.
     ///
@@ -87,22 +84,26 @@ pub trait Processor<J: Job>: Send + Sync {
     /// # Default
     ///
     /// Returns `Ok(true)` (always healthy).
-    async fn health_check(&self) -> Result<bool, ProcessingError> {
-        Ok(true)
+    fn health_check(&self) -> impl Future<Output = Result<bool, ProcessingError>> + Send {
+        async { Ok(true) }
     }
 
     /// Called before processing starts.
     ///
     /// Override for initialization, logging, or metrics.
-    async fn on_start(&self) -> Result<(), ProcessingError> {
-        Ok(())
+    fn on_start(&self) -> impl Future<Output = Result<(), ProcessingError>> + Send {
+        async { Ok(()) }
     }
 
     /// Called after processing completes.
     ///
     /// Override for cleanup, logging, or metrics.
-    async fn on_complete(&self, _job: &J, _result: &Result<(), ProcessingError>) {
-        // Default: no-op
+    fn on_complete(
+        &self,
+        _job: &J,
+        _result: &Result<(), ProcessingError>,
+    ) -> impl Future<Output = ()> + Send {
+        async {}
     }
 }
 
@@ -110,7 +111,6 @@ pub trait Processor<J: Job>: Send + Sync {
 #[derive(Debug, Clone, Default)]
 pub struct NoOpProcessor;
 
-#[async_trait]
 impl<J: Job> Processor<J> for NoOpProcessor {
     async fn process(&self, _job: &J) -> Result<(), ProcessingError> {
         Ok(())
@@ -146,7 +146,6 @@ impl FailingProcessor {
     }
 }
 
-#[async_trait]
 impl<J: Job> Processor<J> for FailingProcessor {
     async fn process(&self, _job: &J) -> Result<(), ProcessingError> {
         if self.transient {
@@ -166,23 +165,24 @@ mod tests {
     use super::*;
     use crate::job::Job;
     use serde::{Deserialize, Serialize};
+    use uuid::Uuid;
 
     #[derive(Clone, Serialize, Deserialize)]
     struct TestJob {
-        id: String,
+        id: Uuid,
         retry_count: u32,
     }
 
     impl Job for TestJob {
-        fn job_id(&self) -> String {
-            self.id.clone()
+        fn job_id(&self) -> Uuid {
+            self.id
         }
         fn retry_count(&self) -> u32 {
             self.retry_count
         }
         fn with_retry(&self) -> Self {
             Self {
-                id: self.id.clone(),
+                id: self.id,
                 retry_count: self.retry_count + 1,
             }
         }
@@ -192,7 +192,7 @@ mod tests {
     async fn test_noop_processor() {
         let processor = NoOpProcessor;
         let job = TestJob {
-            id: "test".to_string(),
+            id: Uuid::new_v4(),
             retry_count: 0,
         };
 
@@ -205,7 +205,7 @@ mod tests {
     async fn test_failing_processor_transient() {
         let processor = FailingProcessor::transient("test failure");
         let job = TestJob {
-            id: "test".to_string(),
+            id: Uuid::new_v4(),
             retry_count: 0,
         };
 
@@ -220,7 +220,7 @@ mod tests {
     async fn test_failing_processor_permanent() {
         let processor = FailingProcessor::permanent("test failure");
         let job = TestJob {
-            id: "test".to_string(),
+            id: Uuid::new_v4(),
             retry_count: 0,
         };
 

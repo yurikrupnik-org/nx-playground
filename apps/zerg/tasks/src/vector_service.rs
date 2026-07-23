@@ -5,8 +5,9 @@
 use std::sync::Arc;
 
 use domain_vector::{
-    CreateCollection, RecommendQuery, SearchFilter, SearchQuery, TenantContext, Vector,
-    VectorRepository, VectorService, conversions as conv,
+    CreateCollection, RecommendQuery, SearchFilter, SearchQuery, SearchWithEmbedding,
+    TenantContext, UpsertWithEmbedding, Vector, VectorRepository, VectorService,
+    conversions as conv,
 };
 use rpc::vector::v1::{
     CreateCollectionRequest, CreateCollectionResponse, DeleteCollectionRequest,
@@ -38,8 +39,8 @@ impl<R: VectorRepository> VectorServiceImpl<R> {
 
 // Helper function to convert bytes to TenantContext
 fn parse_tenant(tenant: Option<rpc::vector::v1::TenantContext>) -> Result<TenantContext, Status> {
-    TenantContext::try_from(tenant)
-        .map_err(|e| Status::invalid_argument(format!("Invalid tenant context: {}", e)))
+    conv::tenant_from_proto(tenant)
+        .map_err(|e| Status::invalid_argument(format!("Invalid tenant context: {e}")))
 }
 
 #[tonic::async_trait]
@@ -55,7 +56,8 @@ where
     ) -> Result<Response<CreateCollectionResponse>, Status> {
         let req = request.into_inner();
         let tenant = parse_tenant(req.tenant)?;
-        let config = conv::vector_config_from_proto(req.config);
+        let config = conv::vector_config_from_proto(req.config)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let input = CreateCollection {
             name: req.collection_name.clone(),
@@ -140,10 +142,8 @@ where
     ) -> Result<Response<UpsertResponse>, Status> {
         let req = request.into_inner();
         let tenant = parse_tenant(req.tenant)?;
-        let vector: Vector = req
-            .vector
-            .try_into()
-            .map_err(|e: domain_vector::VectorError| Status::invalid_argument(e.to_string()))?;
+        let vector = conv::vector_from_proto(req.vector)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let id = self
             .service
@@ -300,12 +300,12 @@ where
         request: Request<EmbedRequest>,
     ) -> Result<Response<EmbedResponse>, Status> {
         let req = request.into_inner();
-        let provider_type = conv::embedding_provider_from_proto(req.provider);
-        let model = conv::embedding_model_from_proto(req.model, req.custom_dimension);
+        let model = conv::embedding_model_from_proto(req.model, req.custom_dimension)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let result = self
             .service
-            .embed(provider_type, model, &req.text)
+            .embed(model, &req.text)
             .await
             .map_err(|e| Status::internal(format!("Failed to embed: {}", e)))?;
 
@@ -321,12 +321,12 @@ where
         request: Request<EmbedBatchRequest>,
     ) -> Result<Response<EmbedBatchResponse>, Status> {
         let req = request.into_inner();
-        let provider_type = conv::embedding_provider_from_proto(req.provider);
-        let model = conv::embedding_model_from_proto(req.model, req.custom_dimension);
+        let model = conv::embedding_model_from_proto(req.model, req.custom_dimension)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let results = self
             .service
-            .embed_batch(provider_type, model, &req.texts)
+            .embed_batch(model, &req.texts)
             .await
             .map_err(|e| Status::internal(format!("Failed to embed batch: {}", e)))?;
 
@@ -352,8 +352,8 @@ where
     ) -> Result<Response<UpsertResponse>, Status> {
         let req = request.into_inner();
         let tenant = parse_tenant(req.tenant)?;
-        let provider_type = conv::embedding_provider_from_proto(req.provider);
-        let model = conv::embedding_model_from_proto(req.model, None);
+        let model = conv::embedding_model_from_proto(req.model, None)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let id =
             conv::bytes_to_uuid(&req.id).map_err(|e| Status::invalid_argument(e.to_string()))?;
@@ -371,12 +371,13 @@ where
             .upsert_with_embedding(
                 &tenant,
                 &req.collection_name,
-                id,
-                &req.text,
-                payload,
-                provider_type,
-                model,
-                req.wait,
+                UpsertWithEmbedding {
+                    id,
+                    text: req.text,
+                    payload,
+                    model,
+                    wait: req.wait,
+                },
             )
             .await
             .map_err(|e| Status::internal(format!("Failed to upsert with embedding: {}", e)))?;
@@ -397,21 +398,22 @@ where
     ) -> Result<Response<SearchResponse>, Status> {
         let req = request.into_inner();
         let tenant = parse_tenant(req.tenant)?;
-        let provider_type = conv::embedding_provider_from_proto(req.provider);
-        let model = conv::embedding_model_from_proto(req.model, None);
+        let model = conv::embedding_model_from_proto(req.model, None)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let results = self
             .service
             .search_with_embedding(
                 &tenant,
                 &req.collection_name,
-                &req.text,
-                req.limit,
-                req.score_threshold,
-                req.with_vectors,
-                req.with_payloads,
-                provider_type,
-                model,
+                SearchWithEmbedding {
+                    text: req.text,
+                    limit: req.limit,
+                    score_threshold: req.score_threshold,
+                    with_vectors: req.with_vectors,
+                    with_payloads: req.with_payloads,
+                    model,
+                },
             )
             .await
             .map_err(|e| Status::internal(format!("Failed to search with embedding: {}", e)))?;

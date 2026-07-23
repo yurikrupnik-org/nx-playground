@@ -44,35 +44,40 @@ impl Related<domain_projects::entity::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-// Conversion from Sea-ORM Model to domain CloudResource
-impl From<Model> for crate::models::CloudResource {
-    fn from(model: Model) -> Self {
-        // Parse enums from strings
-        let resource_type = model
-            .resource_type
-            .parse::<ResourceType>()
-            .expect("Invalid resource_type in database");
-        let status = model
-            .status
-            .parse::<ResourceStatus>()
-            .expect("Invalid status in database");
+// Conversion from Sea-ORM Model to domain CloudResource.
+// Fallible: `resource_type`/`status` are enum-backed String columns (no schema
+// change), so a legacy/invalid row is surfaced as an error instead of panicking
+// and taking down every `list()`.
+impl TryFrom<Model> for crate::models::CloudResource {
+    type Error = crate::error::CloudResourceError;
+
+    fn try_from(model: Model) -> Result<Self, Self::Error> {
+        let resource_type = model.resource_type.parse::<ResourceType>().map_err(|e| {
+            crate::error::CloudResourceError::Internal(format!(
+                "invalid resource_type '{}' in database: {e}",
+                model.resource_type
+            ))
+        })?;
+        let status = model.status.parse::<ResourceStatus>().map_err(|e| {
+            crate::error::CloudResourceError::Internal(format!(
+                "invalid status '{}' in database: {e}",
+                model.status
+            ))
+        })?;
 
         let tags: Vec<Tag> = serde_json::from_value(model.tags.clone()).unwrap_or_else(|e| {
             tracing::warn!("Failed to parse cloud resource tags from JSON: {e}");
             Vec::new()
         });
 
-        // Parse configuration
-        let configuration = model.configuration.clone();
-
-        Self {
+        Ok(Self {
             id: model.id,
             project_id: model.project_id,
             name: model.name,
             resource_type,
             status,
             region: model.region,
-            configuration,
+            configuration: model.configuration,
             cost_per_hour: model.cost_per_hour,
             monthly_cost_estimate: model.monthly_cost_estimate,
             tags,
@@ -80,18 +85,23 @@ impl From<Model> for crate::models::CloudResource {
             created_at: model.created_at.into(),
             updated_at: model.updated_at.into(),
             deleted_at: model.deleted_at.map(|dt| dt.into()),
-        }
+        })
     }
 }
 
-// Conversion from domain CreateCloudResource to Sea-ORM ActiveModel
-impl From<crate::models::CreateCloudResource> for ActiveModel {
-    fn from(input: crate::models::CreateCloudResource) -> Self {
-        let tags_json = serde_json::to_value(&input.tags).expect("Failed to serialize tags");
+// Conversion from domain CreateCloudResource to Sea-ORM ActiveModel.
+// Fallible: tag serialization is surfaced as a crate error rather than a panic.
+impl TryFrom<crate::models::CreateCloudResource> for ActiveModel {
+    type Error = crate::error::CloudResourceError;
 
+    fn try_from(input: crate::models::CreateCloudResource) -> Result<Self, Self::Error> {
+        let tags_json = serde_json::to_value(&input.tags).map_err(|e| {
+            crate::error::CloudResourceError::Internal(format!("serialize tags: {e}"))
+        })?;
         let monthly_cost = input.cost_per_hour.map(|hourly| hourly * 24.0 * 30.0);
+        let now = chrono::Utc::now();
 
-        ActiveModel {
+        Ok(ActiveModel {
             id: Set(Uuid::now_v7()),
             project_id: Set(input.project_id),
             name: Set(input.name),
@@ -103,9 +113,9 @@ impl From<crate::models::CreateCloudResource> for ActiveModel {
             monthly_cost_estimate: Set(monthly_cost),
             tags: Set(tags_json),
             enabled: Set(true),
-            created_at: Set(chrono::Utc::now().into()),
-            updated_at: Set(chrono::Utc::now().into()),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
             deleted_at: Set(None),
-        }
+        })
     }
 }

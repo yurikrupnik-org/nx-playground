@@ -71,15 +71,20 @@ impl ErrorCategory {
     pub fn should_retry(&self, retry_count: u32) -> bool {
         retry_count < self.max_retries()
     }
+
+    /// Get the category as a static string (for logs and metric labels).
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ErrorCategory::Transient => "transient",
+            ErrorCategory::Permanent => "permanent",
+            ErrorCategory::RateLimited => "rate_limited",
+        }
+    }
 }
 
 impl fmt::Display for ErrorCategory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ErrorCategory::Transient => write!(f, "transient"),
-            ErrorCategory::Permanent => write!(f, "permanent"),
-            ErrorCategory::RateLimited => write!(f, "rate_limited"),
-        }
+        f.write_str(self.as_str())
     }
 }
 

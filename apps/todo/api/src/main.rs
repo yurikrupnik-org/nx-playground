@@ -17,7 +17,6 @@ use domain_todo::{
     PgTodoRepository, TodoEventPublisher, TodoService,
 };
 use eyre::{Result, WrapErr};
-use sea_orm::ConnectionTrait;
 use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 

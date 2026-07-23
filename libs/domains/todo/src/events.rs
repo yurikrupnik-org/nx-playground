@@ -88,8 +88,8 @@ impl TodoEvent {
 }
 
 impl messaging::Job for TodoEvent {
-    fn job_id(&self) -> String {
-        self.event_id.to_string()
+    fn job_id(&self) -> uuid::Uuid {
+        self.event_id
     }
 
     fn retry_count(&self) -> u32 {

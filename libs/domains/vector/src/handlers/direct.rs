@@ -13,11 +13,11 @@ use uuid::Uuid;
 
 use crate::error::VectorResult;
 use crate::models::{
-    CollectionInfo, CreateCollection, EmbeddingModel, EmbeddingProviderType, EmbeddingResult,
-    SearchQuery, SearchResult, TenantContext, Vector, VectorConfig,
+    CollectionInfo, CreateCollection, EmbeddingModel, EmbeddingResult, SearchQuery, SearchResult,
+    TenantContext, Vector, VectorConfig,
 };
 use crate::repository::VectorRepository;
-use crate::service::VectorService;
+use crate::service::{SearchWithEmbedding, VectorService};
 
 // ===== Request/Response DTOs =====
 
@@ -89,8 +89,6 @@ pub struct DeleteVectorsRequest {
 pub struct EmbedRequest {
     pub text: String,
     #[serde(default)]
-    pub provider: EmbeddingProviderType,
-    #[serde(default)]
     pub model: EmbeddingModel,
 }
 
@@ -107,8 +105,6 @@ pub struct SearchWithEmbeddingRequest {
     pub with_vectors: bool,
     #[serde(default = "default_true")]
     pub with_payloads: bool,
-    #[serde(default)]
-    pub provider: EmbeddingProviderType,
     #[serde(default)]
     pub model: EmbeddingModel,
 }
@@ -155,11 +151,7 @@ pub async fn list_collections<R: VectorRepository>(
     State(service): State<Arc<VectorService<R>>>,
     axum::extract::Query(params): axum::extract::Query<TenantQueryParams>,
 ) -> VectorResult<Json<Vec<CollectionInfo>>> {
-    let tenant = TenantContext {
-        project_id: params.project_id,
-        namespace: params.namespace,
-        user_id: params.user_id,
-    };
+    let tenant = TenantContext::from(params);
 
     let collections = service.list_collections(&tenant).await?;
     Ok(Json(collections))
@@ -170,6 +162,16 @@ pub struct TenantQueryParams {
     pub project_id: Uuid,
     pub namespace: Option<String>,
     pub user_id: Option<Uuid>,
+}
+
+impl From<TenantQueryParams> for TenantContext {
+    fn from(params: TenantQueryParams) -> Self {
+        TenantContext {
+            project_id: params.project_id,
+            namespace: params.namespace,
+            user_id: params.user_id,
+        }
+    }
 }
 
 /// Get collection info
@@ -193,11 +195,7 @@ pub async fn get_collection<R: VectorRepository>(
     Path(name): Path<String>,
     axum::extract::Query(params): axum::extract::Query<TenantQueryParams>,
 ) -> VectorResult<impl IntoResponse> {
-    let tenant = TenantContext {
-        project_id: params.project_id,
-        namespace: params.namespace,
-        user_id: params.user_id,
-    };
+    let tenant = TenantContext::from(params);
 
     let collection = service
         .get_collection(&tenant, &name)
@@ -253,11 +251,7 @@ pub async fn delete_collection<R: VectorRepository>(
     Path(name): Path<String>,
     axum::extract::Query(params): axum::extract::Query<TenantQueryParams>,
 ) -> VectorResult<impl IntoResponse> {
-    let tenant = TenantContext {
-        project_id: params.project_id,
-        namespace: params.namespace,
-        user_id: params.user_id,
-    };
+    let tenant = TenantContext::from(params);
 
     service.delete_collection(&tenant, &name).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -440,9 +434,7 @@ pub async fn embed<R: VectorRepository>(
     State(service): State<Arc<VectorService<R>>>,
     Json(request): Json<EmbedRequest>,
 ) -> VectorResult<Json<EmbeddingResult>> {
-    let result = service
-        .embed(request.provider, request.model, &request.text)
-        .await?;
+    let result = service.embed(request.model, &request.text).await?;
     Ok(Json(result))
 }
 
@@ -466,13 +458,14 @@ pub async fn search_with_embedding<R: VectorRepository>(
         .search_with_embedding(
             &request.tenant,
             &request.collection_name,
-            &request.text,
-            request.limit,
-            request.score_threshold,
-            request.with_vectors,
-            request.with_payloads,
-            request.provider,
-            request.model,
+            SearchWithEmbedding {
+                text: request.text,
+                limit: request.limit,
+                score_threshold: request.score_threshold,
+                with_vectors: request.with_vectors,
+                with_payloads: request.with_payloads,
+                model: request.model,
+            },
         )
         .await?;
     Ok(Json(results))

@@ -18,6 +18,9 @@ pub enum ProjectError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Database error: {0}")]
+    Database(#[from] sea_orm::DbErr),
 }
 
 pub type ProjectResult<T> = Result<T, ProjectError>;
@@ -34,6 +37,9 @@ impl From<ProjectError> for AppError {
                 AppError::Forbidden(format!("Access denied to project {}", id))
             }
             ProjectError::Internal(msg) => AppError::InternalServerError(msg),
+            ProjectError::Database(err) => {
+                AppError::InternalServerError(format!("Database error: {err}"))
+            }
         }
     }
 }

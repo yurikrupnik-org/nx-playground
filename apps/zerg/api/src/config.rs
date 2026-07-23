@@ -40,7 +40,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> eyre::Result<Self> {
-        let environment = Environment::from_env();
+        let environment = Environment::from_env()?;
         let database = PostgresConfig::from_env()?; // Required - will fail if not set
         let server = ServerConfig::from_env()?; // Uses defaults: HOST=0.0.0.0, PORT=8080
         let redis = RedisConfig::from_env()?; // Required - will fail if not set

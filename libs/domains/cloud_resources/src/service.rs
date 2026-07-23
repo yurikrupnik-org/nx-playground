@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -8,21 +9,22 @@ use crate::{
 };
 
 /// Cloud Resource Service - contains business logic and validation
+#[derive(Clone)]
 pub struct CloudResourceService<R: CloudResourceRepository> {
-    repository: R,
+    repository: Arc<R>,
 }
 
 impl<R: CloudResourceRepository> CloudResourceService<R> {
     pub fn new(repository: R) -> Self {
-        Self { repository }
+        Self {
+            repository: Arc::new(repository),
+        }
     }
 
     /// Create a new cloud resource with validation
     pub async fn create(&self, input: CreateCloudResource) -> CloudResourceResult<CloudResource> {
         // Validate input
-        input
-            .validate()
-            .map_err(|e| CloudResourceError::Internal(e.to_string()))?;
+        input.validate()?;
 
         // Create resource
         let resource = self.repository.create(input).await?;
@@ -65,9 +67,7 @@ impl<R: CloudResourceRepository> CloudResourceService<R> {
         input: UpdateCloudResource,
     ) -> CloudResourceResult<CloudResource> {
         // Validate update
-        input
-            .validate()
-            .map_err(|e| CloudResourceError::Internal(e.to_string()))?;
+        input.validate()?;
 
         // Update resource
         let resource = self.repository.update(id, input).await?;
@@ -78,7 +78,10 @@ impl<R: CloudResourceRepository> CloudResourceService<R> {
 
     /// Delete a cloud resource (hard delete)
     pub async fn delete(&self, id: Uuid) -> CloudResourceResult<()> {
-        self.repository.delete(id).await?;
+        let deleted = self.repository.delete(id).await?;
+        if !deleted {
+            return Err(CloudResourceError::NotFound(id));
+        }
         tracing::info!(resource_id = %id, "Deleted cloud resource");
         Ok(())
     }

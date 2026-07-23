@@ -105,9 +105,15 @@ pub struct CreateCollection {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CollectionInfo {
     pub name: String,
-    pub vectors_count: u64,
-    pub indexed_vectors_count: u64,
-    pub points_count: u64,
+    /// Approximate number of vectors, when reported by the backend.
+    ///
+    /// Qdrant >= 1.18 no longer reports a separate vector count, so this is
+    /// `None` for collections read back from Qdrant.
+    pub vectors_count: Option<u64>,
+    /// Approximate number of indexed vectors; `None` when not reported.
+    pub indexed_vectors_count: Option<u64>,
+    /// Approximate number of points; `None` when not reported.
+    pub points_count: Option<u64>,
     pub config: VectorConfig,
     pub status: CollectionStatus,
 }
@@ -297,7 +303,7 @@ impl EmbeddingModel {
         }
     }
 
-    pub fn model_name(&self) -> &str {
+    pub fn model_name(&self) -> &'static str {
         match self {
             // OpenAI
             EmbeddingModel::TextEmbedding3Small => "text-embedding-3-small",

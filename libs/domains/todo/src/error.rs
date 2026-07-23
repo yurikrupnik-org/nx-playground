@@ -14,7 +14,7 @@ pub enum TodoError {
     Internal(String),
 
     #[error("Database error: {0}")]
-    Database(String),
+    Database(#[from] sea_orm::DbErr),
 }
 
 pub type TodoResult<T> = Result<T, TodoError>;
@@ -25,20 +25,14 @@ impl From<TodoError> for AppError {
             TodoError::NotFound(id) => AppError::NotFound(format!("Todo {id} not found")),
             TodoError::Validation(msg) => AppError::BadRequest(msg),
             TodoError::Internal(msg) => AppError::InternalServerError(msg),
-            TodoError::Database(msg) => {
-                AppError::InternalServerError(format!("Database error: {msg}"))
+            TodoError::Database(err) => {
+                AppError::InternalServerError(format!("Database error: {err}"))
             }
         }
     }
 }
 
 impl_into_response_via_app_error!(TodoError);
-
-impl From<sea_orm::DbErr> for TodoError {
-    fn from(err: sea_orm::DbErr) -> Self {
-        TodoError::Database(err.to_string())
-    }
-}
 
 impl From<validator::ValidationErrors> for TodoError {
     fn from(err: validator::ValidationErrors) -> Self {

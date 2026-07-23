@@ -2,11 +2,11 @@
 //!
 //! Sends emails via SendGrid HTTP API.
 
+use crate::error::{NotificationError, NotificationResult};
 use crate::models::Email;
-use crate::provider::{EmailProvider, SendResult};
+use crate::provider::{EmailProvider, ProviderError, SendResult};
 use async_trait::async_trait;
-use eyre::{eyre, Result};
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use tracing::{debug, error};
 
@@ -42,13 +42,15 @@ impl SendGridProvider {
     /// - `SENDGRID_API_KEY`
     /// - `SENDGRID_FROM_EMAIL` or `EMAIL_FROM_ADDRESS`
     /// - `SENDGRID_FROM_NAME` or `EMAIL_FROM_NAME`
-    pub fn from_env() -> Result<Self> {
-        let api_key =
-            std::env::var("SENDGRID_API_KEY").map_err(|_| eyre!("SENDGRID_API_KEY not set"))?;
+    pub fn from_env() -> NotificationResult<Self> {
+        let api_key = std::env::var("SENDGRID_API_KEY")
+            .map_err(|_| NotificationError::Config("SENDGRID_API_KEY not set".into()))?;
 
         let from_email = std::env::var("SENDGRID_FROM_EMAIL")
             .or_else(|_| std::env::var("EMAIL_FROM_ADDRESS"))
-            .map_err(|_| eyre!("SENDGRID_FROM_EMAIL or EMAIL_FROM_ADDRESS not set"))?;
+            .map_err(|_| {
+                NotificationError::Config("SENDGRID_FROM_EMAIL or EMAIL_FROM_ADDRESS not set".into())
+            })?;
 
         let from_name = std::env::var("SENDGRID_FROM_NAME")
             .or_else(|_| std::env::var("EMAIL_FROM_NAME"))
@@ -58,104 +60,110 @@ impl SendGridProvider {
     }
 }
 
-/// SendGrid API request payload
+/// SendGrid API request payload (borrows from the [`Email`] being sent)
 #[derive(Debug, Serialize)]
-struct SendGridRequest {
-    personalizations: Vec<Personalization>,
-    from: EmailAddress,
-    reply_to: Option<EmailAddress>,
-    subject: String,
-    content: Vec<Content>,
-}
-
-#[derive(Debug, Serialize)]
-struct Personalization {
-    to: Vec<EmailAddress>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    cc: Vec<EmailAddress>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    bcc: Vec<EmailAddress>,
-}
-
-#[derive(Debug, Serialize)]
-struct EmailAddress {
-    email: String,
+struct SendGridRequest<'a> {
+    personalizations: [Personalization<'a>; 1],
+    from: EmailAddress<'a>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    reply_to: Option<EmailAddress<'a>>,
+    subject: &'a str,
+    content: Vec<Content<'a>>,
 }
 
 #[derive(Debug, Serialize)]
-struct Content {
+struct Personalization<'a> {
+    to: [EmailAddress<'a>; 1],
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    cc: Vec<EmailAddress<'a>>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    bcc: Vec<EmailAddress<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+struct EmailAddress<'a> {
+    email: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<&'a str>,
+}
+
+#[derive(Debug, Serialize)]
+struct Content<'a> {
     #[serde(rename = "type")]
-    content_type: String,
-    value: String,
+    content_type: &'static str,
+    value: &'a str,
+}
+
+/// Classify a SendGrid HTTP response status into a [`ProviderError`].
+///
+/// - 429 -> rate limited (with `Retry-After` hint when present)
+/// - 408 and any 5xx -> transient
+/// - remaining 4xx -> permanent
+fn classify_status(status: StatusCode, retry_after_ms: Option<u64>, body: String) -> ProviderError {
+    if status == StatusCode::TOO_MANY_REQUESTS {
+        return ProviderError::rate_limited(
+            format!("SendGrid rate limited ({status}): {body}"),
+            retry_after_ms,
+        );
+    }
+    if status == StatusCode::REQUEST_TIMEOUT || status.is_server_error() {
+        return ProviderError::transient(format!("SendGrid error ({status}): {body}"));
+    }
+    ProviderError::permanent(format!("SendGrid rejected request ({status}): {body}"))
 }
 
 #[async_trait]
 impl EmailProvider for SendGridProvider {
-    async fn send(&self, email: &Email) -> Result<SendResult> {
+    async fn send(&self, email: &Email) -> Result<SendResult, ProviderError> {
         // Build content
-        let mut content = Vec::new();
+        let mut content = Vec::with_capacity(2);
 
         if let Some(text) = &email.body_text {
             content.push(Content {
-                content_type: "text/plain".to_string(),
-                value: text.clone(),
+                content_type: "text/plain",
+                value: text,
             });
         }
 
         if let Some(html) = &email.body_html {
             content.push(Content {
-                content_type: "text/html".to_string(),
-                value: html.clone(),
+                content_type: "text/html",
+                value: html,
             });
         }
 
         if content.is_empty() {
-            return Err(eyre!("Email must have text or HTML content"));
+            return Err(ProviderError::permanent(
+                "Email must have text or HTML content",
+            ));
         }
 
-        // Build personalization
-        let mut personalization = Personalization {
-            to: vec![EmailAddress {
-                email: email.to.clone(),
+        fn to_address(addr: &str) -> EmailAddress<'_> {
+            EmailAddress {
+                email: addr,
                 name: None,
-            }],
-            cc: Vec::new(),
-            bcc: Vec::new(),
-        };
-
-        // Add CC
-        for cc in &email.cc {
-            personalization.cc.push(EmailAddress {
-                email: cc.clone(),
-                name: None,
-            });
-        }
-
-        // Add BCC
-        for bcc in &email.bcc {
-            personalization.bcc.push(EmailAddress {
-                email: bcc.clone(),
-                name: None,
-            });
+            }
         }
 
         // Build request
         let request = SendGridRequest {
-            personalizations: vec![personalization],
+            personalizations: [Personalization {
+                to: [EmailAddress {
+                    email: &email.to,
+                    name: None,
+                }],
+                cc: email.cc.iter().map(|a| to_address(a)).collect(),
+                bcc: email.bcc.iter().map(|a| to_address(a)).collect(),
+            }],
             from: EmailAddress {
-                email: email
-                    .from
-                    .clone()
-                    .unwrap_or_else(|| self.from_email.clone()),
-                name: Some(self.from_name.clone()),
+                email: email.from.as_deref().unwrap_or(&self.from_email),
+                name: Some(&self.from_name),
             },
-            reply_to: email.reply_to.as_ref().map(|r| EmailAddress {
-                email: r.clone(),
+            reply_to: email.reply_to.as_deref().map(|r| EmailAddress {
+                email: r,
                 name: None,
             }),
-            subject: email.subject.clone(),
+            subject: &email.subject,
             content,
         };
 
@@ -169,12 +177,11 @@ impl EmailProvider for SendGridProvider {
         let response = self
             .client
             .post(SENDGRID_API_URL)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
+            .bearer_auth(&self.api_key)
             .json(&request)
             .send()
             .await
-            .map_err(|e| eyre!("SendGrid request failed: {}", e))?;
+            .map_err(|e| ProviderError::transient_with_source("SendGrid request failed", e))?;
 
         let status = response.status();
 
@@ -191,6 +198,13 @@ impl EmailProvider for SendGridProvider {
 
             Ok(SendResult { message_id })
         } else {
+            let retry_after_ms = response
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<u64>().ok())
+                .map(|secs| secs * 1000);
+
             let error_body = response.text().await.unwrap_or_default();
             error!(
                 status = %status,
@@ -198,20 +212,14 @@ impl EmailProvider for SendGridProvider {
                 "SendGrid API error"
             );
 
-            // Map status codes to appropriate errors
-            match status.as_u16() {
-                429 => Err(eyre!("rate limit exceeded")),
-                400 => Err(eyre!("invalid request: {}", error_body)),
-                401 | 403 => Err(eyre!("authentication failed")),
-                _ => Err(eyre!("SendGrid error ({}): {}", status, error_body)),
-            }
+            Err(classify_status(status, retry_after_ms, error_body))
         }
     }
 
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> Result<(), ProviderError> {
         // Simple validation that API key is set
         if self.api_key.is_empty() {
-            return Err(eyre!("SendGrid API key not configured"));
+            return Err(ProviderError::permanent("SendGrid API key not configured"));
         }
         Ok(())
     }
@@ -228,12 +236,39 @@ mod tests {
     #[test]
     fn test_email_address_serialization() {
         let addr = EmailAddress {
-            email: "test@example.com".to_string(),
-            name: Some("Test User".to_string()),
+            email: "test@example.com",
+            name: Some("Test User"),
         };
 
         let json = serde_json::to_string(&addr).unwrap();
         assert!(json.contains("test@example.com"));
         assert!(json.contains("Test User"));
+    }
+
+    #[test]
+    fn test_status_classification() {
+        assert!(matches!(
+            classify_status(StatusCode::TOO_MANY_REQUESTS, Some(2000), String::new()),
+            ProviderError::RateLimited {
+                retry_after_ms: Some(2000),
+                ..
+            }
+        ));
+        assert!(matches!(
+            classify_status(StatusCode::REQUEST_TIMEOUT, None, String::new()),
+            ProviderError::Transient { .. }
+        ));
+        assert!(matches!(
+            classify_status(StatusCode::BAD_GATEWAY, None, String::new()),
+            ProviderError::Transient { .. }
+        ));
+        assert!(matches!(
+            classify_status(StatusCode::BAD_REQUEST, None, String::new()),
+            ProviderError::Permanent { .. }
+        ));
+        assert!(matches!(
+            classify_status(StatusCode::UNAUTHORIZED, None, String::new()),
+            ProviderError::Permanent { .. }
+        ));
     }
 }

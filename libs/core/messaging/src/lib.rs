@@ -28,7 +28,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use messaging::{Job, Processor, QueueConfig};
+//! use messaging::{Job, Processor};
 //!
 //! // Define your job (works with any backend)
 //! #[derive(Clone, Serialize, Deserialize)]
@@ -40,7 +40,7 @@
 //! }
 //!
 //! impl Job for EmailJob {
-//!     fn job_id(&self) -> String { self.id.to_string() }
+//!     fn job_id(&self) -> Uuid { self.id }
 //!     fn retry_count(&self) -> u32 { self.retry_count }
 //!     fn with_retry(&self) -> Self { Self { retry_count: self.retry_count + 1, ..self.clone() } }
 //! }
@@ -48,7 +48,6 @@
 //! // Define your processor (works with any backend)
 //! struct EmailProcessor { ... }
 //!
-//! #[async_trait]
 //! impl Processor<EmailJob> for EmailProcessor {
 //!     async fn process(&self, job: &EmailJob) -> Result<(), ProcessingError> { ... }
 //!     fn name(&self) -> &'static str { "email_processor" }
@@ -63,16 +62,12 @@
 //! ```
 
 // Core modules (always available)
-mod config;
 mod error;
-mod event;
 mod job;
 mod processor;
 
 // Core exports
-pub use config::{BackoffStrategy, QueueConfig, QueueDef, RetryPolicy};
 pub use error::{ErrorCategory, ProcessingError};
-pub use event::{JobEvent, ProcessResult};
 pub use job::{Job, JobPriority};
 pub use processor::{FailingProcessor, NoOpProcessor, Processor};
 

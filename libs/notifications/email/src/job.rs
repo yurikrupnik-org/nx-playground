@@ -229,8 +229,8 @@ impl EmailJob {
 
 // Implement messaging::Job for NATS backend
 impl MessagingJob for EmailJob {
-    fn job_id(&self) -> String {
-        self.id.to_string()
+    fn job_id(&self) -> Uuid {
+        self.id
     }
 
     fn retry_count(&self) -> u32 {
@@ -239,7 +239,6 @@ impl MessagingJob for EmailJob {
 
     fn with_retry(&self) -> Self {
         Self {
-            id: Uuid::new_v4(), // New ID for retry
             retry_count: self.retry_count + 1,
             created_at: Utc::now(),
             ..self.clone()
@@ -284,12 +283,12 @@ mod tests {
 
         let job = EmailJob::new(EmailType::Transactional, "test@example.com", "Test");
 
-        assert!(!Job::job_id(&job).is_empty());
+        assert!(!Job::job_id(&job).is_nil());
         assert_eq!(Job::retry_count(&job), 0);
         assert!(Job::can_retry(&job));
 
         let retried = Job::with_retry(&job);
         assert_eq!(Job::retry_count(&retried), 1);
-        assert_ne!(Job::job_id(&retried), Job::job_id(&job)); // New ID
+        assert_eq!(Job::job_id(&retried), Job::job_id(&job)); // ID preserved across retries
     }
 }

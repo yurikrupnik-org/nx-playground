@@ -20,7 +20,7 @@ pub struct AppConfig {
 
 impl FromEnv for AppConfig {
     fn from_env() -> Result<Self, ConfigError> {
-        let environment = Environment::from_env();
+        let environment = Environment::from_env()?;
         // Required: fail fast if DATABASE_URL is unset (no silent fallback DB).
         let database = PostgresConfig::from_env()?;
         let server = ServerConfig::from_env()?;

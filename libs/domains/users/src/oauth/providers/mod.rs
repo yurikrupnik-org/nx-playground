@@ -8,7 +8,7 @@ pub type OAuthResult<T> = Result<T, crate::error::UserError>;
 
 #[async_trait]
 pub trait OAuthProvider: Send + Sync {
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
 
     fn required_scopes(&self) -> &'static [&'static str];
 
@@ -16,7 +16,13 @@ pub trait OAuthProvider: Send + Sync {
     fn token_url(&self) -> &str;
     fn client_id(&self) -> &str;
     fn client_secret(&self) -> &str;
+    /// Shared client for provider REST calls (user info, emails).
     fn http_client(&self) -> &reqwest::Client;
+    /// Shared client for the oauth2 token exchange.
+    ///
+    /// Separate from [`Self::http_client`] because the `oauth2` crate is pinned
+    /// to a different major version of `reqwest` than the workspace.
+    fn oauth_http_client(&self) -> &oauth2::reqwest::Client;
 
     /// Generate OAuth authorization URL with PKCE support
     fn authorize_url(
@@ -32,9 +38,9 @@ pub trait OAuthProvider: Send + Sync {
         };
 
         let auth_url = AuthUrl::new(self.auth_url().to_string())
-            .map_err(|e| crate::error::UserError::OAuth(format!("Invalid auth URL: {}", e)))?;
+            .map_err(|e| crate::error::UserError::OAuth(format!("Invalid auth URL: {e}")))?;
         let redirect_url = RedirectUrl::new(redirect_uri.to_string())
-            .map_err(|e| crate::error::UserError::OAuth(format!("Invalid redirect URL: {}", e)))?;
+            .map_err(|e| crate::error::UserError::OAuth(format!("Invalid redirect URL: {e}")))?;
 
         let client = BasicClient::new(ClientId::new(self.client_id().to_string()))
             .set_client_secret(ClientSecret::new(self.client_secret().to_string()))
@@ -69,28 +75,30 @@ pub trait OAuthProvider: Send + Sync {
             TokenResponse as OAuth2TokenResponse, TokenUrl, basic::BasicClient,
         };
 
-        let client =
-            BasicClient::new(ClientId::new(self.client_id().to_string()))
-                .set_client_secret(ClientSecret::new(self.client_secret().to_string()))
-                .set_auth_uri(AuthUrl::new(self.auth_url().to_string()).map_err(|e| {
-                    crate::error::UserError::OAuth(format!("Invalid auth URL: {}", e))
-                })?)
-                .set_token_uri(TokenUrl::new(self.token_url().to_string()).map_err(|e| {
-                    crate::error::UserError::OAuth(format!("Invalid token URL: {}", e))
-                })?)
-                .set_redirect_uri(RedirectUrl::new(redirect_uri.to_string()).map_err(|e| {
-                    crate::error::UserError::OAuth(format!("Invalid redirect URL: {}", e))
-                })?);
+        let client = BasicClient::new(ClientId::new(self.client_id().to_string()))
+            .set_client_secret(ClientSecret::new(self.client_secret().to_string()))
+            .set_auth_uri(
+                AuthUrl::new(self.auth_url().to_string())
+                    .map_err(|e| crate::error::UserError::OAuth(format!("Invalid auth URL: {e}")))?,
+            )
+            .set_token_uri(
+                TokenUrl::new(self.token_url().to_string()).map_err(|e| {
+                    crate::error::UserError::OAuth(format!("Invalid token URL: {e}"))
+                })?,
+            )
+            .set_redirect_uri(RedirectUrl::new(redirect_uri.to_string()).map_err(|e| {
+                crate::error::UserError::OAuth(format!("Invalid redirect URL: {e}"))
+            })?);
 
         let pkce_verifier = PkceCodeVerifier::new(pkce_verifier.to_string());
 
         let token_result = client
             .exchange_code(AuthorizationCode::new(code.to_string()))
             .set_pkce_verifier(pkce_verifier)
-            .request_async(&oauth2::reqwest::Client::default())
+            .request_async(self.oauth_http_client())
             .await
             .map_err(|e| {
-                crate::error::UserError::OAuth(format!("Failed to exchange code: {}", e))
+                crate::error::UserError::OAuth(format!("Failed to exchange code: {e}"))
             })?;
 
         Ok(TokenResponse {

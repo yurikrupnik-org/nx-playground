@@ -107,7 +107,7 @@ pub struct UpdateCloudResource {
 }
 
 /// Query filters for listing cloud resources
-#[derive(Debug, Clone, Default, Deserialize, ToSchema, utoipa::IntoParams)]
+#[derive(Debug, Clone, Deserialize, ToSchema, utoipa::IntoParams)]
 pub struct CloudResourceFilter {
     pub project_id: Option<Uuid>,
     pub resource_type: Option<ResourceType>,
@@ -122,6 +122,20 @@ pub struct CloudResourceFilter {
 
 fn default_limit() -> usize {
     50
+}
+
+impl Default for CloudResourceFilter {
+    fn default() -> Self {
+        Self {
+            project_id: None,
+            resource_type: None,
+            status: None,
+            region: None,
+            enabled: None,
+            limit: default_limit(),
+            offset: 0,
+        }
+    }
 }
 
 impl CloudResource {

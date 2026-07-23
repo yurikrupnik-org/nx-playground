@@ -48,6 +48,7 @@ impl From<Model> for crate::models::Task {
 // Conversion from domain CreateTask to Sea-ORM ActiveModel
 impl From<crate::models::CreateTask> for ActiveModel {
     fn from(input: crate::models::CreateTask) -> Self {
+        let now = chrono::Utc::now();
         ActiveModel {
             id: Set(Uuid::now_v7()),
             title: Set(input.title),
@@ -57,8 +58,8 @@ impl From<crate::models::CreateTask> for ActiveModel {
             priority: Set(input.priority),
             status: Set(input.status),
             due_date: Set(input.due_date.map(Into::into)),
-            created_at: Set(chrono::Utc::now().into()),
-            updated_at: Set(chrono::Utc::now().into()),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
         }
     }
 }

@@ -44,8 +44,7 @@ pub async fn create_channel(addr: impl Into<String>) -> GrpcResult<Channel> {
 ///
 /// let config = ChannelConfig::default()
 ///     .with_connect_timeout(Duration::from_secs(10))
-///     .with_request_timeout(Duration::from_secs(120))
-///     .with_max_concurrent_streams(200);
+///     .with_request_timeout(Duration::from_secs(120));
 ///
 /// let channel = create_channel_with_config("http://[::1]:50051", config).await?;
 /// ```
@@ -133,13 +132,13 @@ pub fn create_channel_lazy_with_config(
 /// ```
 pub async fn create_channel_with_retry(
     addr: impl Into<String>,
-    retry_config: Option<crate::retry::RetryConfig>,
+    retry_config: Option<core_retry::RetryConfig>,
 ) -> GrpcResult<Channel> {
     let addr = addr.into();
 
     match retry_config {
         Some(config) => {
-            crate::retry::retry_with_backoff(
+            core_retry::retry_with_backoff(
                 || {
                     let addr = addr.clone();
                     async move { create_channel(addr).await }
@@ -149,7 +148,7 @@ pub async fn create_channel_with_retry(
             .await
         }
         None => {
-            crate::retry::retry(|| {
+            core_retry::retry(|| {
                 let addr = addr.clone();
                 async move { create_channel(addr).await }
             })

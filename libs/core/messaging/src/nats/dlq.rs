@@ -47,8 +47,7 @@ impl DlqManager {
                         max_age: Duration::from_secs(30 * 24 * 60 * 60), // 30 days
                         ..Default::default()
                     })
-                    .await
-                    .map_err(NatsError::from_jetstream_error)?;
+                    .await?;
 
                 info!(stream = %self.dlq_stream, "DLQ stream created");
                 Ok(())
@@ -78,10 +77,8 @@ impl DlqManager {
         let ack = self
             .jetstream
             .publish(subject, payload.into())
-            .await
-            .map_err(|e| NatsError::publish_error(e.to_string()))?
-            .await
-            .map_err(|e| NatsError::publish_error(e.to_string()))?;
+            .await?
+            .await?;
 
         debug!(
             job_id = %job.job_id(),
@@ -97,13 +94,11 @@ impl DlqManager {
         let mut stream = self
             .jetstream
             .get_stream(&self.dlq_stream)
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+            .await?;
 
         let info = stream
             .info()
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+            .await?;
 
         Ok(StreamInfo {
             stream_name: self.dlq_stream.clone(),
@@ -131,7 +126,7 @@ impl DlqManager {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DlqEntry {
     /// Job ID
-    pub job_id: String,
+    pub job_id: uuid::Uuid,
     /// Full job data as JSON
     pub job_data: serde_json::Value,
     /// Error message that caused the failure

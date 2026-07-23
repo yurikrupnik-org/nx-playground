@@ -1,6 +1,5 @@
 pub mod codes;
 pub mod handlers;
-pub mod messages;
 pub mod responses;
 
 pub use codes::ErrorCode;
@@ -197,7 +196,7 @@ impl IntoResponse for AppError {
                     "BadRequest",
                     msg,
                     None,
-                    ErrorCode::InternalError,
+                    ErrorCode::BadRequest,
                 )
             }
             AppError::Unauthorized(msg) => {

@@ -56,6 +56,12 @@ pub enum ErrorCode {
     /// JSON extraction from request body failed
     JsonExtraction,
 
+    /// Malformed or otherwise invalid request
+    BadRequest,
+
+    /// HTTP method is not allowed for this resource
+    MethodNotAllowed,
+
     // Server errors (1000s)
     /// An unexpected internal server error occurred
     InternalError,
@@ -156,6 +162,8 @@ impl ErrorCode {
             Self::Conflict => "CONFLICT",
             Self::UnprocessableEntity => "UNPROCESSABLE_ENTITY",
             Self::JsonExtraction => "JSON_EXTRACTION",
+            Self::BadRequest => "BAD_REQUEST",
+            Self::MethodNotAllowed => "METHOD_NOT_ALLOWED",
             Self::InternalError => "INTERNAL_ERROR",
             Self::ServiceUnavailable => "SERVICE_UNAVAILABLE",
             Self::RateLimitExceeded => "RATE_LIMIT_EXCEEDED",
@@ -215,6 +223,8 @@ impl ErrorCode {
             Self::InvalidJson => 1010,
             Self::ServiceUnavailable => 1011,
             Self::RateLimitExceeded => 1012,
+            Self::BadRequest => 1013,
+            Self::MethodNotAllowed => 1014,
 
             // Database errors (2000-2999)
             Self::DatabaseNotFound => 2001,
@@ -272,6 +282,8 @@ impl ErrorCode {
             Self::Conflict => "Resource already exists",
             Self::UnprocessableEntity => "Request cannot be processed",
             Self::JsonExtraction => "Failed to parse request body",
+            Self::BadRequest => "Bad request",
+            Self::MethodNotAllowed => "Method not allowed",
             Self::InternalError => "An internal server error occurred",
             Self::ServiceUnavailable => "Service is temporarily unavailable",
             Self::RateLimitExceeded => "Rate limit exceeded",

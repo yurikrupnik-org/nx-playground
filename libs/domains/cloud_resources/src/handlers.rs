@@ -1,12 +1,12 @@
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
 };
 use axum_helpers::{
-    AuditEvent, AuditOutcome,
+    AuditEvent, AuditOutcome, UuidPath,
     errors::responses::{
         BadRequestUuidResponse, BadRequestValidationResponse, InternalServerErrorResponse,
         NotFoundResponse,
@@ -17,7 +17,6 @@ use serde::Serialize;
 use serde_json::json;
 use std::sync::Arc;
 use utoipa::{OpenApi, ToSchema};
-use uuid::Uuid;
 
 use crate::{
     error::CloudResourceResult,
@@ -144,7 +143,7 @@ where
 )]
 async fn get_cloud_resource<R>(
     State(service): State<Arc<CloudResourceService<R>>>,
-    Path(id): Path<Uuid>,
+    UuidPath(id): UuidPath,
 ) -> CloudResourceResult<impl IntoResponse>
 where
     R: CloudResourceRepository,
@@ -191,7 +190,7 @@ where
 )]
 async fn list_by_project<R>(
     State(service): State<Arc<CloudResourceService<R>>>,
-    Path(project_id): Path<Uuid>,
+    UuidPath(project_id): UuidPath,
 ) -> CloudResourceResult<impl IntoResponse>
 where
     R: CloudResourceRepository,
@@ -218,7 +217,7 @@ where
 )]
 async fn update_cloud_resource<R>(
     State(service): State<Arc<CloudResourceService<R>>>,
-    Path(id): Path<Uuid>,
+    UuidPath(id): UuidPath,
     Json(input): Json<UpdateCloudResource>,
 ) -> CloudResourceResult<impl IntoResponse>
 where
@@ -237,7 +236,7 @@ where
         ("id" = Uuid, Path, description = "Cloud resource ID")
     ),
     responses(
-        (status = 200, description = "Cloud resource deleted successfully", body = MessageResponse),
+        (status = 204, description = "Cloud resource deleted successfully"),
         (status = 400, response = BadRequestUuidResponse),
         (status = 404, response = NotFoundResponse),
         (status = 500, response = InternalServerErrorResponse)
@@ -246,7 +245,7 @@ where
 async fn delete_cloud_resource<R>(
     State(service): State<Arc<CloudResourceService<R>>>,
     headers: HeaderMap,
-    Path(id): Path<Uuid>,
+    UuidPath(id): UuidPath,
 ) -> CloudResourceResult<impl IntoResponse>
 where
     R: CloudResourceRepository,
@@ -264,12 +263,7 @@ where
     .with_user_agent(extract_user_agent(&headers))
     .log();
 
-    Ok((
-        StatusCode::OK,
-        Json(MessageResponse {
-            message: "Cloud resource deleted successfully".to_string(),
-        }),
-    ))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Soft delete a cloud resource
@@ -289,7 +283,7 @@ where
 )]
 async fn soft_delete_cloud_resource<R>(
     State(service): State<Arc<CloudResourceService<R>>>,
-    Path(id): Path<Uuid>,
+    UuidPath(id): UuidPath,
 ) -> CloudResourceResult<impl IntoResponse>
 where
     R: CloudResourceRepository,

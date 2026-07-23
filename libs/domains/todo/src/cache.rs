@@ -29,6 +29,15 @@ use crate::repository::TodoRepository;
 
 const LIST_KEY: &str = "list.all";
 
+/// Upper bound on rows held in the `list.all` cache value.
+///
+/// The unfiltered list is the frontend hot path, but caching an unbounded
+/// table in a single KV value is unsafe: NATS KV has a max value size, so a
+/// large table would make every `put` fail and silently degrade to an O(table)
+/// DB scan on *every* list. Cap the cached set to the first page window; larger
+/// offsets fall through to the DB.
+const LIST_CACHE_CAP: usize = 1000;
+
 /// Open (or create) the KV bucket used for the DB read-cache.
 pub async fn open_cache_bucket(
     jetstream: &Context,
@@ -129,8 +138,12 @@ impl<R: TodoRepository> TodoRepository for CachedTodoRepository<R> {
     }
 
     async fn list(&self, filter: TodoFilter) -> TodoResult<Vec<Todo>> {
-        // Filtered queries bypass the cache (the cached set is the full list).
-        if filter.completed.is_some() || filter.priority.is_some() {
+        // Filtered queries bypass the cache (the cached set is the full list),
+        // as do windows that reach past the cached cap (see `LIST_CACHE_CAP`).
+        if filter.completed.is_some()
+            || filter.priority.is_some()
+            || filter.offset.saturating_add(filter.limit) > LIST_CACHE_CAP
+        {
             return self.inner.list(filter).await;
         }
 
@@ -143,8 +156,9 @@ impl<R: TodoRepository> TodoRepository for CachedTodoRepository<R> {
                     .list(TodoFilter {
                         completed: None,
                         priority: None,
-                        // i64::MAX renders as a valid Postgres BIGINT limit ("all").
-                        limit: i64::MAX as usize,
+                        // Cap the cached set (see `LIST_CACHE_CAP`); rows beyond
+                        // this bound are served straight from the DB below.
+                        limit: LIST_CACHE_CAP,
                         offset: 0,
                     })
                     .await?;

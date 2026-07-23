@@ -50,8 +50,7 @@ impl NatsConsumer {
                 );
                 let info = stream
                     .info()
-                    .await
-                    .map_err(NatsError::from_jetstream_error)?;
+                    .await?;
                 debug!(
                     stream = %self.config.stream_name,
                     messages = info.state.messages,
@@ -75,8 +74,7 @@ impl NatsConsumer {
                         max_age: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
                         ..Default::default()
                     })
-                    .await
-                    .map_err(NatsError::from_jetstream_error)?;
+                    .await?;
 
                 info!(
                     stream = %self.config.stream_name,
@@ -95,8 +93,7 @@ impl NatsConsumer {
         let stream = self
             .jetstream
             .get_stream(&self.config.stream_name)
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+            .await?;
 
         // Try to get existing consumer
         match stream
@@ -128,8 +125,7 @@ impl NatsConsumer {
                         filter_subject: self.config.subject.clone(),
                         ..Default::default()
                     })
-                    .await
-                    .map_err(NatsError::from_jetstream_error)?;
+                    .await?;
 
                 info!(
                     consumer = %self.config.durable_name,
@@ -157,8 +153,7 @@ impl NatsConsumer {
             .max_messages(batch_size)
             .expires(self.config.fetch_timeout)
             .messages()
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+            .await?;
 
         let mut result = Vec::new();
 
@@ -208,13 +203,11 @@ impl NatsConsumer {
         let mut stream = self
             .jetstream
             .get_stream(&self.config.stream_name)
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+            .await?;
 
         let info = stream
             .info()
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+            .await?;
 
         Ok(StreamInfo {
             stream_name: self.config.stream_name.clone(),
@@ -241,7 +234,7 @@ pub struct NatsMessage<J: Job> {
 
 impl<J: Job> NatsMessage<J> {
     /// Get the job ID.
-    pub fn job_id(&self) -> String {
+    pub fn job_id(&self) -> uuid::Uuid {
         self.job.job_id()
     }
 
@@ -255,7 +248,7 @@ impl<J: Job> NatsMessage<J> {
         self.message
             .ack()
             .await
-            .map_err(|e| NatsError::consumer_error(e.to_string()))
+            .map_err(NatsError::Ack)
     }
 
     /// Negative acknowledge (request redelivery).
@@ -263,7 +256,7 @@ impl<J: Job> NatsMessage<J> {
         self.message
             .ack_with(async_nats::jetstream::AckKind::Nak(None))
             .await
-            .map_err(|e| NatsError::consumer_error(e.to_string()))
+            .map_err(NatsError::Ack)
     }
 
     /// Negative acknowledge with delay.
@@ -271,7 +264,7 @@ impl<J: Job> NatsMessage<J> {
         self.message
             .ack_with(async_nats::jetstream::AckKind::Nak(Some(delay)))
             .await
-            .map_err(|e| NatsError::consumer_error(e.to_string()))
+            .map_err(NatsError::Ack)
     }
 
     /// Mark as permanently failed (won't be redelivered).
@@ -279,7 +272,7 @@ impl<J: Job> NatsMessage<J> {
         self.message
             .ack_with(async_nats::jetstream::AckKind::Term)
             .await
-            .map_err(|e| NatsError::consumer_error(e.to_string()))
+            .map_err(NatsError::Ack)
     }
 }
 

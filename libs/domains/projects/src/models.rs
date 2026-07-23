@@ -3,7 +3,7 @@ use regex::Regex;
 use sea_orm::{DeriveActiveEnum, EnumIter};
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
-use strum::{Display, EnumString};
+use strum::Display;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::Validate;
@@ -30,7 +30,6 @@ fn validate_project_name(name: &str) -> Result<(), validator::ValidationError> {
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     DeriveActiveEnum,
     EnumIter,
     ToSchema,
@@ -57,7 +56,6 @@ pub enum CloudProvider {
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     Default,
     DeriveActiveEnum,
     EnumIter,
@@ -95,7 +93,6 @@ pub enum ProjectStatus {
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     Default,
     DeriveActiveEnum,
     EnumIter,

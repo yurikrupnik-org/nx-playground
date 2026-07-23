@@ -58,20 +58,49 @@ pub enum ConfigError {
 }
 
 /// Application environment (dev = local/kind, prod = full k8s)
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Environment {
     Development, // Local dev or kind cluster (no HTTPS)
     Production,  // Full k8s cluster (with HTTPS)
 }
 
-impl Environment {
-    pub fn from_env() -> Self {
-        let app_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
+/// Error returned when a string is not a recognized [`Environment`].
+#[derive(Debug, Error)]
+#[error("unknown environment {0:?} (expected \"development\" or \"production\")")]
+pub struct ParseEnvironmentError(String);
 
-        if app_env.eq_ignore_ascii_case("production") {
-            Environment::Production
+impl FromStr for Environment {
+    type Err = ParseEnvironmentError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("production") || s.eq_ignore_ascii_case("prod") {
+            Ok(Environment::Production)
+        } else if s.eq_ignore_ascii_case("development") || s.eq_ignore_ascii_case("dev") {
+            Ok(Environment::Development)
         } else {
-            Environment::Development
+            Err(ParseEnvironmentError(s.to_string()))
+        }
+    }
+}
+
+impl Display for Environment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Environment {
+    /// Load from `APP_ENV`. Unset defaults to [`Environment::Development`];
+    /// a present-but-unrecognized value is a hard error (this crate is fail-fast).
+    pub fn from_env() -> Result<Self, ConfigError> {
+        env_parse_or("APP_ENV", Environment::Development)
+    }
+
+    /// Lowercase canonical name (`"development"` / `"production"`).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Environment::Development => "development",
+            Environment::Production => "production",
         }
     }
 
@@ -94,9 +123,9 @@ pub trait FromEnv: Sized {
     fn from_env() -> Result<Self, ConfigError>;
 }
 
-/// Helper to load and parse environment variable with a default value
-pub fn env_or_default(key: &str, default: &str) -> String {
-    env::var(key).unwrap_or_else(|_| default.to_string())
+/// Helper to load an environment variable, falling back to `default` when unset.
+pub fn env_or_default(key: &str, default: impl Into<String>) -> String {
+    env::var(key).unwrap_or_else(|_| default.into())
 }
 
 /// Helper to load and parse environment variable or return error
@@ -131,7 +160,7 @@ mod tests {
     #[test]
     fn test_environment_defaults_to_development() {
         temp_env::with_var_unset("APP_ENV", || {
-            let env = Environment::from_env();
+            let env = Environment::from_env().unwrap();
             assert_eq!(env, Environment::Development);
             assert!(env.is_development());
             assert!(!env.is_production());
@@ -142,7 +171,7 @@ mod tests {
     #[test]
     fn test_environment_production() {
         temp_env::with_var("APP_ENV", Some("production"), || {
-            let env = Environment::from_env();
+            let env = Environment::from_env().unwrap();
             assert_eq!(env, Environment::Production);
             assert!(env.is_production());
             assert!(!env.is_development());
@@ -153,22 +182,31 @@ mod tests {
     #[test]
     fn test_environment_production_case_insensitive() {
         temp_env::with_var("APP_ENV", Some("PRODUCTION"), || {
-            let env = Environment::from_env();
-            assert_eq!(env, Environment::Production);
+            assert_eq!(Environment::from_env().unwrap(), Environment::Production);
         });
 
         temp_env::with_var("APP_ENV", Some("Production"), || {
-            let env = Environment::from_env();
-            assert_eq!(env, Environment::Production);
+            assert_eq!(Environment::from_env().unwrap(), Environment::Production);
         });
     }
 
     #[test]
-    fn test_environment_unknown_defaults_to_development() {
+    fn test_environment_unknown_is_hard_error() {
         temp_env::with_var("APP_ENV", Some("staging"), || {
-            let env = Environment::from_env();
-            assert_eq!(env, Environment::Development);
+            let err = Environment::from_env().unwrap_err();
+            let msg = err.to_string();
+            assert!(msg.contains("APP_ENV"), "{msg}");
         });
+    }
+
+    #[test]
+    fn test_environment_display_and_from_str_round_trip() {
+        for env in [Environment::Development, Environment::Production] {
+            assert_eq!(env.as_str().parse::<Environment>().unwrap(), env);
+            assert_eq!(env.to_string(), env.as_str());
+        }
+        assert_eq!("prod".parse::<Environment>().unwrap(), Environment::Production);
+        assert_eq!("dev".parse::<Environment>().unwrap(), Environment::Development);
     }
 
     #[test]

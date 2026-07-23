@@ -7,6 +7,7 @@ use crate::{
 };
 
 /// Repository trait for cloud resource operations
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait CloudResourceRepository: Send + Sync {
     /// Create a new cloud resource
@@ -28,8 +29,8 @@ pub trait CloudResourceRepository: Send + Sync {
         input: UpdateCloudResource,
     ) -> CloudResourceResult<CloudResource>;
 
-    /// Delete a cloud resource (hard delete)
-    async fn delete(&self, id: Uuid) -> CloudResourceResult<()>;
+    /// Delete a cloud resource (hard delete). Returns whether a row was removed.
+    async fn delete(&self, id: Uuid) -> CloudResourceResult<bool>;
 
     /// Soft delete a cloud resource
     async fn soft_delete(&self, id: Uuid) -> CloudResourceResult<()>;

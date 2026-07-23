@@ -23,8 +23,8 @@ pub async fn not_found() -> Response {
 /// Handler for 405 Method Not Allowed errors.
 pub async fn method_not_allowed() -> Response {
     let body = Json(ErrorResponse {
-        code: ErrorCode::InternalError.code(),
-        error: ErrorCode::InternalError.as_str().to_string(),
+        code: ErrorCode::MethodNotAllowed.code(),
+        error: ErrorCode::MethodNotAllowed.as_str().to_string(),
         message: "The HTTP method is not allowed for this resource".to_string(),
         details: None,
     });

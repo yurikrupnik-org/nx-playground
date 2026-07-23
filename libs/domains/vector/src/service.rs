@@ -5,17 +5,42 @@ use uuid::Uuid;
 use crate::embedding::EmbeddingProvider;
 use crate::error::{VectorError, VectorResult};
 use crate::models::{
-    CollectionInfo, CreateCollection, EmbeddingModel, EmbeddingProviderType, EmbeddingResult,
-    RecommendQuery, SearchQuery, SearchResult, TenantContext, Vector,
+    CollectionInfo, CreateCollection, EmbeddingModel, EmbeddingResult, RecommendQuery,
+    SearchQuery, SearchResult, TenantContext, Vector,
 };
 use crate::repository::VectorRepository;
 
 /// Vector service providing high-level operations
 ///
-/// Combines vector storage (Qdrant) with optional embedding generation (OpenAI, etc.)
+/// Combines vector storage (Qdrant) with optional embedding generation.
+///
+/// The embedding provider is fixed at construction time via
+/// [`VectorService::with_embedding_provider`]; per-call provider selection is
+/// intentionally not supported (only a single provider is ever configured).
 pub struct VectorService<R: VectorRepository> {
     repository: R,
     embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
+}
+
+/// Parameters for [`VectorService::upsert_with_embedding`].
+#[derive(Debug, Clone)]
+pub struct UpsertWithEmbedding {
+    pub id: Uuid,
+    pub text: String,
+    pub payload: Option<serde_json::Value>,
+    pub model: EmbeddingModel,
+    pub wait: bool,
+}
+
+/// Parameters for [`VectorService::search_with_embedding`].
+#[derive(Debug, Clone)]
+pub struct SearchWithEmbedding {
+    pub text: String,
+    pub limit: u32,
+    pub score_threshold: Option<f32>,
+    pub with_vectors: bool,
+    pub with_payloads: bool,
+    pub model: EmbeddingModel,
 }
 
 impl<R: VectorRepository> VectorService<R> {
@@ -130,98 +155,59 @@ impl<R: VectorRepository> VectorService<R> {
 
     // ===== Embedding Operations =====
 
-    pub async fn embed(
-        &self,
-        _provider_type: EmbeddingProviderType,
-        model: EmbeddingModel,
-        text: &str,
-    ) -> VectorResult<EmbeddingResult> {
-        let provider = self
-            .embedding_provider
+    fn provider(&self) -> VectorResult<&Arc<dyn EmbeddingProvider>> {
+        self.embedding_provider
             .as_ref()
-            .ok_or_else(|| VectorError::Config("No embedding provider configured".to_string()))?;
+            .ok_or_else(|| VectorError::Config("No embedding provider configured".to_string()))
+    }
 
-        provider.embed(model, text).await
+    pub async fn embed(&self, model: EmbeddingModel, text: &str) -> VectorResult<EmbeddingResult> {
+        self.provider()?.embed(model, text).await
     }
 
     pub async fn embed_batch(
         &self,
-        _provider_type: EmbeddingProviderType,
         model: EmbeddingModel,
         texts: &[String],
     ) -> VectorResult<Vec<EmbeddingResult>> {
-        let provider = self
-            .embedding_provider
-            .as_ref()
-            .ok_or_else(|| VectorError::Config("No embedding provider configured".to_string()))?;
-
-        provider.embed_batch(model, texts).await
+        self.provider()?.embed_batch(model, texts).await
     }
 
     // ===== Combined Operations =====
 
     /// Upsert a document with automatic embedding generation
-    #[allow(clippy::too_many_arguments)]
     pub async fn upsert_with_embedding(
         &self,
         tenant: &TenantContext,
         collection_name: &str,
-        id: Uuid,
-        text: &str,
-        payload: Option<serde_json::Value>,
-        _provider_type: EmbeddingProviderType,
-        model: EmbeddingModel,
-        wait: bool,
+        params: UpsertWithEmbedding,
     ) -> VectorResult<Uuid> {
-        let provider = self
-            .embedding_provider
-            .as_ref()
-            .ok_or_else(|| VectorError::Config("No embedding provider configured".to_string()))?;
+        let embedding = self.provider()?.embed(params.model, &params.text).await?;
 
-        // Generate embedding
-        let embedding = provider.embed(model, text).await?;
-
-        // Create vector with embedding
-        let mut vector = Vector::new(id, embedding.values);
-        if let Some(p) = payload {
+        let mut vector = Vector::new(params.id, embedding.values);
+        if let Some(p) = params.payload {
             vector = vector.with_payload(p);
         }
 
-        // Upsert to repository
         self.repository
-            .upsert(tenant, collection_name, vector, wait)
+            .upsert(tenant, collection_name, vector, params.wait)
             .await
     }
 
     /// Search with automatic query embedding generation
-    #[allow(clippy::too_many_arguments)]
     pub async fn search_with_embedding(
         &self,
         tenant: &TenantContext,
         collection_name: &str,
-        text: &str,
-        limit: u32,
-        score_threshold: Option<f32>,
-        with_vectors: bool,
-        with_payloads: bool,
-        _provider_type: EmbeddingProviderType,
-        model: EmbeddingModel,
+        params: SearchWithEmbedding,
     ) -> VectorResult<Vec<SearchResult>> {
-        let provider = self
-            .embedding_provider
-            .as_ref()
-            .ok_or_else(|| VectorError::Config("No embedding provider configured".to_string()))?;
+        let embedding = self.provider()?.embed(params.model, &params.text).await?;
 
-        // Generate query embedding
-        let embedding = provider.embed(model, text).await?;
+        let mut query = SearchQuery::new(embedding.values, params.limit);
+        query.score_threshold = params.score_threshold;
+        query.with_vectors = params.with_vectors;
+        query.with_payloads = params.with_payloads;
 
-        // Create search query
-        let mut query = SearchQuery::new(embedding.values, limit);
-        query.score_threshold = score_threshold;
-        query.with_vectors = with_vectors;
-        query.with_payloads = with_payloads;
-
-        // Execute search
         self.repository.search(tenant, collection_name, query).await
     }
 

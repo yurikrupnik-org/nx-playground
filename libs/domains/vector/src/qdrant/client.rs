@@ -33,9 +33,7 @@ impl QdrantRepository {
 
         builder = builder.timeout(Duration::from_secs(config.timeout_secs));
 
-        let client = builder
-            .build()
-            .map_err(|e| VectorError::Qdrant(format!("Failed to build client: {}", e)))?;
+        let client = builder.build()?;
 
         Ok(Self { client })
     }
@@ -70,11 +68,12 @@ impl QdrantRepository {
     fn point_id_to_uuid(point_id: &PointId) -> VectorResult<Uuid> {
         match &point_id.point_id_options {
             Some(qdrant::point_id::PointIdOptions::Uuid(uuid_str)) => Uuid::parse_str(uuid_str)
-                .map_err(|e| VectorError::Internal(format!("Invalid UUID: {}", e))),
-            Some(qdrant::point_id::PointIdOptions::Num(num)) => {
-                // If stored as number, create UUID from it
-                Ok(Uuid::from_u128(*num as u128))
-            }
+                .map_err(|e| VectorError::Internal(format!("Invalid UUID: {e}"))),
+            // This repository only ever writes UUID point IDs; a numeric ID
+            // means the collection was populated by another client.
+            Some(qdrant::point_id::PointIdOptions::Num(num)) => Err(VectorError::Internal(
+                format!("Point has numeric ID {num}; expected a UUID point ID"),
+            )),
             None => Err(VectorError::Internal("Missing point ID".to_string())),
         }
     }
@@ -180,9 +179,9 @@ impl VectorRepository for QdrantRepository {
 
         Ok(CollectionInfo {
             name: full_name,
-            vectors_count: 0,
-            indexed_vectors_count: 0,
-            points_count: 0,
+            vectors_count: Some(0),
+            indexed_vectors_count: Some(0),
+            points_count: Some(0),
             config: input.config,
             status: CollectionStatus::Green,
         })
@@ -211,16 +210,18 @@ impl VectorRepository for QdrantRepository {
         let prefix = format!("{}_", tenant.project_id);
         let collections = self.client.list_collections().await?;
 
-        let mut results = Vec::new();
-        for collection in collections.collections {
-            if collection.name.starts_with(&prefix) {
-                if let Some(info) = self.get_collection_by_full_name(&collection.name).await? {
-                    results.push(info);
-                }
-            }
-        }
+        let infos = futures::future::try_join_all(
+            collections
+                .collections
+                .into_iter()
+                .filter(|collection| collection.name.starts_with(&prefix))
+                .map(|collection| async move {
+                    self.get_collection_by_full_name(&collection.name).await
+                }),
+        )
+        .await?;
 
-        Ok(results)
+        Ok(infos.into_iter().flatten().collect())
     }
 
     async fn upsert(
@@ -483,7 +484,14 @@ impl QdrantRepository {
     ) -> VectorResult<Option<CollectionInfo>> {
         let info = match self.client.collection_info(full_name).await {
             Ok(info) => info,
-            Err(_) => return Ok(None),
+            // A missing collection is an expected outcome, not an error;
+            // every other failure (auth, transport, ...) must propagate.
+            Err(qdrant_client::QdrantError::ResponseError { status })
+                if status.code() as i32 == tonic::Code::NotFound as i32 =>
+            {
+                return Ok(None);
+            }
+            Err(err) => return Err(err.into()),
         };
 
         let result = info
@@ -491,7 +499,8 @@ impl QdrantRepository {
             .ok_or_else(|| VectorError::Internal("Collection info missing result".to_string()))?;
 
         // Extract dimension and distance from config
-        let (dimension, distance) = Self::extract_config_params(&result.config);
+        let (dimension, distance) = Self::extract_config_params(result.config.as_ref())
+            .unwrap_or((0, DistanceMetric::Cosine));
 
         let status = match result.status() {
             qdrant::CollectionStatus::Green => CollectionStatus::Green,
@@ -499,14 +508,12 @@ impl QdrantRepository {
             _ => CollectionStatus::Grey,
         };
 
-        // Get counts from counters if available
-        let (vectors_count, points_count) = Self::extract_counts(&result);
-
         Ok(Some(CollectionInfo {
             name: full_name.to_string(),
-            vectors_count,
-            indexed_vectors_count: vectors_count,
-            points_count,
+            // Qdrant no longer reports a standalone vector count.
+            vectors_count: None,
+            indexed_vectors_count: result.indexed_vectors_count,
+            points_count: result.points_count,
             config: VectorConfig {
                 dimension,
                 distance,
@@ -516,44 +523,21 @@ impl QdrantRepository {
         }))
     }
 
-    fn extract_config_params(config: &Option<qdrant::CollectionConfig>) -> (u32, DistanceMetric) {
-        match config {
-            Some(config) => {
-                match &config.params {
-                    Some(params) => {
-                        match &params.vectors_config {
-                            Some(vc) => {
-                                match &vc.config {
-                                    Some(qdrant::vectors_config::Config::Params(p)) => {
-                                        (p.size as u32, Self::from_qdrant_distance(p.distance()))
-                                    }
-                                    Some(qdrant::vectors_config::Config::ParamsMap(map)) => {
-                                        // For multi-vector collections, get first vector config
-                                        if let Some((_, p)) = map.map.iter().next() {
-                                            (
-                                                p.size as u32,
-                                                Self::from_qdrant_distance(p.distance()),
-                                            )
-                                        } else {
-                                            (0, DistanceMetric::Cosine)
-                                        }
-                                    }
-                                    None => (0, DistanceMetric::Cosine),
-                                }
-                            }
-                            None => (0, DistanceMetric::Cosine),
-                        }
-                    }
-                    None => (0, DistanceMetric::Cosine),
-                }
-            }
-            None => (0, DistanceMetric::Cosine),
-        }
-    }
-
-    fn extract_counts(result: &qdrant::CollectionInfo) -> (u64, u64) {
-        // Try to get counts from segments_count as a proxy
-        let segments = result.segments_count;
-        (segments, segments)
+    /// Extract vector dimension and distance metric from a collection config.
+    ///
+    /// Returns `None` when the config chain is incomplete; multi-vector
+    /// collections report their first vector's parameters.
+    fn extract_config_params(
+        config: Option<&qdrant::CollectionConfig>,
+    ) -> Option<(u32, DistanceMetric)> {
+        let vectors_config = config?.params.as_ref()?.vectors_config.as_ref()?;
+        let params = match vectors_config.config.as_ref()? {
+            qdrant::vectors_config::Config::Params(p) => p,
+            qdrant::vectors_config::Config::ParamsMap(map) => map.map.values().next()?,
+        };
+        Some((
+            params.size as u32,
+            Self::from_qdrant_distance(params.distance()),
+        ))
     }
 }

@@ -1,28 +1,7 @@
-error[E0277]: the trait bound `Empty: serde::Serialize` is not satisfied
- --> tests/ui/unit_struct.rs:4:12
+error: Unsupported shape `no fields`. Expected named fields.
+ --> tests/ui/unit_struct.rs:3:10
   |
-4 | pub struct Empty;
-  |            ^^^^^ unsatisfied trait bound
+3 | #[derive(SelectableFields)]
+  |          ^^^^^^^^^^^^^^^^
   |
-help: the trait `Serialize` is not implemented for `Empty`
- --> tests/ui/unit_struct.rs:4:1
-  |
-4 | pub struct Empty;
-  | ^^^^^^^^^^^^^^^^
-  = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Empty` type
-  = note: for types from other crates check whether the crate offers a `serde` feature flag
-  = help: the following other types implement trait `Serialize`:
-            &'a T
-            &'a mut T
-            ()
-            (T,)
-            (T0, T1)
-            (T0, T1, T2)
-            (T0, T1, T2, T3)
-            (T0, T1, T2, T3, T4)
-          and $N others
-note: required by a bound in `SelectableFields`
- --> $WORKSPACE/libs/core/field-selector/src/lib.rs
-  |
-  | pub trait SelectableFields: Serialize {
-  |                             ^^^^^^^^^ required by this bound in `SelectableFields`
+  = note: this error originates in the derive macro `SelectableFields` (in Nightly builds, run with -Z macro-backtrace for more info)

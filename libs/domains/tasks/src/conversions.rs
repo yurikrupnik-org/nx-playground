@@ -5,19 +5,40 @@
 //! - TaskStatus ↔ protobuf Status enum
 //! - Task structs ↔ protobuf message types
 //!
-//! Generic conversions (UUIDs, timestamps) are re-exported from grpc_client::conversions
-//! and shared across all domains (tasks, users, projects, etc.)
+//! Generic conversions (UUIDs, timestamps) are named re-exports from
+//! `grpc_client::conversions` and shared across all domains.
 
 use rpc::tasks::{
     CreateRequest, CreateResponse, GetByIdResponse, ListResponse, ListStreamResponse, Priority,
     Status, UpdateByIdRequest, UpdateByIdResponse,
 };
+use uuid::Uuid;
 
 use crate::models::{CreateTask, Task, TaskPriority, TaskStatus, UpdateTask};
 
-// Re-export generic proto conversion helpers from shared library
-// These are domain-agnostic and used across all services
-pub use grpc_client::conversions::*;
+// Named re-exports of the domain-agnostic proto helpers. A glob (`*`) would
+// leak the entire foreign helper surface into this crate's public API.
+pub use grpc_client::conversions::{
+    bytes_to_uuid, datetime_to_timestamp, opt_bytes_to_uuid, opt_datetime_to_timestamp,
+    opt_timestamp_to_datetime, opt_uuid_to_bytes, timestamp_to_datetime, uuid_to_bytes,
+};
+
+/// Errors converting between proto messages and domain [`Task`] values.
+#[derive(Debug, thiserror::Error)]
+pub enum ConversionError {
+    /// Raw bytes did not decode into a valid UUID.
+    #[error("invalid UUID: {0}")]
+    BadUuid(String),
+    /// Proto enum discriminant is unknown/unspecified.
+    #[error("invalid enum discriminant: {0}")]
+    BadEnum(i32),
+}
+
+impl From<ConversionError> for tonic::Status {
+    fn from(err: ConversionError) -> Self {
+        tonic::Status::invalid_argument(err.to_string())
+    }
+}
 
 // ============================================================================
 // Priority Conversions
@@ -41,7 +62,7 @@ impl From<&TaskPriority> for i32 {
 }
 
 impl TryFrom<i32> for TaskPriority {
-    type Error = String;
+    type Error = ConversionError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match Priority::try_from(value) {
@@ -49,7 +70,7 @@ impl TryFrom<i32> for TaskPriority {
             Ok(Priority::Medium) => Ok(TaskPriority::Medium),
             Ok(Priority::High) => Ok(TaskPriority::High),
             Ok(Priority::Urgent) => Ok(TaskPriority::Urgent),
-            Ok(Priority::Unspecified) | Err(_) => Err(format!("Invalid priority: {}", value)),
+            Ok(Priority::Unspecified) | Err(_) => Err(ConversionError::BadEnum(value)),
         }
     }
 }
@@ -75,14 +96,14 @@ impl From<&TaskStatus> for i32 {
 }
 
 impl TryFrom<i32> for TaskStatus {
-    type Error = String;
+    type Error = ConversionError;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match Status::try_from(value) {
             Ok(Status::Todo) => Ok(TaskStatus::Todo),
             Ok(Status::InProgress) => Ok(TaskStatus::InProgress),
             Ok(Status::Done) => Ok(TaskStatus::Done),
-            Ok(Status::Unspecified) | Err(_) => Err(format!("Invalid status: {}", value)),
+            Ok(Status::Unspecified) | Err(_) => Err(ConversionError::BadEnum(value)),
         }
     }
 }
@@ -104,18 +125,21 @@ impl From<CreateTask> for CreateRequest {
     }
 }
 
-impl From<UpdateTask> for UpdateByIdRequest {
-    fn from(input: UpdateTask) -> Self {
-        UpdateByIdRequest {
-            id: vec![], // Will be set by caller with the actual UUID
-            title: input.title,
-            description: input.description,
-            completed: input.completed,
-            project_id: input.project_id.and_then(opt_uuid_to_bytes),
-            priority: input.priority.map(Into::into),
-            status: input.status.map(Into::into),
-            due_date: input.due_date.and_then(opt_datetime_to_timestamp),
-        }
+/// Build an [`UpdateByIdRequest`] for `id` from a partial [`UpdateTask`].
+///
+/// Replaces the former `From<UpdateTask> for UpdateByIdRequest`, which left
+/// `id: vec![]` for the caller to backfill — a footgun that let a forgotten
+/// assignment produce a type-checked but empty-id request.
+pub fn make_update_request(id: Uuid, input: UpdateTask) -> UpdateByIdRequest {
+    UpdateByIdRequest {
+        id: uuid_to_bytes(id),
+        title: input.title,
+        description: input.description,
+        completed: input.completed,
+        project_id: input.project_id.and_then(opt_uuid_to_bytes),
+        priority: input.priority.map(Into::into),
+        status: input.status.map(Into::into),
+        due_date: input.due_date.and_then(opt_datetime_to_timestamp),
     }
 }
 
@@ -124,13 +148,13 @@ impl From<UpdateTask> for UpdateByIdRequest {
 // ============================================================================
 
 impl TryFrom<CreateRequest> for CreateTask {
-    type Error = String;
+    type Error = ConversionError;
 
     fn try_from(proto: CreateRequest) -> Result<Self, Self::Error> {
         Ok(CreateTask {
             title: proto.title,
             description: proto.description,
-            project_id: opt_bytes_to_uuid(proto.project_id)?,
+            project_id: opt_bytes_to_uuid(proto.project_id).map_err(ConversionError::BadUuid)?,
             priority: proto.priority.try_into()?,
             status: proto.status.try_into()?,
             due_date: opt_timestamp_to_datetime(proto.due_date),
@@ -139,7 +163,7 @@ impl TryFrom<CreateRequest> for CreateTask {
 }
 
 impl TryFrom<UpdateByIdRequest> for UpdateTask {
-    type Error = String;
+    type Error = ConversionError;
 
     fn try_from(proto: UpdateByIdRequest) -> Result<Self, Self::Error> {
         // UpdateTask uses Option<Option<T>> for partial updates
@@ -160,80 +184,67 @@ impl TryFrom<UpdateByIdRequest> for UpdateTask {
 // Struct Conversions: Proto → Domain (Response types - for gRPC client)
 // ============================================================================
 
-impl TryFrom<CreateResponse> for Task {
-    type Error = String;
-
-    fn try_from(proto: CreateResponse) -> Result<Self, Self::Error> {
-        Ok(Task {
-            id: bytes_to_uuid(&proto.id)?,
-            title: proto.title,
-            description: proto.description,
-            completed: proto.completed,
-            project_id: opt_bytes_to_uuid(proto.project_id).ok().flatten(),
-            priority: proto.priority.try_into().unwrap_or_else(|e| {
-                tracing::warn!("Invalid priority in CreateResponse, defaulting: {e}");
-                Default::default()
-            }),
-            status: proto.status.try_into().unwrap_or_else(|e| {
-                tracing::warn!("Invalid status in CreateResponse, defaulting: {e}");
-                Default::default()
-            }),
-            due_date: opt_timestamp_to_datetime(proto.due_date),
-            created_at: timestamp_to_datetime(proto.created_at),
-            updated_at: timestamp_to_datetime(proto.updated_at),
-        })
-    }
+/// Shared body for the three byte-identical `TryFrom<*Response> for Task`
+/// impls. Invalid enum discriminants degrade to the type default (logged),
+/// matching the pre-existing best-effort client behavior; only a malformed id
+/// is fatal.
+#[allow(clippy::too_many_arguments)]
+fn task_from_response(
+    id: Vec<u8>,
+    title: String,
+    description: String,
+    completed: bool,
+    project_id: Option<Vec<u8>>,
+    priority: i32,
+    status: i32,
+    due_date: Option<i64>,
+    created_at: i64,
+    updated_at: i64,
+) -> Result<Task, ConversionError> {
+    Ok(Task {
+        id: bytes_to_uuid(&id).map_err(ConversionError::BadUuid)?,
+        title,
+        description,
+        completed,
+        project_id: opt_bytes_to_uuid(project_id).ok().flatten(),
+        priority: priority.try_into().unwrap_or_else(|e| {
+            tracing::warn!("Invalid priority in response, defaulting: {e}");
+            Default::default()
+        }),
+        status: status.try_into().unwrap_or_else(|e| {
+            tracing::warn!("Invalid status in response, defaulting: {e}");
+            Default::default()
+        }),
+        due_date: opt_timestamp_to_datetime(due_date),
+        created_at: timestamp_to_datetime(created_at),
+        updated_at: timestamp_to_datetime(updated_at),
+    })
 }
 
-impl TryFrom<GetByIdResponse> for Task {
-    type Error = String;
+macro_rules! task_try_from_response {
+    ($($resp:ty),+ $(,)?) => {$(
+        impl TryFrom<$resp> for Task {
+            type Error = ConversionError;
 
-    fn try_from(proto: GetByIdResponse) -> Result<Self, Self::Error> {
-        Ok(Task {
-            id: bytes_to_uuid(&proto.id)?,
-            title: proto.title,
-            description: proto.description,
-            completed: proto.completed,
-            project_id: opt_bytes_to_uuid(proto.project_id).ok().flatten(),
-            priority: proto.priority.try_into().unwrap_or_else(|e| {
-                tracing::warn!("Invalid priority in GetByIdResponse, defaulting: {e}");
-                Default::default()
-            }),
-            status: proto.status.try_into().unwrap_or_else(|e| {
-                tracing::warn!("Invalid status in GetByIdResponse, defaulting: {e}");
-                Default::default()
-            }),
-            due_date: opt_timestamp_to_datetime(proto.due_date),
-            created_at: timestamp_to_datetime(proto.created_at),
-            updated_at: timestamp_to_datetime(proto.updated_at),
-        })
-    }
+            fn try_from(proto: $resp) -> Result<Self, Self::Error> {
+                task_from_response(
+                    proto.id,
+                    proto.title,
+                    proto.description,
+                    proto.completed,
+                    proto.project_id,
+                    proto.priority,
+                    proto.status,
+                    proto.due_date,
+                    proto.created_at,
+                    proto.updated_at,
+                )
+            }
+        }
+    )+};
 }
 
-impl TryFrom<UpdateByIdResponse> for Task {
-    type Error = String;
-
-    fn try_from(proto: UpdateByIdResponse) -> Result<Self, Self::Error> {
-        Ok(Task {
-            id: bytes_to_uuid(&proto.id)?,
-            title: proto.title,
-            description: proto.description,
-            completed: proto.completed,
-            project_id: opt_bytes_to_uuid(proto.project_id).ok().flatten(),
-            priority: proto.priority.try_into().unwrap_or_else(|e| {
-                tracing::warn!("Invalid priority in UpdateByIdResponse, defaulting: {e}");
-                Default::default()
-            }),
-            status: proto.status.try_into().unwrap_or_else(|e| {
-                tracing::warn!("Invalid status in UpdateByIdResponse, defaulting: {e}");
-                Default::default()
-            }),
-            due_date: opt_timestamp_to_datetime(proto.due_date),
-            created_at: timestamp_to_datetime(proto.created_at),
-            updated_at: timestamp_to_datetime(proto.updated_at),
-        })
-    }
-}
+task_try_from_response!(CreateResponse, GetByIdResponse, UpdateByIdResponse);
 
 // ============================================================================
 // Struct Conversions: Domain → Proto (Response types - for gRPC server)
@@ -311,7 +322,7 @@ impl From<Task> for ListStreamResponse {
 // Helper Functions
 // ============================================================================
 
-// Helper function for ListResponse conversion (can't implement TryFrom due to orphan rules)
-pub fn list_response_to_tasks(proto: ListResponse) -> Result<Vec<Task>, String> {
+/// Convert a `ListResponse` into domain tasks (orphan rules preclude a `TryFrom`).
+pub fn list_response_to_tasks(proto: ListResponse) -> Result<Vec<Task>, ConversionError> {
     proto.data.into_iter().map(|item| item.try_into()).collect()
 }

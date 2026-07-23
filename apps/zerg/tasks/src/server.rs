@@ -45,7 +45,7 @@ use crate::vector_service::VectorServiceImpl;
 pub async fn run() -> Result<()> {
     // Initialize tracing (env-aware: JSON for prod, pretty for dev).
     // Guard must outlive run() so OTEL spans flush before the tokio runtime drops.
-    let environment = Environment::from_env();
+    let environment = Environment::from_env()?;
     let _tracing_guard = core_config::tracing::init_tracing(&environment, core_config::app_info!());
 
     // Load gRPC server configuration
@@ -94,9 +94,7 @@ pub async fn run() -> Result<()> {
     GrpcServer::log_startup_multiple(&server_config, &services);
 
     // Build and start server
-    let addr = server_config
-        .socket_addr()
-        .wrap_err("Invalid server address")?;
+    let addr = server_config.socket_addr();
 
     Server::builder()
         .add_service(health_service)

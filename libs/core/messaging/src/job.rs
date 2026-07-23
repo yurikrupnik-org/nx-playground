@@ -1,6 +1,7 @@
 //! Job trait for background job processing.
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use uuid::Uuid;
 
 /// A job that can be processed by a worker.
 ///
@@ -30,8 +31,8 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 /// }
 ///
 /// impl Job for EmailJob {
-///     fn job_id(&self) -> String {
-///         self.id.to_string()
+///     fn job_id(&self) -> Uuid {
+///         self.id
 ///     }
 ///
 ///     fn retry_count(&self) -> u32 {
@@ -40,7 +41,6 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 ///
 ///     fn with_retry(&self) -> Self {
 ///         Self {
-///             id: Uuid::new_v4(), // New ID for retry
 ///             retry_count: self.retry_count + 1,
 ///             ..self.clone()
 ///         }
@@ -51,7 +51,7 @@ pub trait Job: Serialize + DeserializeOwned + Send + Sync + Clone + 'static {
     /// Get the unique job ID.
     ///
     /// This should be a stable identifier that doesn't change across retries.
-    fn job_id(&self) -> String;
+    fn job_id(&self) -> Uuid;
 
     /// Get the current retry count.
     ///
@@ -128,13 +128,13 @@ mod tests {
 
     #[derive(Clone, Serialize, Deserialize)]
     struct TestJob {
-        id: String,
+        id: Uuid,
         retry_count: u32,
     }
 
     impl Job for TestJob {
-        fn job_id(&self) -> String {
-            self.id.clone()
+        fn job_id(&self) -> Uuid {
+            self.id
         }
 
         fn retry_count(&self) -> u32 {
@@ -143,7 +143,7 @@ mod tests {
 
         fn with_retry(&self) -> Self {
             Self {
-                id: self.id.clone(),
+                id: self.id,
                 retry_count: self.retry_count + 1,
             }
         }
@@ -151,12 +151,13 @@ mod tests {
 
     #[test]
     fn test_job_trait() {
+        let id = Uuid::new_v4();
         let job = TestJob {
-            id: "job-1".to_string(),
+            id,
             retry_count: 0,
         };
 
-        assert_eq!(job.job_id(), "job-1");
+        assert_eq!(job.job_id(), id);
         assert_eq!(job.retry_count(), 0);
         assert!(job.can_retry());
         assert_eq!(job.max_retries(), 3);
@@ -166,7 +167,7 @@ mod tests {
         assert!(retried.can_retry());
 
         let at_max = TestJob {
-            id: "job-2".to_string(),
+            id: Uuid::new_v4(),
             retry_count: 3,
         };
         assert!(!at_max.can_retry());

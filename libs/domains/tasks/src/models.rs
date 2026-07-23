@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use sea_orm::{DeriveActiveEnum, EnumIter};
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+use strum::Display;
 use ts_rs::TS;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
@@ -17,7 +17,6 @@ use validator::Validate;
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     Default,
     DeriveActiveEnum,
     EnumIter,
@@ -51,7 +50,6 @@ pub enum TaskPriority {
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     Default,
     DeriveActiveEnum,
     EnumIter,
@@ -141,7 +139,7 @@ pub struct UpdateTask {
 }
 
 /// Query filters for listing tasks
-#[derive(Debug, Clone, Deserialize, ToSchema, IntoParams, Default)]
+#[derive(Debug, Clone, Deserialize, ToSchema, IntoParams)]
 pub struct TaskFilter {
     pub project_id: Option<Uuid>,
     pub status: Option<TaskStatus>,
@@ -157,34 +155,15 @@ fn default_limit() -> usize {
     50
 }
 
-/// DTO for task response
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct TaskResponse {
-    pub id: Uuid,
-    pub title: String,
-    pub description: String,
-    pub completed: bool,
-    pub project_id: Option<Uuid>,
-    pub priority: TaskPriority,
-    pub status: TaskStatus,
-    pub due_date: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-impl From<Task> for TaskResponse {
-    fn from(task: Task) -> Self {
+impl Default for TaskFilter {
+    fn default() -> Self {
         Self {
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            completed: task.completed,
-            project_id: task.project_id,
-            priority: task.priority,
-            status: task.status,
-            due_date: task.due_date,
-            created_at: task.created_at,
-            updated_at: task.updated_at,
+            project_id: None,
+            status: None,
+            priority: None,
+            completed: None,
+            limit: default_limit(),
+            offset: 0,
         }
     }
 }

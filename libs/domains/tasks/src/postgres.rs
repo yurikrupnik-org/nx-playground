@@ -1,9 +1,10 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use database::BaseRepository;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 use uuid::Uuid;
 
@@ -29,27 +30,14 @@ impl PgTaskRepository {
 #[async_trait]
 impl TaskRepository for PgTaskRepository {
     async fn create(&self, input: CreateTask) -> TaskResult<Task> {
-        // Convert CreateTask to ActiveModel
         let active_model: entity::ActiveModel = input.into();
-
-        // Insert using base repository
-        let model = self
-            .base
-            .insert(active_model)
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?;
-
+        let model = self.base.insert(active_model).await?;
         tracing::info!(task_id = %model.id, "Created task");
         Ok(model.into())
     }
 
     async fn get_by_id(&self, id: Uuid) -> TaskResult<Option<Task>> {
-        let model = self
-            .base
-            .find_by_id(id)
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?;
-
+        let model = self.base.find_by_id(id).await?;
         Ok(model.map(|m| m.into()))
     }
 
@@ -79,60 +67,52 @@ impl TaskRepository for PgTaskRepository {
             .limit(filter.limit as u64)
             .offset(filter.offset as u64);
 
-        let models = query
-            .all(self.base.db())
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?;
+        let models = query.all(self.base.db()).await?;
 
         Ok(models.into_iter().map(|m| m.into()).collect())
     }
 
     async fn update(&self, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
-        // Fetch existing task
         let model = self
             .base
             .find_by_id(id)
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?
+            .await?
             .ok_or(TaskError::NotFound(id))?;
 
-        // Convert to domain model
-        let mut task: Task = model.into();
+        // Idiomatic sea-orm partial update: mutate only the fields present in the
+        // DTO; untouched columns stay `Unchanged`, avoiding last-write-wins
+        // clobbering of concurrent writers and per-field String clones.
+        let mut active = model.into_active_model();
+        if let Some(title) = input.title {
+            active.title = Set(title);
+        }
+        if let Some(description) = input.description {
+            active.description = Set(description);
+        }
+        if let Some(completed) = input.completed {
+            active.completed = Set(completed);
+        }
+        if let Some(project_id) = input.project_id {
+            active.project_id = Set(project_id);
+        }
+        if let Some(priority) = input.priority {
+            active.priority = Set(priority);
+        }
+        if let Some(status) = input.status {
+            active.status = Set(status);
+        }
+        if let Some(due_date) = input.due_date {
+            active.due_date = Set(due_date.map(Into::into));
+        }
+        active.updated_at = Set(Utc::now().into());
 
-        // Apply updates
-        task.apply_update(input);
-
-        // Convert back to ActiveModel for update
-        let active_model: entity::ActiveModel = entity::ActiveModel {
-            id: Set(task.id),
-            title: Set(task.title.clone()),
-            description: Set(task.description.clone()),
-            completed: Set(task.completed),
-            project_id: Set(task.project_id),
-            priority: Set(task.priority),
-            status: Set(task.status),
-            due_date: Set(task.due_date.map(Into::into)),
-            created_at: Set(task.created_at.into()),
-            updated_at: Set(task.updated_at.into()),
-        };
-
-        // Update using base repository
-        let updated_model = self
-            .base
-            .update(active_model)
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?;
-
+        let updated_model = self.base.update(active).await?;
         tracing::info!(task_id = %id, "Updated task");
         Ok(updated_model.into())
     }
 
     async fn delete(&self, id: Uuid) -> TaskResult<bool> {
-        let rows_affected = self
-            .base
-            .delete_by_id(id)
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?;
+        let rows_affected = self.base.delete_by_id(id).await?;
 
         if rows_affected > 0 {
             tracing::info!(task_id = %id, "Deleted task");
@@ -143,11 +123,7 @@ impl TaskRepository for PgTaskRepository {
     }
 
     async fn count(&self) -> TaskResult<usize> {
-        let count = entity::Entity::find()
-            .count(self.base.db())
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?;
-
+        let count = entity::Entity::find().count(self.base.db()).await?;
         Ok(count as usize)
     }
 
@@ -155,9 +131,7 @@ impl TaskRepository for PgTaskRepository {
         let count = entity::Entity::find()
             .filter(entity::Column::ProjectId.eq(project_id))
             .count(self.base.db())
-            .await
-            .map_err(|e| TaskError::Internal(format!("Database error: {}", e)))?;
-
+            .await?;
         Ok(count as usize)
     }
 }

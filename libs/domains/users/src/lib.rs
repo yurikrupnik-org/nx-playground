@@ -52,6 +52,7 @@ pub mod error;
 pub mod handlers;
 pub mod models;
 pub mod oauth;
+pub mod password;
 pub mod postgres_repository_impl;
 pub mod repository;
 pub mod service;

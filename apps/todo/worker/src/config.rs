@@ -19,7 +19,7 @@ pub struct AppConfig {
 
 impl FromEnv for AppConfig {
     fn from_env() -> Result<Self, ConfigError> {
-        let environment = Environment::from_env();
+        let environment = Environment::from_env()?;
         let nats_url = env_or_default("NATS_URL", "nats://localhost:4222");
         let health_port = std::env::var("TODO_WORKER_HEALTH_PORT")
             .or_else(|_| std::env::var("HEALTH_PORT"))

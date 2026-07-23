@@ -1,17 +1,19 @@
 [package]
 name = "field-selector"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
 
 [features]
 default = []
-axum = ["dep:axum", "dep:axum-extra"]
+axum = ["dep:axum"]
 
 [dependencies]
 
 # Optional axum dependencies
 axum = { workspace = true, optional = true }
-axum-extra = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

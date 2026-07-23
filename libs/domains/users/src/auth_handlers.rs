@@ -16,8 +16,8 @@ use crate::oauth::providers::OAuthProvider;
 use crate::oauth::providers::github::GithubProvider;
 use crate::oauth::providers::google::GoogleProvider;
 use crate::oauth::{
-    AccountLinkingResult, AccountLinkingService, OAuthAccountRepository, OAuthState,
-    OAuthStateManager,
+    AccountLinkingResult, AccountLinkingService, OAuthAccountRepository, OAuthLogin, OAuthState,
+    OAuthStateManager, Provider,
 };
 use crate::repository::UserRepository;
 use crate::service::UserService;
@@ -663,14 +663,14 @@ async fn callback<R: UserRepository, O: OAuthAccountRepository>(
     // Use AccountLinkingService to handle account linking logic
     let linking_result = state
         .account_linking
-        .handle_oauth_login(
-            provider.name(),
+        .handle_oauth_login(OAuthLogin {
+            provider: provider_name.parse::<Provider>()?,
             user_info,
-            Some(access_token),
+            access_token: Some(access_token),
             refresh_token,
             expires_in,
-            true, // auto_link_verified_emails
-        )
+            auto_link_verified_emails: true,
+        })
         .await
         .map_err(|e| {
             tracing::error!("Failed to handle account linking: {:?}", e);

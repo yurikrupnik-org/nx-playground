@@ -3,21 +3,17 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use uuid::Uuid;
+use axum_helpers::UuidPath;
 
-use crate::error::{TodoError, TodoResult};
+use crate::error::TodoResult;
 use crate::models::{CreateTodo, Todo, TodoFilter, UpdateTodo};
 use crate::repository::TodoRepository;
 use crate::service::TodoService;
-
-fn parse_id(id: &str) -> TodoResult<Uuid> {
-    Uuid::parse_str(id).map_err(|_| TodoError::Validation(format!("invalid uuid: {id}")))
-}
 
 #[utoipa::path(
     get,
@@ -41,9 +37,9 @@ pub async fn list_todos<R: TodoRepository>(
 )]
 pub async fn get_todo<R: TodoRepository>(
     State(service): State<Arc<TodoService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
 ) -> TodoResult<Json<Todo>> {
-    Ok(Json(service.get_todo(parse_id(&id)?).await?))
+    Ok(Json(service.get_todo(id).await?))
 }
 
 #[utoipa::path(
@@ -70,10 +66,10 @@ pub async fn create_todo<R: TodoRepository>(
 )]
 pub async fn update_todo<R: TodoRepository>(
     State(service): State<Arc<TodoService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
     Json(input): Json<UpdateTodo>,
 ) -> TodoResult<Json<Todo>> {
-    Ok(Json(service.update_todo(parse_id(&id)?, input).await?))
+    Ok(Json(service.update_todo(id, input).await?))
 }
 
 #[utoipa::path(
@@ -84,9 +80,9 @@ pub async fn update_todo<R: TodoRepository>(
 )]
 pub async fn delete_todo<R: TodoRepository>(
     State(service): State<Arc<TodoService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
 ) -> TodoResult<impl IntoResponse> {
-    service.delete_todo(parse_id(&id)?).await?;
+    service.delete_todo(id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -98,9 +94,9 @@ pub async fn delete_todo<R: TodoRepository>(
 )]
 pub async fn complete_todo<R: TodoRepository>(
     State(service): State<Arc<TodoService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
 ) -> TodoResult<Json<Todo>> {
-    Ok(Json(service.complete_todo(parse_id(&id)?).await?))
+    Ok(Json(service.complete_todo(id).await?))
 }
 
 #[utoipa::path(
@@ -111,7 +107,7 @@ pub async fn complete_todo<R: TodoRepository>(
 )]
 pub async fn uncomplete_todo<R: TodoRepository>(
     State(service): State<Arc<TodoService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
 ) -> TodoResult<Json<Todo>> {
-    Ok(Json(service.uncomplete_todo(parse_id(&id)?).await?))
+    Ok(Json(service.uncomplete_todo(id).await?))
 }

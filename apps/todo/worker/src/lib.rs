@@ -7,7 +7,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use config::AppConfig;
 use core_config::{app_info, FromEnv};
 use domain_todo::{TodoEvent, TodoNatsStream};
@@ -44,7 +43,6 @@ impl TodoProcessor {
     }
 }
 
-#[async_trait]
 impl Processor<TodoEvent> for TodoProcessor {
     #[tracing::instrument(skip_all, fields(todo_id = %job.todo_id, event_id = %job.event_id))]
     async fn process(&self, job: &TodoEvent) -> Result<(), ProcessingError> {

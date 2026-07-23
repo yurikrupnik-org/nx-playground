@@ -177,8 +177,7 @@ impl JwtRedisAuth {
 
     /// Add token to whitelist in Redis
     pub async fn whitelist_token(&self, jti: &str, user_id: &str, ttl: u64) -> eyre::Result<()> {
-        let mut store = self.store.clone();
-        store
+        self.store
             .store_jwt_whitelist(jti, user_id, ttl)
             .await
             .map_err(|e| eyre::eyre!("Failed to whitelist token: {}", e))?;
@@ -187,8 +186,7 @@ impl JwtRedisAuth {
 
     /// Check if token is whitelisted
     pub async fn is_token_whitelisted(&self, jti: &str) -> eyre::Result<bool> {
-        let mut store = self.store.clone();
-        store
+        self.store
             .check_jwt_whitelist(jti)
             .await
             .map_err(|e| eyre::eyre!("Failed to check whitelist: {}", e))
@@ -196,8 +194,7 @@ impl JwtRedisAuth {
 
     /// Add token to blacklist in Redis
     pub async fn blacklist_token(&self, jti: &str, ttl: u64) -> eyre::Result<()> {
-        let mut store = self.store.clone();
-        store
+        self.store
             .blacklist_jwt(jti, ttl)
             .await
             .map_err(|e| eyre::eyre!("Failed to blacklist token: {}", e))?;
@@ -206,8 +203,7 @@ impl JwtRedisAuth {
 
     /// Check if token is blacklisted
     pub async fn is_token_blacklisted(&self, jti: &str) -> eyre::Result<bool> {
-        let mut store = self.store.clone();
-        store
+        self.store
             .check_jwt_blacklist(jti)
             .await
             .map_err(|e| eyre::eyre!("Failed to check blacklist: {}", e))
@@ -215,8 +211,7 @@ impl JwtRedisAuth {
 
     /// Remove token from whitelist (on logout/refresh)
     pub async fn revoke_token(&self, jti: &str) -> eyre::Result<()> {
-        let mut store = self.store.clone();
-        store
+        self.store
             .revoke_jwt_whitelist(jti)
             .await
             .map_err(|e| eyre::eyre!("Failed to revoke token: {}", e))?;

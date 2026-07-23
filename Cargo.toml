@@ -10,6 +10,7 @@ members = [
     'libs/core/axum-helpers',
     'libs/core/config',
     'libs/core/field-selector',
+    'libs/core/retry',
     'libs/core/grpc',
     'libs/core/messaging',
     'libs/core/proc_macros',
@@ -31,9 +32,9 @@ members = [
 [workspace.dependencies]
 api_resource = { path = 'libs/core/proc_macros/api_resource' }
 argon2 = { version = '0.5.3', features = ['std'] }
-async-nats = '0.49.1'
+async-nats = '0.50.0'
 async-stream = '0.3.6'
-async-trait = '0.1.89'
+async-trait = '0.1.91'
 axum = { version = "0.8.9", features = ['default', 'tracing', 'ws'] }
 axum-extra = { version = "0.12.6", features = ['typed-header'] }
 axum-helpers = { path = 'libs/core/axum-helpers' }
@@ -42,6 +43,7 @@ chrono = { version = '0.4.45', features = ['serde'] }
 color-eyre = '0.6.5'
 core_config = { path = 'libs/core/config' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
+core_retry = { path = 'libs/core/retry' }
 darling = '0.23.0'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
@@ -53,7 +55,7 @@ email = { path = 'libs/notifications/email' }
 eyre = { version = '0.6.12', features = ['default'] }
 field-selector = { path = 'libs/core/field-selector' }
 #flagsmith = { version = '2.1.0', features = [] }
-futures = "0.3.32"
+futures = "0.3.33"
 grpc-client = { path = 'libs/core/grpc' }
 handlebars = '6.4.3'
 http = { version = '1.4.2' }
@@ -72,37 +74,37 @@ opentelemetry-otlp = { version = '0.32.0', features = ['grpc-tonic', 'trace'], d
 opentelemetry-semantic-conventions = '0.32.1'
 opentelemetry_sdk = { version = '0.32.1', features = ['rt-tokio', 'trace'] }
 pluralizer = '0.5.0'
-proc-macro2 = "1.0.106"
+proc-macro2 = "1.0.107"
 prost = '0.14.4'
 qdrant-client = "1.18.0"
-quote = '1.0.46'
+quote = '1.0.47'
 rand = "0.10.2"
-redis = { version = "1.3.0", features = ['aio', 'r2d2', 'tokio-comp', 'connection-manager'] }
-regex = "1.13.0"
+redis = { version = "1.4.1", features = ['aio', 'r2d2', 'tokio-comp', 'connection-manager'] }
+regex = "1.13.1"
 reqwest = { version = "0.13.4", features = ['json', 'rustls'], default-features = false }
 rpc = { path = 'libs/rpc' }
 schemars = "1.2.1"
-sea-orm = { version = "2.0.0-rc.34", features = ['sqlx-postgres', 'runtime-tokio-rustls', 'macros', 'with-uuid', 'with-chrono', 'mock', 'debug-print', 'with-json'] }
-sea-orm-migration = { version = "2.0.0-rc.34", features = ['sqlx-postgres', 'runtime-tokio-rustls'] }
+sea-orm = { version = "2.0.0", features = ['sqlx-postgres', 'runtime-tokio-rustls', 'macros', 'with-uuid', 'with-chrono', 'mock', 'debug-print', 'with-json'] }
+sea-orm-migration = { version = "2.0.0", features = ['sqlx-postgres', 'runtime-tokio-rustls'] }
 sea_orm_resource = { path = 'libs/core/proc_macros/sea_orm_resource' }
 selectable_fields = { path = 'libs/core/proc_macros/selectable_fields' }
-serde = { version = '1.0.228', features = ['derive'] }
-serde_json = { version = "1.0.150" }
+serde = { version = '1.0.229', features = ['derive'] }
+serde_json = { version = "1.0.151" }
 sha2 = '0.11.0'
-sqlx = { version = '0.8', default-features = false, features = ['postgres', 'macros', 'uuid', 'chrono', 'migrate'] }
+sqlx = { version = '0.9.0', default-features = false, features = ['postgres', 'macros', 'uuid', 'chrono', 'migrate'] }
 strum = { version = '0.28.0', features = ['derive'] }
 syn = { version = "2.0.118", features = ['full', 'extra-traits', 'visit'] }
 test-utils = { path = 'libs/testing/test-utils' }
 testcontainers = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
-thiserror = '2.0.18'
-tokio = { version = "1.50.0", features = ['full'] }
-tokio-stream = { version = '0.1.18', features = ['sync'] }
+thiserror = '2.0.19'
+tokio = { version = "1.53.1", features = ['full'] }
+tokio-stream = { version = '0.1.19', features = ['sync'] }
 tonic = { version = "0.14.6", features = ['zstd'] }
 tonic-health = "0.14.6"
 tonic-prost = "0.14.6"
 tower = '0.5.3'
-tower-http = { version = '0.6.8', features = ['timeout', 'trace', 'compression-full', 'decompression-full', 'cors'] }
+tower-http = { version = '0.7.0', features = ['timeout', 'trace', 'compression-full', 'decompression-full', 'cors'] }
 tracing = "0.1.44"
 tracing-error = '0.2.1'
 tracing-opentelemetry = '0.33.0'
@@ -116,6 +118,20 @@ utoipa-scalar = { version = '0.3.0', features = ['axum'] }
 utoipa-swagger-ui = { version = '9.0.2', features = ['axum'] }
 uuid = { version = "1.24.0", features = ['serde', 'v4', 'v7'] }
 validator = { version = '0.20.0', features = ['derive'] }
+
+[workspace.package]
+version = '0.1.0'
+edition = '2024'
+
+[workspace.lints.rust]
+unsafe_code = 'warn'
+
+[workspace.lints.clippy]
+unwrap_used = 'warn'
+dbg_macro = 'warn'
+todo = 'warn'
+manual_let_else = 'warn'
+uninlined_format_args = 'warn'
 
 [profile.dev]
 incremental = true

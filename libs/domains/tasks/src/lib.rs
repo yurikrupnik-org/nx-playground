@@ -50,9 +50,7 @@ pub mod service;
 // Re-export commonly used types
 pub use error::{TaskError, TaskResult};
 pub use handlers::{DirectApiDoc, GrpcApiDoc};
-pub use models::{
-    CreateTask, Task, TaskFilter, TaskPriority, TaskResponse, TaskStatus, UpdateTask,
-};
+pub use models::{CreateTask, Task, TaskFilter, TaskPriority, TaskStatus, UpdateTask};
 pub use postgres::PgTaskRepository;
 pub use repository::TaskRepository;
 pub use service::TaskService;

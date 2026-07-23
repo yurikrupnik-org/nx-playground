@@ -1,3 +1,4 @@
+use crate::error::UserError;
 use crate::oauth::providers::{OAuthProvider, OAuthResult};
 use crate::oauth::types::OAuthUserInfo;
 use async_trait::async_trait;
@@ -8,6 +9,7 @@ pub struct GoogleProvider {
     client_id: String,
     client_secret: String,
     http_client: reqwest::Client,
+    oauth_http_client: oauth2::reqwest::Client,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,13 +27,14 @@ impl GoogleProvider {
             client_id,
             client_secret,
             http_client: reqwest::Client::new(),
+            oauth_http_client: oauth2::reqwest::Client::default(),
         }
     }
 }
 
 #[async_trait]
 impl OAuthProvider for GoogleProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "google"
     }
 
@@ -59,38 +62,35 @@ impl OAuthProvider for GoogleProvider {
         &self.http_client
     }
 
+    fn oauth_http_client(&self) -> &oauth2::reqwest::Client {
+        &self.oauth_http_client
+    }
+
     async fn get_user_info(&self, access_token: &str) -> OAuthResult<OAuthUserInfo> {
         let response = self
             .http_client
             .get("https://openidconnect.googleapis.com/v1/userinfo")
             .bearer_auth(access_token)
             .send()
-            .await
-            .map_err(|e| {
-                crate::error::UserError::OAuth(format!("Failed to get user info: {}", e))
-            })?;
+            .await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::UserError::OAuth(format!(
+            return Err(UserError::OAuth(format!(
                 "Google API returned error: {}",
                 response.status()
             )));
         }
 
-        let user_info: GoogleUserInfo = response.json().await.map_err(|e| {
-            crate::error::UserError::OAuth(format!("Failed to parse user info: {}", e))
-        })?;
+        let user_info: GoogleUserInfo = response.json().await?;
 
-        let raw_data = serde_json::to_value(&user_info).map_err(|e| {
-            crate::error::UserError::OAuth(format!("Failed to serialize user info: {}", e))
-        })?;
+        let raw_data = serde_json::to_value(&user_info)?;
 
         Ok(OAuthUserInfo {
             provider_user_id: user_info.sub,
             email: user_info.email.clone(),
             email_verified: user_info.email_verified.unwrap_or(false),
-            name: user_info.name.clone(),
-            avatar_url: user_info.picture.clone(),
+            name: user_info.name,
+            avatar_url: user_info.picture,
             username: user_info.email,
             raw_data,
         })

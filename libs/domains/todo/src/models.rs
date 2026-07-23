@@ -7,7 +7,7 @@
 use chrono::{DateTime, Utc};
 use sea_orm::{DeriveActiveEnum, EnumIter};
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
+use strum::Display;
 use ts_rs::TS;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
@@ -23,7 +23,6 @@ use validator::Validate;
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     Default,
     DeriveActiveEnum,
     EnumIter,

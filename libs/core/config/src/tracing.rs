@@ -6,7 +6,7 @@ use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_semantic_conventions as semconv;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::{debug, info};
 use tracing_subscriber::{EnvFilter, prelude::*};
 
@@ -113,7 +113,8 @@ pub fn init_tracing(environment: &Environment, app: AppInfo) -> TracingGuard {
     match result {
         Ok(_) => info!(
             otel_enabled = provider.is_some(),
-            "Tracing initialized. Environment: {:?}", environment
+            environment = environment.as_str(),
+            "Tracing initialized"
         ),
         Err(_) => debug!("Tracing already initialized, skipping re-initialization"),
     }
@@ -139,13 +140,9 @@ fn build_otel_layer(
 
     // Tests may call init_tracing repeatedly. The OTLP exporter spins up a tonic
     // gRPC client that won't bind cleanly twice; guard with a process-wide flag.
-    static INITIALIZED: Mutex<bool> = Mutex::new(false);
-    {
-        let mut guard = INITIALIZED.lock().expect("OTEL init lock poisoned");
-        if *guard {
-            return Ok(None);
-        }
-        *guard = true;
+    static INITIALIZED: AtomicBool = AtomicBool::new(false);
+    if INITIALIZED.swap(true, Ordering::SeqCst) {
+        return Ok(None);
     }
 
     // OTEL spec: OTEL_SERVICE_NAME env wins over programmatic service.name.
@@ -167,7 +164,7 @@ fn build_otel_layer(
         // it as a literal so we don't have to opt into the unstable feature flag.
         .with_attribute(opentelemetry::KeyValue::new(
             "deployment.environment.name",
-            format!("{environment:?}").to_lowercase(),
+            environment.as_str(),
         ))
         .build();
 

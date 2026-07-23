@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
 };
 use axum_helpers::{
-    AuditEvent, AuditOutcome, UuidPath, ValidatedJson,
+    AuditEvent, AuditOutcome, UuidPath,
     errors::responses::{
         BadRequestUuidResponse, BadRequestValidationResponse, ConflictResponse,
         InternalServerErrorResponse, NotFoundResponse,
@@ -104,7 +104,7 @@ async fn list_projects<R: ProjectRepository>(
 async fn create_project<R: ProjectRepository>(
     State(service): State<Arc<ProjectService<R>>>,
     headers: HeaderMap,
-    ValidatedJson(input): ValidatedJson<CreateProject>,
+    Json(input): Json<CreateProject>,
 ) -> ProjectResult<impl IntoResponse> {
     let project = service.create_project(input).await?;
 
@@ -170,7 +170,7 @@ async fn get_project<R: ProjectRepository>(
 async fn update_project<R: ProjectRepository>(
     State(service): State<Arc<ProjectService<R>>>,
     UuidPath(id): UuidPath,
-    ValidatedJson(input): ValidatedJson<UpdateProject>,
+    Json(input): Json<UpdateProject>,
 ) -> ProjectResult<Json<Project>> {
     let project = service.update_project(id, input).await?;
     Ok(Json(project))

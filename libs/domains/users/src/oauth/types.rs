@@ -8,11 +8,34 @@ pub enum Provider {
     Github,
 }
 
+impl Provider {
+    /// Stable lowercase identifier used in URLs and database rows.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Provider::Google => "google",
+            Provider::Github => "github",
+        }
+    }
+}
+
 impl std::fmt::Display for Provider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Provider::Google => write!(f, "google"),
-            Provider::Github => write!(f, "github"),
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for Provider {
+    type Err = crate::error::UserError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("google") {
+            Ok(Provider::Google)
+        } else if s.eq_ignore_ascii_case("github") {
+            Ok(Provider::Github)
+        } else {
+            Err(crate::error::UserError::Validation(format!(
+                "Unsupported OAuth provider: {s}"
+            )))
         }
     }
 }

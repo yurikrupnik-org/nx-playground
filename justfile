@@ -93,7 +93,8 @@ dev-todo:
 
 # Start just the zerg group via mprocs (same set as `just dev`).
 dev-zerg:
-  vals exec -i -f manifests/secrets/.vals.yaml -- mprocs -c manifests/mprocs/local.yaml
+  mprocs -c manifests/mprocs/local.yaml
+#vals exec -i -f manifests/secrets/.vals.yaml --
 
 # Start Kind dev (port-forward + tilt)
 dev-kind:

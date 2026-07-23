@@ -1,3 +1,4 @@
+use crate::error::UserError;
 use crate::oauth::providers::{OAuthProvider, OAuthResult};
 use crate::oauth::types::OAuthUserInfo;
 use async_trait::async_trait;
@@ -8,6 +9,7 @@ pub struct GithubProvider {
     client_id: String,
     client_secret: String,
     http_client: reqwest::Client,
+    oauth_http_client: oauth2::reqwest::Client,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,7 +21,7 @@ struct GithubUserInfo {
     avatar_url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct GithubEmail {
     email: String,
     primary: bool,
@@ -32,39 +34,46 @@ impl GithubProvider {
             client_id,
             client_secret,
             http_client: reqwest::Client::new(),
+            oauth_http_client: oauth2::reqwest::Client::default(),
         }
     }
 
-    async fn fetch_primary_email(&self, access_token: &str) -> OAuthResult<Option<String>> {
+    /// Fetch the user's email of record from GitHub's /user/emails endpoint,
+    /// together with GitHub's own `verified` attestation for it.
+    ///
+    /// Prefers the primary address, falling back to any verified one. Returns
+    /// `None` when the endpoint is unavailable (e.g. missing `user:email`
+    /// scope) — callers MUST then treat any email as unverified.
+    async fn fetch_email_of_record(
+        &self,
+        access_token: &str,
+    ) -> OAuthResult<Option<GithubEmail>> {
         let response = self
             .http_client
             .get("https://api.github.com/user/emails")
             .bearer_auth(access_token)
             .header("User-Agent", "Zerg-OAuth-App")
             .send()
-            .await
-            .map_err(|e| {
-                crate::error::UserError::OAuth(format!("Failed to get user emails: {}", e))
-            })?;
+            .await?;
 
         if !response.status().is_success() {
             return Ok(None);
         }
 
-        let emails: Vec<GithubEmail> = response.json().await.map_err(|e| {
-            crate::error::UserError::OAuth(format!("Failed to parse emails: {}", e))
-        })?;
+        let mut emails: Vec<GithubEmail> = response.json().await?;
 
-        Ok(emails
-            .into_iter()
-            .find(|e| e.primary && e.verified)
-            .map(|e| e.email))
+        let chosen = emails
+            .iter()
+            .position(|e| e.primary)
+            .or_else(|| emails.iter().position(|e| e.verified));
+
+        Ok(chosen.map(|idx| emails.swap_remove(idx)))
     }
 }
 
 #[async_trait]
 impl OAuthProvider for GithubProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "github"
     }
 
@@ -92,6 +101,10 @@ impl OAuthProvider for GithubProvider {
         &self.http_client
     }
 
+    fn oauth_http_client(&self) -> &oauth2::reqwest::Client {
+        &self.oauth_http_client
+    }
+
     async fn get_user_info(&self, access_token: &str) -> OAuthResult<OAuthUserInfo> {
         let response = self
             .http_client
@@ -99,41 +112,35 @@ impl OAuthProvider for GithubProvider {
             .bearer_auth(access_token)
             .header("User-Agent", "Zerg-OAuth-App")
             .send()
-            .await
-            .map_err(|e| {
-                crate::error::UserError::OAuth(format!("Failed to get user info: {}", e))
-            })?;
+            .await?;
 
         if !response.status().is_success() {
-            return Err(crate::error::UserError::OAuth(format!(
+            return Err(UserError::OAuth(format!(
                 "GitHub API returned error: {}",
                 response.status()
             )));
         }
 
-        let user_info: GithubUserInfo = response.json().await.map_err(|e| {
-            crate::error::UserError::OAuth(format!("Failed to parse user info: {}", e))
-        })?;
+        let user_info: GithubUserInfo = response.json().await?;
 
-        let raw_data = serde_json::to_value(&user_info).map_err(|e| {
-            crate::error::UserError::OAuth(format!("Failed to serialize user info: {}", e))
-        })?;
+        let raw_data = serde_json::to_value(&user_info)?;
 
-        let email = if let Some(email) = user_info.email.clone() {
-            Some(email)
-        } else {
-            self.fetch_primary_email(access_token).await?
+        // GitHub's /user `email` field carries no verification status, so the
+        // /user/emails endpoint is the only source of truth for `verified`.
+        // Reporting an unverified email as verified enables account takeover
+        // through auto-linking.
+        let (email, email_verified) = match self.fetch_email_of_record(access_token).await? {
+            Some(record) => (Some(record.email), record.verified),
+            None => (user_info.email, false),
         };
-
-        let email_verified = email.is_some();
 
         Ok(OAuthUserInfo {
             provider_user_id: user_info.id.to_string(),
-            email: email.clone(),
+            email,
             email_verified,
-            name: user_info.name.clone(),
-            avatar_url: user_info.avatar_url.clone(),
-            username: Some(user_info.login.clone()),
+            name: user_info.name,
+            avatar_url: user_info.avatar_url,
+            username: Some(user_info.login),
             raw_data,
         })
     }
