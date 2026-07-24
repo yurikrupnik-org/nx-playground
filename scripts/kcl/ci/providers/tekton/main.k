@@ -6,6 +6,21 @@ import k8s.apimachinery.pkg.apis.meta.v1 as metav1
 import .schemas
 import .tasks
 import ...schemas.config as cfg
+import ...schemas.common as c
+
+# =============================================================================
+# IMAGE OVERRIDES
+# =============================================================================
+# Remap step images from tekton_config.images (keyed by common.TEKTON_IMAGES
+# logical name) over the assembled tasks, so no task builder needs the map.
+
+_apply_images = lambda tasks: [schemas.TektonTask], tekton_config: cfg.TektonConfig -> [schemas.TektonTask] {
+    _refs = {c.TEKTON_IMAGES[k]: tekton_config.images[k] for k in tekton_config.images if k in c.TEKTON_IMAGES}
+    [
+        (t | {spec = t.spec | {steps = [(st | {image = _refs[st.image]}) if st.image in _refs else st for st in t.spec.steps]}})
+        for t in tasks
+    ] if _refs else tasks
+}
 
 # =============================================================================
 # PIPELINE BUILDERS
@@ -72,7 +87,7 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, tekton_config: cfg.Tekton
         }
     }
 
-    _tasks + [_pipeline]
+    _apply_images(_tasks, tekton_config) + [_pipeline]
 }
 
 # =============================================================================
@@ -118,7 +133,7 @@ generate_rust = lambda config: cfg.RustAppConfig, tekton_config: cfg.TektonConfi
         }
     }
 
-    [t for t in _tasks if t] + [_pipeline]
+    _apply_images([t for t in _tasks if t], tekton_config) + [_pipeline]
 }
 
 # =============================================================================
@@ -162,7 +177,7 @@ generate_node = lambda config: cfg.NodeAppConfig, tekton_config: cfg.TektonConfi
         }
     }
 
-    [t for t in _tasks if t] + [_pipeline]
+    _apply_images([t for t in _tasks if t], tekton_config) + [_pipeline]
 }
 
 # =============================================================================
@@ -196,7 +211,7 @@ generate_go = lambda config: cfg.GoServiceConfig, tekton_config: cfg.TektonConfi
         }
     }
 
-    _tasks + [_pipeline]
+    _apply_images(_tasks, tekton_config) + [_pipeline]
 }
 
 # =============================================================================

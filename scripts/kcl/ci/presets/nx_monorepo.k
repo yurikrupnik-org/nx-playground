@@ -102,19 +102,3 @@ run_all = lambda name: str, pm: str = "bun", languages: [c.Language] = ["typescr
     }
 }
 
-# =============================================================================
-# THIS REPO'S CONFIG
-# =============================================================================
-
-nx_playground = cfg.MonorepoConfig {
-    name = "nx-playground"
-    main_branch = "main"
-    monorepo_tool = "nx"
-    package_manager = "bun"
-    languages = ["typescript", "rust", "kcl"]
-    nx_cloud = True
-    use_affected = True
-    use_mise = False  # Use targeted setup actions instead
-    use_sccache = True
-    sccache_provider = "gcp"
-}

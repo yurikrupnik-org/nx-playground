@@ -62,7 +62,7 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install --no-cache
+      - run: bun install --frozen-lockfile
 
       - name: Install KCL CLI
         run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash

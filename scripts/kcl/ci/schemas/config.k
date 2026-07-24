@@ -16,6 +16,7 @@ schema BaseConfig:
     # Tool setup options
     use_mise: bool = False
     node_version: str = c.DEFAULT_NODE_VERSION
+    bun_version: str = c.DEFAULT_BUN_VERSION
     go_version: str = c.DEFAULT_GO_VERSION
     rust_channel: str = c.DEFAULT_RUST_CHANNEL
     python_version: str = c.DEFAULT_PYTHON_VERSION
@@ -43,6 +44,9 @@ schema MonorepoConfig(BaseConfig):
     monorepo_tool: c.MonorepoTool = "nx"
     package_manager: c.PackageManager = "bun"
     languages: [c.Language] = ["typescript"]
+
+    # Python toolchain (used when "python" in languages)
+    python_manager: "uv" | "pip" | "poetry" = "uv"
 
     # NX specific
     nx_cloud: bool = True
@@ -146,8 +150,16 @@ schema GitHubConfig:
         contents = "read"
     }
 
+    # Override GHA action pins by logical name (keys match common.GHA_ACTIONS),
+    # e.g. {checkout = "actions/checkout@v5"}. Merged over the defaults.
+    action_versions: {str: str} = {}
+
 schema TektonConfig:
     """Tekton specific configuration"""
     namespace: str = "default"
     workspace_size: str = "1Gi"
     service_account?: str
+
+    # Override container images by logical name (keys match common.TEKTON_IMAGES),
+    # e.g. {rust = "rust:1.86"}. Merged over the defaults.
+    images: {str: str} = {}
