@@ -9,6 +9,8 @@
 //! Unlike E2E tests, these test ONLY the projects domain handlers,
 //! not the full application with routing, auth middleware, etc.
 
+#![allow(clippy::unwrap_used)]
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use domain_projects::*;
@@ -105,7 +107,7 @@ async fn test_create_project_handler_enforces_free_tier_limit() {
     // Create 3 projects directly via service
     for i in 0..3 {
         let input = CreateProject {
-            name: builder.name("project", &format!("p{}", i)),
+            name: builder.name("project", &format!("p{i}")),
             user_id,
             description: String::new(),
             cloud_provider: CloudProvider::Aws,
@@ -196,7 +198,7 @@ async fn test_get_project_handler_returns_404_for_missing() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/{}", missing_id))
+        .uri(format!("/{missing_id}"))
         .body(Body::empty())
         .unwrap();
 
@@ -218,7 +220,7 @@ async fn test_list_projects_handler_with_filters() {
     // Create 2 AWS and 1 GCP project
     for i in 0..2 {
         let input = CreateProject {
-            name: builder.name("project", &format!("aws-{}", i)),
+            name: builder.name("project", &format!("aws-{i}")),
             user_id,
             description: String::new(),
             cloud_provider: CloudProvider::Aws,
@@ -247,7 +249,7 @@ async fn test_list_projects_handler_with_filters() {
     // Filter by cloud_provider=aws
     let request = Request::builder()
         .method("GET")
-        .uri(format!("/?user_id={}&cloud_provider=aws", user_id))
+        .uri(format!("/?user_id={user_id}&cloud_provider=aws"))
         .body(Body::empty())
         .unwrap();
 

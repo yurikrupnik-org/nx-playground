@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use crate::error::VectorResult;
 
 /// Qdrant connection configuration

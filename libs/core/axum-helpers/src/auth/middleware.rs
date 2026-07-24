@@ -59,12 +59,9 @@ pub async fn jwt_auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, impl IntoResponse> {
-    let token = match extract_token_from_request(&headers) {
-        Some(t) => t,
-        None => {
-            tracing::debug!("No JWT found in Authorization header or cookie");
-            return Err((StatusCode::UNAUTHORIZED, "No token provided"));
-        }
+    let Some(token) = extract_token_from_request(&headers) else {
+        tracing::debug!("No JWT found in Authorization header or cookie");
+        return Err((StatusCode::UNAUTHORIZED, "No token provided"));
     };
 
     // Verify signature + claims; require an access token (a refresh token must not

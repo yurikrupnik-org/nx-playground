@@ -29,7 +29,7 @@ fn extract_key(request: &Request) -> String {
     if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
         let ip = real_ip.trim();
         if !ip.is_empty() {
-            return format!("ip:{}", ip);
+            return format!("ip:{ip}");
         }
     }
 
@@ -39,7 +39,7 @@ fn extract_key(request: &Request) -> String {
         && let Some(ip) = forwarded.rsplit(',').next().map(|s| s.trim())
         && !ip.is_empty()
     {
-        return format!("ip:{}", ip);
+        return format!("ip:{ip}");
     }
 
     // Fall back to TCP socket peer address
@@ -137,6 +137,7 @@ fn insert_rate_limit_headers(headers: &mut HeaderMap, limit: u64, remaining: u64
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use axum::extract::ConnectInfo;
     use axum::http::Request as HttpRequest;

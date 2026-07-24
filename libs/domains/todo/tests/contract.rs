@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 //! Wire-contract test (no external services).
 //!
 //! Pins the JSON shape that BOTH frontends depend on: the SolidJS app via the

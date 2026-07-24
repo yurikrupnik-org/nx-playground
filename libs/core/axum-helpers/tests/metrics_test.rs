@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 //! End-to-end smoke test: a tracked request shows up in the `/metrics` render.
 
 use axum::Router;

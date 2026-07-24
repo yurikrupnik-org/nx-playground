@@ -32,14 +32,13 @@ impl From<CloudResourceError> for AppError {
     fn from(err: CloudResourceError) -> Self {
         match err {
             CloudResourceError::NotFound(id) => {
-                AppError::NotFound(format!("Cloud resource {} not found", id))
+                AppError::NotFound(format!("Cloud resource {id} not found"))
             }
             CloudResourceError::ProjectNotFound(id) => {
-                AppError::NotFound(format!("Project {} not found", id))
+                AppError::NotFound(format!("Project {id} not found"))
             }
             CloudResourceError::DuplicateName(name) => AppError::Conflict(format!(
-                "Cloud resource with name '{}' already exists in this project",
-                name
+                "Cloud resource with name '{name}' already exists in this project"
             )),
             CloudResourceError::InvalidStatusTransition(msg) => AppError::BadRequest(msg),
             CloudResourceError::Validation(msg) => AppError::BadRequest(msg),

@@ -256,7 +256,7 @@ where
     AuditEvent::new(
         None, // TODO: Add user_id when authentication is implemented
         "cloud_resource.delete",
-        Some(format!("cloud_resource:{}", id)),
+        Some(format!("cloud_resource:{id}")),
         AuditOutcome::Success,
     )
     .with_ip(extract_ip_from_headers(&headers))

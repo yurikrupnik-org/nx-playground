@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 //! Vertex AI embedding provider implementation
 //!
 //! Uses Google Cloud's Vertex AI text embedding API.
@@ -297,7 +299,7 @@ impl EmbeddingProvider for VertexAIProvider {
         let response = self
             .client
             .post(&endpoint)
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -307,8 +309,7 @@ impl EmbeddingProvider for VertexAIProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             return Err(VectorError::Embedding(format!(
-                "Vertex AI API error ({}): {}",
-                status, error_text
+                "Vertex AI API error ({status}): {error_text}"
             )));
         }
 

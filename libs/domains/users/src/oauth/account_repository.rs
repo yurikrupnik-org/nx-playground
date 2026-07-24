@@ -123,7 +123,7 @@ impl OAuthAccountRepository for PostgresOAuthAccountRepository {
         let row = OAuthAccountRow::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?
             .ok_or_else(|| UserError::Internal("Failed to create OAuth account".to_string()))?;
 
         Ok(row.into())
@@ -145,7 +145,7 @@ impl OAuthAccountRepository for PostgresOAuthAccountRepository {
         let row = OAuthAccountRow::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(row.map(Into::into))
     }
@@ -158,7 +158,7 @@ impl OAuthAccountRepository for PostgresOAuthAccountRepository {
         let rows = OAuthAccountRow::find_by_statement(stmt)
             .all(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(rows.into_iter().map(Into::into).collect())
     }
@@ -179,7 +179,7 @@ impl OAuthAccountRepository for PostgresOAuthAccountRepository {
         let row = OAuthAccountRow::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(row.map(Into::into))
     }
@@ -216,7 +216,7 @@ impl OAuthAccountRepository for PostgresOAuthAccountRepository {
         self.db
             .execute_raw(stmt)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(())
     }
@@ -234,7 +234,7 @@ impl OAuthAccountRepository for PostgresOAuthAccountRepository {
             .db
             .execute_raw(stmt)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(result.rows_affected() > 0)
     }

@@ -1,6 +1,6 @@
 use axum::{
     extract::Request,
-    http::header::{self, HeaderName},
+    http::header::{self, HeaderName, HeaderValue},
     middleware::Next,
     response::Response,
 };
@@ -17,19 +17,22 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
 
     let headers = response.headers_mut();
-    headers.insert(header::X_CONTENT_TYPE_OPTIONS, "nosniff".parse().unwrap());
-    headers.insert(header::X_FRAME_OPTIONS, "DENY".parse().unwrap());
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     headers.insert(
         HeaderName::from_static("x-xss-protection"),
-        "1; mode=block".parse().unwrap(),
+        HeaderValue::from_static("1; mode=block"),
     );
     headers.insert(
         header::REFERRER_POLICY,
-        "strict-origin-when-cross-origin".parse().unwrap(),
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
     headers.insert(
         HeaderName::from_static("permissions-policy"),
-        "geolocation=(), microphone=(), camera=()".parse().unwrap(),
+        HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
     );
 
     response

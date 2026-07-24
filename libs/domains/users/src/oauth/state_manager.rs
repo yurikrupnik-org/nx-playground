@@ -35,11 +35,11 @@ impl OAuthStateManager {
         let mut conn = self.redis.clone();
         let key = format!("oauth:state:{}", oauth_state.state);
         let value = serde_json::to_string(oauth_state)
-            .map_err(|e| UserError::Internal(format!("Failed to serialize state: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Failed to serialize state: {e}")))?;
 
         conn.set_ex::<_, _, ()>(&key, value, STATE_TTL as u64)
             .await
-            .map_err(|e| UserError::Internal(format!("Redis error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Redis error: {e}")))?;
 
         Ok(())
     }
@@ -47,19 +47,19 @@ impl OAuthStateManager {
     /// Verify and consume OAuth state (atomic read-and-delete)
     pub async fn verify_and_consume_state(&self, state: &str) -> Result<OAuthState, UserError> {
         let mut conn = self.redis.clone();
-        let key = format!("oauth:state:{}", state);
+        let key = format!("oauth:state:{state}");
 
         // GETDEL atomically gets and deletes the key (prevents replay attacks)
         let value: Option<String> = redis::cmd("GETDEL")
             .arg(&key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| UserError::Internal(format!("Redis error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Redis error: {e}")))?;
 
         match value {
             Some(v) => {
                 let oauth_state: OAuthState = serde_json::from_str(&v)
-                    .map_err(|e| UserError::OAuth(format!("Invalid state format: {}", e)))?;
+                    .map_err(|e| UserError::OAuth(format!("Invalid state format: {e}")))?;
                 Ok(oauth_state)
             }
             None => Err(UserError::OAuth(

@@ -10,7 +10,7 @@ use validator::Validate;
 
 /// Regex pattern for alphanumeric characters with hyphens and underscores
 static ALPHANUMERIC_HYPHEN_UNDERSCORE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]+$").expect("valid alphanumeric regex"));
 
 /// Custom validator for project names
 fn validate_project_name(name: &str) -> Result<(), validator::ValidationError> {

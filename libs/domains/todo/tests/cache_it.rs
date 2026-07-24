@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 //! Rust <-> NATS KV cache integration test.
 //!
 //! Wraps a counting in-memory repository with `CachedTodoRepository` backed by a
@@ -74,9 +76,9 @@ impl TodoRepository for CountingRepo {
             .iter()
             .filter(|t| filter.completed.is_none_or(|c| t.completed == c))
             .filter(|t| filter.priority.is_none_or(|p| t.priority == p))
-            .cloned()
             .skip(filter.offset)
             .take(filter.limit)
+            .cloned()
             .collect();
         Ok(filtered)
     }

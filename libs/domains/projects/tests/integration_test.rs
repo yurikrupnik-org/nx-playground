@@ -6,6 +6,8 @@
 //! - Transactions behave as expected
 //! - Concurrent operations are handled properly
 
+#![allow(clippy::unwrap_used)]
+
 use domain_projects::*;
 use test_utils::{TestDataBuilder, TestDatabase, assertions::*};
 use uuid::Uuid;
@@ -82,8 +84,7 @@ async fn test_duplicate_name_constraint() {
     let result = repo.create(input).await;
     assert!(
         matches!(result, Err(ProjectError::DuplicateName(_))),
-        "Expected DuplicateName error, got {:?}",
-        result
+        "Expected DuplicateName error, got {result:?}"
     );
 }
 
@@ -244,7 +245,7 @@ async fn test_list_projects_with_filters() {
 
     for (i, (provider, env, status)) in projects.into_iter().enumerate() {
         let input = CreateProject {
-            name: builder.name("project", &format!("project-{}", i)),
+            name: builder.name("project", &format!("project-{i}")),
             user_id,
             description: String::new(),
             cloud_provider: provider,
@@ -479,7 +480,7 @@ async fn test_concurrent_creates() {
     let mut handles = vec![];
     for i in 0..5 {
         let repo_clone = PgProjectRepository::new(db.connection());
-        let name = builder.name("project", &format!("concurrent-{}", i));
+        let name = builder.name("project", &format!("concurrent-{i}"));
 
         let handle = tokio::spawn(async move {
             let input = CreateProject {
@@ -537,7 +538,7 @@ async fn test_free_tier_can_create_3_projects() {
     // Create 3 projects (the free tier limit)
     for i in 0..3 {
         let input = CreateProject {
-            name: builder.name("project", &format!("project-{}", i)),
+            name: builder.name("project", &format!("project-{i}")),
             user_id,
             description: String::new(),
             cloud_provider: CloudProvider::Aws,
@@ -548,7 +549,7 @@ async fn test_free_tier_can_create_3_projects() {
         };
 
         let result = service.create_project(input).await;
-        assert!(result.is_ok(), "Should be able to create project {}", i);
+        assert!(result.is_ok(), "Should be able to create project {i}");
     }
 }
 
@@ -564,7 +565,7 @@ async fn test_free_tier_cannot_create_4th_project() {
     // Create 3 projects
     for i in 0..3 {
         let input = CreateProject {
-            name: builder.name("project", &format!("project-{}", i)),
+            name: builder.name("project", &format!("project-{i}")),
             user_id,
             description: String::new(),
             cloud_provider: CloudProvider::Aws,
@@ -616,7 +617,7 @@ async fn test_free_tier_limit_per_user() {
     // User 1 creates 3 projects
     for i in 0..3 {
         let input = CreateProject {
-            name: builder.name("project", &format!("user1-{}", i)),
+            name: builder.name("project", &format!("user1-{i}")),
             user_id: user1,
             description: String::new(),
             cloud_provider: CloudProvider::Aws,

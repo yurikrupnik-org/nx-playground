@@ -202,7 +202,7 @@ async fn delete_project<R: ProjectRepository>(
     AuditEvent::new(
         None, // TODO: Add user_id when authentication is implemented
         "project.delete",
-        Some(format!("project:{}", id)),
+        Some(format!("project:{id}")),
         AuditOutcome::Success,
     )
     .with_ip(extract_ip_from_headers(&headers))

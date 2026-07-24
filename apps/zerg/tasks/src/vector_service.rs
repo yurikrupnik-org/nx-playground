@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 //! Vector gRPC service implementation
 //!
 //! This module contains the VectorServiceImpl struct and its gRPC trait implementation.

@@ -28,13 +28,13 @@ pub type ProjectResult<T> = Result<T, ProjectError>;
 impl From<ProjectError> for AppError {
     fn from(err: ProjectError) -> Self {
         match err {
-            ProjectError::NotFound(id) => AppError::NotFound(format!("Project {} not found", id)),
+            ProjectError::NotFound(id) => AppError::NotFound(format!("Project {id} not found")),
             ProjectError::DuplicateName(name) => {
-                AppError::Conflict(format!("Project with name '{}' already exists", name))
+                AppError::Conflict(format!("Project with name '{name}' already exists"))
             }
             ProjectError::Validation(msg) => AppError::BadRequest(msg),
             ProjectError::Unauthorized(id) => {
-                AppError::Forbidden(format!("Access denied to project {}", id))
+                AppError::Forbidden(format!("Access denied to project {id}"))
             }
             ProjectError::Internal(msg) => AppError::InternalServerError(msg),
             ProjectError::Database(err) => {

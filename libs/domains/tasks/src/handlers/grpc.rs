@@ -35,7 +35,7 @@ pub async fn list_tasks(
         .await?;
 
     let tasks = list_response_to_tasks(response.into_inner())
-        .map_err(|e| TaskError::Internal(format!("Conversion error: {}", e)))?;
+        .map_err(|e| TaskError::Internal(format!("Conversion error: {e}")))?;
 
     Ok(Json(tasks))
 }
@@ -69,7 +69,7 @@ pub async fn get_task(
     let task: Task = response
         .into_inner()
         .try_into()
-        .map_err(|e| TaskError::Internal(format!("Conversion error: {}", e)))?;
+        .map_err(|e| TaskError::Internal(format!("Conversion error: {e}")))?;
 
     Ok(Json(task))
 }
@@ -97,7 +97,7 @@ pub async fn create_task(
     let task: Task = response
         .into_inner()
         .try_into()
-        .map_err(|e| TaskError::Internal(format!("Conversion error: {}", e)))?;
+        .map_err(|e| TaskError::Internal(format!("Conversion error: {e}")))?;
 
     Ok((StatusCode::CREATED, Json(task)))
 }
@@ -133,7 +133,7 @@ pub async fn update_task(
     let task: Task = response
         .into_inner()
         .try_into()
-        .map_err(|e| TaskError::Internal(format!("Conversion error: {}", e)))?;
+        .map_err(|e| TaskError::Internal(format!("Conversion error: {e}")))?;
 
     Ok(Json(task))
 }

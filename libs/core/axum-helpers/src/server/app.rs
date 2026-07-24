@@ -46,7 +46,7 @@ pub async fn create_app(router: Router, server_config: &ServerConfig) -> io::Res
     .with_graceful_shutdown(shutdown_signal())
     .await
     .inspect_err(|e| {
-        tracing::error!("Server encountered an error: {:?}", e);
+        tracing::error!("Server encountered an error: {e:?}");
     })?;
 
     Ok(())
@@ -147,7 +147,7 @@ where
         .map_err(|e| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Invalid CORS_ALLOWED_ORIGIN value: {}", e),
+                format!("Invalid CORS_ALLOWED_ORIGIN value: {e}"),
             )
         })?;
 
@@ -158,7 +158,7 @@ where
         ));
     }
 
-    info!("CORS configured with allowed origins: {}", origins_str);
+    info!("CORS configured with allowed origins: {origins_str}");
 
     let cors_layer = tower_http::cors::CorsLayer::new()
         .allow_origin(AllowOrigin::list(allowed_origins))
@@ -272,7 +272,7 @@ where
     .with_graceful_shutdown(coordinated_shutdown(coordinator))
     .await
     .inspect_err(|e| {
-        tracing::error!("Server encountered an error: {:?}", e);
+        tracing::error!("Server encountered an error: {e:?}");
     });
 
     // Wait for cleanup to complete

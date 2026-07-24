@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 //! Token-type separation + issuer/audience binding against a live Redis (`:6379`).
 //! `#[ignore]`d so CI without Redis stays green. Run with:
 //!   cargo test -p axum-helpers --test jwt_token_type -- --ignored

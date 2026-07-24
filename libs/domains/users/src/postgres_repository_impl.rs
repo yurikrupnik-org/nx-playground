@@ -105,7 +105,7 @@ impl UserRepository for PostgresUserRepository {
                 if err_str.contains("duplicate key") || err_str.contains("unique constraint") {
                     UserError::DuplicateEmail(user.email.clone())
                 } else {
-                    UserError::Internal(format!("Database error: {}", e))
+                    UserError::Internal(format!("Database error: {e}"))
                 }
             })?
             .ok_or_else(|| UserError::Internal("Failed to create user".to_string()))?;
@@ -121,7 +121,7 @@ impl UserRepository for PostgresUserRepository {
         let row = UserRow::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(row.map(|r| r.into()))
     }
@@ -134,7 +134,7 @@ impl UserRepository for PostgresUserRepository {
         let row = UserRow::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(row.map(|r| r.into()))
     }
@@ -147,7 +147,7 @@ impl UserRepository for PostgresUserRepository {
         let rows = UserRow::find_by_statement(stmt)
             .all(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
@@ -191,7 +191,7 @@ impl UserRepository for PostgresUserRepository {
         let row = UserRow::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         row.map(|r| r.into()).ok_or(UserError::NotFound(user.id))
     }
@@ -205,7 +205,7 @@ impl UserRepository for PostgresUserRepository {
             .db
             .execute_raw(stmt)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -225,7 +225,7 @@ impl UserRepository for PostgresUserRepository {
         let row = UserRow::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(row.map(|r| r.into()))
     }
@@ -255,7 +255,7 @@ impl UserRepository for PostgresUserRepository {
         self.db
             .execute_raw(stmt)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(())
     }
@@ -273,7 +273,7 @@ impl UserRepository for PostgresUserRepository {
         let result = ExistsResult::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(result.map(|r| r.exists).unwrap_or(false))
     }
@@ -291,7 +291,7 @@ impl UserRepository for PostgresUserRepository {
         let result = CountResult::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(result.map(|r| r.count as usize).unwrap_or(0))
     }
@@ -314,7 +314,7 @@ impl UserRepository for PostgresUserRepository {
         self.db
             .execute_raw(stmt)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         Ok(())
     }
@@ -333,7 +333,7 @@ impl UserRepository for PostgresUserRepository {
         let row = LockStatus::find_by_statement(stmt)
             .one(&self.db)
             .await
-            .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
 
         if let Some(lock_status) = row {
             if !lock_status.is_locked {
@@ -353,7 +353,7 @@ impl UserRepository for PostgresUserRepository {
                     self.db
                         .execute_raw(unlock_stmt)
                         .await
-                        .map_err(|e| UserError::Internal(format!("Database error: {}", e)))?;
+                        .map_err(|e| UserError::Internal(format!("Database error: {e}")))?;
                     return Ok(false);
                 }
             }

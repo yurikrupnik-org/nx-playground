@@ -182,20 +182,18 @@ async fn register<R: UserRepository, O: OAuthAccountRepository>(
     // Create cookies
     let secure_flag = if is_development() { "" } else { " Secure;" };
     let access_cookie = format!(
-        "access_token={}; HttpOnly;{} SameSite=Strict; Path=/; Max-Age={}",
-        access_token, secure_flag, ACCESS_TOKEN_TTL
+        "access_token={access_token}; HttpOnly;{secure_flag} SameSite=Strict; Path=/; Max-Age={ACCESS_TOKEN_TTL}"
     );
     let refresh_cookie = format!(
-        "refresh_token={}; HttpOnly;{} SameSite=Strict; Path=/; Max-Age={}",
-        refresh_token, secure_flag, REFRESH_TOKEN_TTL
+        "refresh_token={refresh_token}; HttpOnly;{secure_flag} SameSite=Strict; Path=/; Max-Age={REFRESH_TOKEN_TTL}"
     );
 
     let response = LoginResponse { user };
 
     let access_cookie_header = HeaderValue::from_str(&access_cookie)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
     let refresh_cookie_header = HeaderValue::from_str(&refresh_cookie)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
 
     Ok((
         AppendHeaders([
@@ -280,20 +278,18 @@ async fn login<R: UserRepository, O: OAuthAccountRepository>(
     // Create cookies
     let secure_flag = if is_development() { "" } else { " Secure;" };
     let access_cookie = format!(
-        "access_token={}; HttpOnly;{} SameSite=Strict; Path=/; Max-Age={}",
-        access_token, secure_flag, ACCESS_TOKEN_TTL
+        "access_token={access_token}; HttpOnly;{secure_flag} SameSite=Strict; Path=/; Max-Age={ACCESS_TOKEN_TTL}"
     );
     let refresh_cookie = format!(
-        "refresh_token={}; HttpOnly;{} SameSite=Strict; Path=/; Max-Age={}",
-        refresh_token, secure_flag, REFRESH_TOKEN_TTL
+        "refresh_token={refresh_token}; HttpOnly;{secure_flag} SameSite=Strict; Path=/; Max-Age={REFRESH_TOKEN_TTL}"
     );
 
     let response = LoginResponse { user };
 
     let access_cookie_header = HeaderValue::from_str(&access_cookie)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
     let refresh_cookie_header = HeaderValue::from_str(&refresh_cookie)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
 
     Ok((
         AppendHeaders([
@@ -356,19 +352,15 @@ async fn logout<R: UserRepository, O: OAuthAccountRepository>(
 
     // Clear cookies
     let secure_flag = if is_development() { "" } else { " Secure;" };
-    let clear_access = format!(
-        "access_token=; HttpOnly;{} SameSite=Strict; Path=/; Max-Age=0",
-        secure_flag
-    );
-    let clear_refresh = format!(
-        "refresh_token=; HttpOnly;{} SameSite=Strict; Path=/; Max-Age=0",
-        secure_flag
-    );
+    let clear_access =
+        format!("access_token=; HttpOnly;{secure_flag} SameSite=Strict; Path=/; Max-Age=0");
+    let clear_refresh =
+        format!("refresh_token=; HttpOnly;{secure_flag} SameSite=Strict; Path=/; Max-Age=0");
 
     let clear_access_header = HeaderValue::from_str(&clear_access)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
     let clear_refresh_header = HeaderValue::from_str(&clear_refresh)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
 
     Ok((
         AppendHeaders([
@@ -484,7 +476,7 @@ fn derive_origin_url(headers: &axum::http::HeaderMap) -> Option<String> {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("http");
 
-    Some(format!("{}://{}", scheme, host))
+    Some(format!("{scheme}://{host}"))
 }
 
 /// Query parameters for OAuth callback
@@ -511,8 +503,7 @@ fn get_provider(
             config.github_client_secret.clone(),
         )) as Arc<dyn OAuthProvider>),
         _ => Err(UserError::OAuth(format!(
-            "Unsupported provider: {}",
-            provider_name
+            "Unsupported provider: {provider_name}"
         ))),
     }
 }
@@ -579,11 +570,11 @@ async fn authorize<R: UserRepository, O: OAuthAccountRepository>(
         .set_client_secret(ClientSecret::new(provider.client_secret().to_string()))
         .set_auth_uri(
             AuthUrl::new(provider.auth_url().to_string())
-                .map_err(|e| UserError::OAuth(format!("Invalid auth URL: {}", e)))?,
+                .map_err(|e| UserError::OAuth(format!("Invalid auth URL: {e}")))?,
         )
         .set_redirect_uri(
             RedirectUrl::new(redirect_uri)
-                .map_err(|e| UserError::OAuth(format!("Invalid redirect URL: {}", e)))?,
+                .map_err(|e| UserError::OAuth(format!("Invalid redirect URL: {e}")))?,
         );
 
     // Generate PKCE challenge from verifier
@@ -746,12 +737,10 @@ async fn callback<R: UserRepository, O: OAuthAccountRepository>(
     // Create cookies for redirect
     let secure_flag = if is_development() { "" } else { " Secure;" };
     let access_cookie = format!(
-        "access_token={}; HttpOnly;{} SameSite=Lax; Path=/; Max-Age={}",
-        access_token, secure_flag, ACCESS_TOKEN_TTL
+        "access_token={access_token}; HttpOnly;{secure_flag} SameSite=Lax; Path=/; Max-Age={ACCESS_TOKEN_TTL}"
     );
     let refresh_cookie = format!(
-        "refresh_token={}; HttpOnly;{} SameSite=Lax; Path=/; Max-Age={}",
-        refresh_token, secure_flag, REFRESH_TOKEN_TTL
+        "refresh_token={refresh_token}; HttpOnly;{secure_flag} SameSite=Lax; Path=/; Max-Age={REFRESH_TOKEN_TTL}"
     );
 
     // Redirect to frontend with cookies set
@@ -759,21 +748,20 @@ async fn callback<R: UserRepository, O: OAuthAccountRepository>(
     let frontend_base = oauth_state
         .origin_url
         .unwrap_or_else(|| state.oauth_config.frontend_url.clone());
-    let redirect_url = format!("{}/tasks", frontend_base);
+    let redirect_url = format!("{frontend_base}/tasks");
 
     let access_cookie_header = HeaderValue::from_str(&access_cookie)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
     let refresh_cookie_header = HeaderValue::from_str(&refresh_cookie)
-        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {}", e)))?;
+        .map_err(|e| UserError::Internal(format!("Failed to create cookie: {e}")))?;
+    let location_header = HeaderValue::from_str(&redirect_url)
+        .map_err(|e| UserError::Internal(format!("Failed to create redirect header: {e}")))?;
 
     Ok((
         AppendHeaders([
             (header::SET_COOKIE, access_cookie_header),
             (header::SET_COOKIE, refresh_cookie_header),
-            (
-                header::LOCATION,
-                HeaderValue::from_str(&redirect_url).unwrap(),
-            ),
+            (header::LOCATION, location_header),
         ]),
         StatusCode::FOUND,
     )

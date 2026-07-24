@@ -32,7 +32,7 @@ impl std::str::FromStr for Role {
             "user" => Ok(Role::User),
             "admin" => Ok(Role::Admin),
             "moderator" => Ok(Role::Moderator),
-            _ => Err(format!("Unknown role: {}", s)),
+            _ => Err(format!("Unknown role: {s}")),
         }
     }
 }

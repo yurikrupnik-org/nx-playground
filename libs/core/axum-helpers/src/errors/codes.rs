@@ -319,6 +319,7 @@ impl std::fmt::Display for ErrorCode {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

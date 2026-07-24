@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -133,8 +135,7 @@ impl EmbeddingProvider for OpenAIProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             return Err(VectorError::Embedding(format!(
-                "OpenAI API error ({}): {}",
-                status, error_text
+                "OpenAI API error ({status}): {error_text}"
             )));
         }
 
