@@ -205,8 +205,14 @@ mod tests {
             assert_eq!(env.as_str().parse::<Environment>().unwrap(), env);
             assert_eq!(env.to_string(), env.as_str());
         }
-        assert_eq!("prod".parse::<Environment>().unwrap(), Environment::Production);
-        assert_eq!("dev".parse::<Environment>().unwrap(), Environment::Development);
+        assert_eq!(
+            "prod".parse::<Environment>().unwrap(),
+            Environment::Production
+        );
+        assert_eq!(
+            "dev".parse::<Environment>().unwrap(),
+            Environment::Development
+        );
     }
 
     #[test]

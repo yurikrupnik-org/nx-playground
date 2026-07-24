@@ -75,20 +75,18 @@ pub trait OAuthProvider: Send + Sync {
             TokenResponse as OAuth2TokenResponse, TokenUrl, basic::BasicClient,
         };
 
-        let client = BasicClient::new(ClientId::new(self.client_id().to_string()))
-            .set_client_secret(ClientSecret::new(self.client_secret().to_string()))
-            .set_auth_uri(
-                AuthUrl::new(self.auth_url().to_string())
-                    .map_err(|e| crate::error::UserError::OAuth(format!("Invalid auth URL: {e}")))?,
-            )
-            .set_token_uri(
-                TokenUrl::new(self.token_url().to_string()).map_err(|e| {
+        let client =
+            BasicClient::new(ClientId::new(self.client_id().to_string()))
+                .set_client_secret(ClientSecret::new(self.client_secret().to_string()))
+                .set_auth_uri(AuthUrl::new(self.auth_url().to_string()).map_err(|e| {
+                    crate::error::UserError::OAuth(format!("Invalid auth URL: {e}"))
+                })?)
+                .set_token_uri(TokenUrl::new(self.token_url().to_string()).map_err(|e| {
                     crate::error::UserError::OAuth(format!("Invalid token URL: {e}"))
-                })?,
-            )
-            .set_redirect_uri(RedirectUrl::new(redirect_uri.to_string()).map_err(|e| {
-                crate::error::UserError::OAuth(format!("Invalid redirect URL: {e}"))
-            })?);
+                })?)
+                .set_redirect_uri(RedirectUrl::new(redirect_uri.to_string()).map_err(|e| {
+                    crate::error::UserError::OAuth(format!("Invalid redirect URL: {e}"))
+                })?);
 
         let pkce_verifier = PkceCodeVerifier::new(pkce_verifier.to_string());
 
@@ -97,9 +95,7 @@ pub trait OAuthProvider: Send + Sync {
             .set_pkce_verifier(pkce_verifier)
             .request_async(self.oauth_http_client())
             .await
-            .map_err(|e| {
-                crate::error::UserError::OAuth(format!("Failed to exchange code: {e}"))
-            })?;
+            .map_err(|e| crate::error::UserError::OAuth(format!("Failed to exchange code: {e}")))?;
 
         Ok(TokenResponse {
             access_token: token_result.access_token().secret().clone(),

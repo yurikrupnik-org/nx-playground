@@ -152,10 +152,7 @@ mod tests {
     #[test]
     fn test_job_trait() {
         let id = Uuid::new_v4();
-        let job = TestJob {
-            id,
-            retry_count: 0,
-        };
+        let job = TestJob { id, retry_count: 0 };
 
         assert_eq!(job.job_id(), id);
         assert_eq!(job.retry_count(), 0);

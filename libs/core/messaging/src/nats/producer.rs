@@ -127,14 +127,9 @@ impl NatsProducer {
 
     /// Ensure the stream exists, creating it if necessary.
     pub async fn ensure_stream(&self) -> Result<(), NatsError> {
-        let mut stream = self
-            .jetstream
-            .get_stream(&self.stream_name)
-            .await?;
+        let mut stream = self.jetstream.get_stream(&self.stream_name).await?;
 
-        let _info = stream
-            .info()
-            .await?;
+        let _info = stream.info().await?;
 
         Ok(())
     }

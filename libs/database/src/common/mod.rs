@@ -2,5 +2,5 @@
 
 pub mod error;
 
-pub use error::{DatabaseError, DatabaseResult};
 pub use core_retry::{RetryConfig, retry, retry_with_backoff};
+pub use error::{DatabaseError, DatabaseResult};

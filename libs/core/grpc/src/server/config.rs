@@ -75,7 +75,9 @@ impl ServerConfig {
 
         if let Ok(size) = std::env::var("GRPC_MAX_MESSAGE_SIZE") {
             let size: usize = size.parse().map_err(|e| {
-                GrpcError::InvalidConfig(format!("GRPC_MAX_MESSAGE_SIZE: invalid size {size:?}: {e}"))
+                GrpcError::InvalidConfig(format!(
+                    "GRPC_MAX_MESSAGE_SIZE: invalid size {size:?}: {e}"
+                ))
             })?;
             config.max_decoding_message_size = size;
             config.max_encoding_message_size = size;

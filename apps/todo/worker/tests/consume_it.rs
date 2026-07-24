@@ -11,7 +11,9 @@ use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use domain_todo::models::{Todo, TodoPriority};
-use domain_todo::{NatsTodoPublisher, TodoEvent, TodoEventKind, TodoEventPublisher, TodoNatsStream};
+use domain_todo::{
+    NatsTodoPublisher, TodoEvent, TodoEventKind, TodoEventPublisher, TodoNatsStream,
+};
 use messaging::nats::{NatsWorker, WorkerConfig};
 use test_utils::TestNats;
 use todo_worker::TodoProcessor;

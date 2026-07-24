@@ -26,8 +26,8 @@ pub mod postgres;
 pub mod repository;
 pub mod service;
 
-pub use error::{TodoError, TodoResult};
 pub use cache::{open_cache_bucket, CachedTodoRepository};
+pub use error::{TodoError, TodoResult};
 pub use events::{NoopTodoPublisher, TodoEvent, TodoEventKind, TodoEventPublisher};
 pub use handlers::{router, TodoApiDoc};
 pub use models::{CreateTodo, Todo, TodoFilter, TodoPriority, UpdateTodo};

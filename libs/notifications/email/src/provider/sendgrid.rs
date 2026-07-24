@@ -49,7 +49,9 @@ impl SendGridProvider {
         let from_email = std::env::var("SENDGRID_FROM_EMAIL")
             .or_else(|_| std::env::var("EMAIL_FROM_ADDRESS"))
             .map_err(|_| {
-                NotificationError::Config("SENDGRID_FROM_EMAIL or EMAIL_FROM_ADDRESS not set".into())
+                NotificationError::Config(
+                    "SENDGRID_FROM_EMAIL or EMAIL_FROM_ADDRESS not set".into(),
+                )
             })?;
 
         let from_name = std::env::var("SENDGRID_FROM_NAME")

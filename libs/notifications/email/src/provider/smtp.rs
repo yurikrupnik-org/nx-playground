@@ -50,7 +50,9 @@ impl SmtpProvider {
         let transport = if config.use_tls {
             let creds = Credentials::new(config.username, config.password);
             AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
-                .map_err(|e| NotificationError::Config(format!("failed to create SMTP relay: {e}")))?
+                .map_err(|e| {
+                    NotificationError::Config(format!("failed to create SMTP relay: {e}"))
+                })?
                 .credentials(creds)
                 .port(config.port)
                 .build()

@@ -16,9 +16,7 @@ use uuid::Uuid;
 ///
 /// Variants are declared in ascending privilege order, so the derived
 /// [`Ord`] matches the privilege hierarchy: `Anonymous < User < Admin`.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub enum UserRole {
     /// Anonymous/unauthenticated user
     #[default]
@@ -134,7 +132,11 @@ pub trait SelectableFields: Serialize {
             .map(|f| (*f).to_string())
             .collect();
 
-        if invalid.is_empty() { Ok(()) } else { Err(invalid) }
+        if invalid.is_empty() {
+            Ok(())
+        } else {
+            Err(invalid)
+        }
     }
 
     /// Filter fields based on user role and restrictions

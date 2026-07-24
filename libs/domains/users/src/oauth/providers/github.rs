@@ -44,10 +44,7 @@ impl GithubProvider {
     /// Prefers the primary address, falling back to any verified one. Returns
     /// `None` when the endpoint is unavailable (e.g. missing `user:email`
     /// scope) — callers MUST then treat any email as unverified.
-    async fn fetch_email_of_record(
-        &self,
-        access_token: &str,
-    ) -> OAuthResult<Option<GithubEmail>> {
+    async fn fetch_email_of_record(&self, access_token: &str) -> OAuthResult<Option<GithubEmail>> {
         let response = self
             .http_client
             .get("https://api.github.com/user/emails")

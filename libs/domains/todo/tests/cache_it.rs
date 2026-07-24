@@ -18,9 +18,7 @@ use parking_lot::Mutex;
 use uuid::Uuid;
 
 use domain_todo::models::{CreateTodo, Todo, TodoFilter, TodoPriority, UpdateTodo};
-use domain_todo::{
-    open_cache_bucket, CachedTodoRepository, TodoError, TodoRepository, TodoResult,
-};
+use domain_todo::{open_cache_bucket, CachedTodoRepository, TodoError, TodoRepository, TodoResult};
 use test_utils::TestNats;
 
 /// In-memory repository that counts how many reads reach "the DB".
@@ -130,9 +128,13 @@ fn all_filter() -> TodoFilter {
 #[tokio::test]
 async fn kv_cache_serves_reads_and_invalidates_on_write() {
     let nats = TestNats::new().await;
-    let kv = open_cache_bucket(&nats.jetstream(), "TODO_CACHE_TEST", Duration::from_secs(60))
-        .await
-        .expect("open KV bucket");
+    let kv = open_cache_bucket(
+        &nats.jetstream(),
+        "TODO_CACHE_TEST",
+        Duration::from_secs(60),
+    )
+    .await
+    .expect("open KV bucket");
 
     let t1 = sample("alpha", false);
     let t2 = sample("beta", true);
@@ -143,7 +145,11 @@ async fn kv_cache_serves_reads_and_invalidates_on_write() {
     // get_by_id: miss (DB) then hit (KV)
     assert_eq!(repo.get_by_id(t1.id).await.unwrap().unwrap().title, "alpha");
     assert_eq!(repo.get_by_id(t1.id).await.unwrap().unwrap().title, "alpha");
-    assert_eq!(observer.gets(), 1, "second get_by_id must be served from KV");
+    assert_eq!(
+        observer.gets(),
+        1,
+        "second get_by_id must be served from KV"
+    );
 
     // list: miss then hit
     assert_eq!(repo.list(all_filter()).await.unwrap().len(), 2);
@@ -195,5 +201,9 @@ async fn passthrough_when_no_kv_always_hits_inner() {
 
     repo.get_by_id(id).await.unwrap();
     repo.get_by_id(id).await.unwrap();
-    assert_eq!(observer.gets(), 2, "passthrough must always hit the inner repo");
+    assert_eq!(
+        observer.gets(),
+        2,
+        "passthrough must always hit the inner repo"
+    );
 }

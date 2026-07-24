@@ -91,14 +91,9 @@ impl DlqManager {
 
     /// Get DLQ stream info.
     pub async fn stream_info(&self) -> Result<StreamInfo, NatsError> {
-        let mut stream = self
-            .jetstream
-            .get_stream(&self.dlq_stream)
-            .await?;
+        let mut stream = self.jetstream.get_stream(&self.dlq_stream).await?;
 
-        let info = stream
-            .info()
-            .await?;
+        let info = stream.info().await?;
 
         Ok(StreamInfo {
             stream_name: self.dlq_stream.clone(),

@@ -5,8 +5,8 @@ use uuid::Uuid;
 use crate::embedding::EmbeddingProvider;
 use crate::error::{VectorError, VectorResult};
 use crate::models::{
-    CollectionInfo, CreateCollection, EmbeddingModel, EmbeddingResult, RecommendQuery,
-    SearchQuery, SearchResult, TenantContext, Vector,
+    CollectionInfo, CreateCollection, EmbeddingModel, EmbeddingResult, RecommendQuery, SearchQuery,
+    SearchResult, TenantContext, Vector,
 };
 use crate::repository::VectorRepository;
 

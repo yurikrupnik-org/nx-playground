@@ -12,6 +12,8 @@ default:
 generate-env:
   devkit secrets fetch -o .env.local
 
+gen-ci:
+  kcl run scripts/kcl/ci/main.k -D config_file=manifests/ci/ci-config.yaml -S githubWorkflow > .github/workflows/generated-ci.yml
 # Full quality check for Rust monorepo (read-only, CI-safe)
 check: fmt-check lint test audit
     @echo "All checks passed!"

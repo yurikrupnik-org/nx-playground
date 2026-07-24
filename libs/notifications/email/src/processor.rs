@@ -105,7 +105,10 @@ impl<P: EmailProvider> EmailProcessor<P> {
 
     /// Send an email and handle the result
     async fn send_email(&self, email: &Email) -> Result<SendResult, ProcessingError> {
-        self.provider.send(email).await.map_err(ProcessingError::from)
+        self.provider
+            .send(email)
+            .await
+            .map_err(ProcessingError::from)
     }
 }
 

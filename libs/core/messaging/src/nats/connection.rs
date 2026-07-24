@@ -49,7 +49,9 @@ impl RetryConfig {
 
     /// Delay before the given (1-based) retry attempt, capped at `max_delay_ms`.
     fn delay_for(&self, attempt: u32) -> Duration {
-        let factor = self.backoff_multiplier.powi(attempt.saturating_sub(1) as i32);
+        let factor = self
+            .backoff_multiplier
+            .powi(attempt.saturating_sub(1) as i32);
         let ms = (self.initial_delay_ms as f64 * factor).min(self.max_delay_ms as f64);
         Duration::from_millis(ms as u64)
     }
@@ -76,7 +78,10 @@ pub async fn connect(url: &str) -> Result<Client, NatsError> {
 /// Connect to NATS with bounded exponential backoff.
 ///
 /// Pass `None` for the default policy (10 attempts, 500ms -> 10s cap).
-pub async fn connect_with_retry(url: &str, retry: Option<RetryConfig>) -> Result<Client, NatsError> {
+pub async fn connect_with_retry(
+    url: &str,
+    retry: Option<RetryConfig>,
+) -> Result<Client, NatsError> {
     let cfg = retry.unwrap_or_default();
     let mut attempt = 0u32;
     loop {
@@ -114,7 +119,9 @@ pub async fn jetstream_with_retry(
     url: &str,
     retry: Option<RetryConfig>,
 ) -> Result<Context, NatsError> {
-    Ok(async_nats::jetstream::new(connect_with_retry(url, retry).await?))
+    Ok(async_nats::jetstream::new(
+        connect_with_retry(url, retry).await?,
+    ))
 }
 
 #[cfg(test)]

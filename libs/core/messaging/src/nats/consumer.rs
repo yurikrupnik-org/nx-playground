@@ -48,9 +48,7 @@ impl NatsConsumer {
                     stream = %self.config.stream_name,
                     "Stream already exists"
                 );
-                let info = stream
-                    .info()
-                    .await?;
+                let info = stream.info().await?;
                 debug!(
                     stream = %self.config.stream_name,
                     messages = info.state.messages,
@@ -90,10 +88,7 @@ impl NatsConsumer {
     pub async fn ensure_consumer(
         &self,
     ) -> Result<async_nats::jetstream::consumer::Consumer<ConsumerConfig>, NatsError> {
-        let stream = self
-            .jetstream
-            .get_stream(&self.config.stream_name)
-            .await?;
+        let stream = self.jetstream.get_stream(&self.config.stream_name).await?;
 
         // Try to get existing consumer
         match stream
@@ -200,14 +195,9 @@ impl NatsConsumer {
 
     /// Get stream info.
     pub async fn stream_info(&self) -> Result<StreamInfo, NatsError> {
-        let mut stream = self
-            .jetstream
-            .get_stream(&self.config.stream_name)
-            .await?;
+        let mut stream = self.jetstream.get_stream(&self.config.stream_name).await?;
 
-        let info = stream
-            .info()
-            .await?;
+        let info = stream.info().await?;
 
         Ok(StreamInfo {
             stream_name: self.config.stream_name.clone(),
@@ -245,10 +235,7 @@ impl<J: Job> NatsMessage<J> {
 
     /// Acknowledge the message (successful processing).
     pub async fn ack(self) -> Result<(), NatsError> {
-        self.message
-            .ack()
-            .await
-            .map_err(NatsError::Ack)
+        self.message.ack().await.map_err(NatsError::Ack)
     }
 
     /// Negative acknowledge (request redelivery).
