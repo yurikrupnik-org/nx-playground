@@ -93,6 +93,10 @@ dev:
 dev-todo:
   mprocs -c manifests/mprocs/todo.yaml
 
+# Start just the terran group (terran-api + terran-web) via mprocs.
+dev-terran:
+  mprocs -c manifests/mprocs/terran.yaml
+
 # Start just the zerg group via mprocs (same set as `just dev`).
 dev-zerg:
   mprocs -c manifests/mprocs/local.yaml

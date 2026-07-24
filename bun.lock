@@ -15,6 +15,30 @@
         "nx": "22.5.2",
       },
     },
+    "apps/terran/web": {
+      "name": "terran-web",
+      "version": "0.0.1",
+      "dependencies": {
+        "@tanstack/solid-query": "^5.90.15",
+        "@tanstack/solid-router": "^1.139.14",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "solid-js": "^1.9.5",
+        "tailwind-merge": "^3.3.1",
+      },
+      "devDependencies": {
+        "@solidjs/testing-library": "^0.8.10",
+        "@tailwindcss/vite": "^4.1.17",
+        "@testing-library/jest-dom": "^6.6.3",
+        "jsdom": "^25.0.1",
+        "solid-devtools": "^0.34.3",
+        "tailwindcss": "^4.1.17",
+        "typescript": "^5.7.2",
+        "vite": "^7.1.4",
+        "vite-plugin-solid": "2.11.9",
+        "vitest": "^4.0.0",
+      },
+    },
     "apps/todo/web": {
       "name": "todo-web",
       "version": "0.0.1",
@@ -1242,6 +1266,8 @@
     "tapable": ["tapable@2.3.0", "", {}, "sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg=="],
 
     "tar-stream": ["tar-stream@2.2.0", "", { "dependencies": { "bl": "^4.0.3", "end-of-stream": "^1.4.1", "fs-constants": "^1.0.0", "inherits": "^2.0.3", "readable-stream": "^3.1.1" } }, "sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ=="],
+
+    "terran-web": ["terran-web@workspace:apps/terran/web"],
 
     "tiny-invariant": ["tiny-invariant@1.3.3", "", {}, "sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg=="],
 

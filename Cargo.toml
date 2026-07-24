@@ -2,12 +2,14 @@
 [workspace]
 resolver = '2'
 members = [
+    'apps/terran/api',
     'apps/zerg/api',
     'apps/zerg/email-nats',
     'apps/zerg/tasks',
     'apps/todo/api',
     'apps/todo/worker',
     'libs/core/axum-helpers',
+    'libs/core/oidc-auth',
     'libs/core/config',
     'libs/core/field-selector',
     'libs/core/retry',
@@ -69,6 +71,7 @@ metrics-exporter-prometheus = '0.18.3'
 mockall = '0.15.0'
 #mongodb = '3.4.1'
 oauth2 = '5.0.0'
+oidc-auth = { path = 'libs/core/oidc-auth' }
 opentelemetry = '0.32.0'
 opentelemetry-otlp = { version = '0.32.0', features = ['grpc-tonic', 'trace'], default-features = false }
 opentelemetry-semantic-conventions = '0.32.1'

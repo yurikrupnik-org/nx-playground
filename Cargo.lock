@@ -3236,6 +3236,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "oidc-auth"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum 0.8.9",
+ "jsonwebtoken",
+ "oauth2",
+ "redis",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5377,6 +5396,30 @@ name = "termtree"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
+
+[[package]]
+name = "terran_api"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.9",
+ "axum-helpers",
+ "chrono",
+ "color-eyre",
+ "core_config",
+ "database",
+ "eyre",
+ "oidc-auth",
+ "redis",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "utoipa",
+ "uuid",
+]
 
 [[package]]
 name = "test-utils"

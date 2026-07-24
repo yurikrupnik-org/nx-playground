@@ -146,6 +146,23 @@ services:
       REDIS: "redis://redis:6379"
     ports:
       - "8055:8055"
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    container_name: keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      # Reused by the terran realm's Google/GitHub identity brokering (empty if unset locally)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    ports:
+      - "8088:8080" # 8080 is taken by zerg-api on the host
+    volumes:
+      - ./config/keycloak:/opt/keycloak/data/import:ro
 volumes:
   influxdb2-data:
   influxdb2-config:
