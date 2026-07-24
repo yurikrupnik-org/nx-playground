@@ -35,7 +35,12 @@ const fetchMock = vi.fn(
     if (url === '/api/todos' && method === 'POST') {
       const body = JSON.parse(String(init?.body)) as CreateTodo;
       return jsonResponse(
-        { ...sampleTodo, id: 'todo-2', title: body.title, priority: body.priority },
+        {
+          ...sampleTodo,
+          id: 'todo-2',
+          title: body.title,
+          priority: body.priority,
+        },
         201,
       );
     }

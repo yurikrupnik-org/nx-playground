@@ -44,7 +44,11 @@ export function TodoApp() {
     event.preventDefault();
     const trimmed = title().trim();
     if (!trimmed) return;
-    addMutation.mutate({ title: trimmed, description: '', priority: priority() });
+    addMutation.mutate({
+      title: trimmed,
+      description: '',
+      priority: priority(),
+    });
     setTitle('');
   };
 

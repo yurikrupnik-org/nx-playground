@@ -80,19 +80,7 @@ tektonResources = tekton.generate_monorepo(config)
 # tauri_config = tauri_preset.default_config("my-tauri-app")
 # tauri_github = github.generate_tauri(tauri_config)
 # --- Go service ---
-import .presets.go_service as go_preset
-go_config = go_preset.default_config("my-go-api")
-go_github = github.generate_go(go_config)
-go_tekton = tekton.generate_go(go_config)
-#apiVersion: security.istio.io/v1
- #  kind: AuthorizationPolicy
- #  metadata:
-  #   name: allow-external-to-gateway
-  #   namespace: gateway
-  # spec:
-  #   selector:
-  #     matchLabels:
-  #       istio.io/gateway-name: main-gateway
-  #   action: ALLOW
-  #   rules:
-  #   - {}
+# import .presets.go_service as go_preset
+# go_config = go_preset.default_config("my-go-api")
+# go_github = github.generate_go(go_config)
+# go_tekton = tekton.generate_go(go_config)
