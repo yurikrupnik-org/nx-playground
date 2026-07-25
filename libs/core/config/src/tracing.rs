@@ -210,6 +210,7 @@ mod tests {
 
     #[test]
     fn test_init_tracing_with_rust_log_env() {
+        let _env = crate::test_env::guard();
         temp_env::with_var("RUST_LOG", Some("trace"), || {
             let _guard = init_tracing(&Environment::Development, test_app());
         });
@@ -217,6 +218,7 @@ mod tests {
 
     #[test]
     fn test_init_tracing_production_with_custom_log_level() {
+        let _env = crate::test_env::guard();
         temp_env::with_var("RUST_LOG", Some("warn"), || {
             let _guard = init_tracing(&Environment::Production, test_app());
         });

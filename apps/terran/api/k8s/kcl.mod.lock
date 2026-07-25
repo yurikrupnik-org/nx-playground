@@ -1,7 +1,7 @@
 [dependencies]
   [dependencies.app]
     name = "app"
-    full_name = "vPkg_28a185ad-52cb-478e-8451-2e9df62b46ce_0.0.1"
+    full_name = "vPkg_24ad33d0-9458-4a7e-af86-22cecba0752c_0.0.1"
     version = "0.0.1"
   [dependencies.external-secrets]
     name = "external-secrets"

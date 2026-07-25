@@ -55,6 +55,7 @@ mod tests {
 
     #[test]
     fn test_server_config_from_env_with_defaults() {
+        let _env = crate::test_env::guard();
         temp_env::with_vars([("HOST", None::<&str>), ("PORT", None::<&str>)], || {
             let config = ServerConfig::from_env().unwrap();
             assert_eq!(config.host, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
@@ -65,6 +66,7 @@ mod tests {
 
     #[test]
     fn test_server_config_from_env_with_custom_values() {
+        let _env = crate::test_env::guard();
         temp_env::with_vars(
             [("HOST", Some("127.0.0.1")), ("PORT", Some("3000"))],
             || {
@@ -78,6 +80,7 @@ mod tests {
 
     #[test]
     fn test_server_config_from_env_partial_override() {
+        let _env = crate::test_env::guard();
         temp_env::with_vars([("HOST", None::<&str>), ("PORT", Some("9000"))], || {
             let config = ServerConfig::from_env().unwrap();
             assert_eq!(config.host, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
@@ -87,17 +90,24 @@ mod tests {
 
     #[test]
     fn test_server_config_from_env_invalid_port() {
-        temp_env::with_var("PORT", Some("not_a_number"), || {
-            let err = ServerConfig::from_env().unwrap_err();
-            let msg = err.to_string();
-            assert!(msg.contains("PORT"), "{msg}");
-            assert!(msg.contains("not_a_number"), "{msg}");
-        });
+        let _env = crate::test_env::guard();
+        // Pin BOTH keys: `from_env` parses HOST before PORT, so an ambient HOST
+        // (a dev `.env` often sets one) would fail first and mask the PORT error.
+        temp_env::with_vars(
+            [("HOST", None::<&str>), ("PORT", Some("not_a_number"))],
+            || {
+                let err = ServerConfig::from_env().unwrap_err();
+                let msg = err.to_string();
+                assert!(msg.contains("PORT"), "{msg}");
+                assert!(msg.contains("not_a_number"), "{msg}");
+            },
+        );
     }
 
     #[test]
     fn test_server_config_from_env_port_out_of_range() {
-        temp_env::with_var("PORT", Some("99999"), || {
+        let _env = crate::test_env::guard();
+        temp_env::with_vars([("HOST", None::<&str>), ("PORT", Some("99999"))], || {
             let err = ServerConfig::from_env().unwrap_err();
             assert!(err.to_string().contains("PORT"));
         });
@@ -106,7 +116,8 @@ mod tests {
     #[test]
     fn test_server_config_from_env_port_zero() {
         // `0` is a valid `u16`; the OS picks an ephemeral port at bind time.
-        temp_env::with_var("PORT", Some("0"), || {
+        let _env = crate::test_env::guard();
+        temp_env::with_vars([("HOST", None::<&str>), ("PORT", Some("0"))], || {
             let config = ServerConfig::from_env().unwrap();
             assert_eq!(config.port, 0);
         });
@@ -114,7 +125,8 @@ mod tests {
 
     #[test]
     fn test_server_config_from_env_invalid_host() {
-        temp_env::with_var("HOST", Some("banana"), || {
+        let _env = crate::test_env::guard();
+        temp_env::with_vars([("HOST", Some("banana")), ("PORT", None::<&str>)], || {
             let err = ServerConfig::from_env().unwrap_err();
             assert!(err.to_string().contains("HOST"));
         });

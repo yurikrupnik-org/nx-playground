@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/solid-router';
-import { login } from '../lib/auth-api';
 import { Button } from '../components/ui/button';
 import {
   Card,
@@ -9,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/card';
+import { login } from '../lib/auth-api';
 
 /** Account creation lives on WorkOS's hosted AuthKit (which also owns password
  *  reset and email verification); this page just launches its sign-up screen. */

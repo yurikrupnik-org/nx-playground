@@ -1,6 +1,28 @@
 pub mod server;
 pub mod tracing;
 
+/// Serializes tests that mutate process-global environment variables.
+///
+/// `temp_env` sets and restores the real process environment, but Rust runs a
+/// crate's unit tests concurrently in one process — so two tests touching the
+/// same key (`PORT`, `APP_ENV`, …) race: one restores the key while the other is
+/// still asserting on it. Every test that calls `temp_env` MUST hold this guard.
+#[cfg(test)]
+pub(crate) mod test_env {
+    use std::sync::{Mutex, MutexGuard};
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Bind the guard for the whole test body: `let _env = test_env::guard();`.
+    /// Poisoning is ignored — `temp_env` restores the environment even when the
+    /// test panics, so the lock stays usable for the rest of the suite.
+    pub(crate) fn guard() -> MutexGuard<'static, ()> {
+        ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
 use std::env;
 use std::fmt::Display;
 use std::str::FromStr;
@@ -160,6 +182,7 @@ mod tests {
 
     #[test]
     fn test_environment_defaults_to_development() {
+        let _env = crate::test_env::guard();
         temp_env::with_var_unset("APP_ENV", || {
             let env = Environment::from_env().unwrap();
             assert_eq!(env, Environment::Development);
@@ -171,6 +194,7 @@ mod tests {
 
     #[test]
     fn test_environment_production() {
+        let _env = crate::test_env::guard();
         temp_env::with_var("APP_ENV", Some("production"), || {
             let env = Environment::from_env().unwrap();
             assert_eq!(env, Environment::Production);
@@ -182,6 +206,7 @@ mod tests {
 
     #[test]
     fn test_environment_production_case_insensitive() {
+        let _env = crate::test_env::guard();
         temp_env::with_var("APP_ENV", Some("PRODUCTION"), || {
             assert_eq!(Environment::from_env().unwrap(), Environment::Production);
         });
@@ -193,6 +218,7 @@ mod tests {
 
     #[test]
     fn test_environment_unknown_is_hard_error() {
+        let _env = crate::test_env::guard();
         temp_env::with_var("APP_ENV", Some("staging"), || {
             let err = Environment::from_env().unwrap_err();
             let msg = err.to_string();
@@ -218,6 +244,7 @@ mod tests {
 
     #[test]
     fn test_env_or_default_with_value() {
+        let _env = crate::test_env::guard();
         temp_env::with_var("TEST_VAR", Some("test_value"), || {
             let result = env_or_default("TEST_VAR", "default");
             assert_eq!(result, "test_value");
@@ -226,6 +253,7 @@ mod tests {
 
     #[test]
     fn test_env_or_default_without_value() {
+        let _env = crate::test_env::guard();
         temp_env::with_var_unset("MISSING_VAR", || {
             let result = env_or_default("MISSING_VAR", "default_value");
             assert_eq!(result, "default_value");
@@ -234,6 +262,7 @@ mod tests {
 
     #[test]
     fn test_env_required_success() {
+        let _env = crate::test_env::guard();
         temp_env::with_var("REQUIRED_VAR", Some("required_value"), || {
             let result = env_required("REQUIRED_VAR");
             assert!(result.is_ok());
@@ -243,6 +272,7 @@ mod tests {
 
     #[test]
     fn test_env_required_missing() {
+        let _env = crate::test_env::guard();
         temp_env::with_var_unset("MISSING_REQUIRED", || {
             let result = env_required("MISSING_REQUIRED");
             assert!(result.is_err());
