@@ -1,6 +1,6 @@
 {
   "name": "terran-web",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "terran web — enterprise observability platform UI",
   "type": "module",
   "scripts": {
