@@ -1,0 +1,12 @@
+[package]
+name = "core_retry"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rand = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

@@ -140,7 +140,7 @@ impl NotificationService {
         self.producer
             .send_to(&subject, job)
             .await
-            .map_err(|e| NotificationError::QueueError(e.to_string()))
+            .map_err(NotificationError::Queue)
     }
 
     /// Queue a welcome email for a new user.

@@ -1,0 +1,21 @@
+[dependencies]
+  [dependencies.app]
+    name = "app"
+    full_name = "vPkg_3b030baf-8344-40d0-a9ce-6cb1c3b8f5e3_0.0.1"
+    version = "0.0.1"
+  [dependencies.external-secrets]
+    name = "external-secrets"
+    full_name = "external-secrets_0.18.2"
+    version = "0.18.2"
+    sum = "GKneYUgJl+jFFWRI2NlOwPYVtDTYW/DRb6JHh1tNPqU="
+    reg = "ghcr.io"
+    repo = "kcl-lang/external-secrets"
+    oci_tag = "0.18.2"
+  [dependencies.k8s]
+    name = "k8s"
+    full_name = "k8s_1.32.4"
+    version = "1.32.4"
+    sum = "WrltC/mTXtdzmhBZxlvM71wJL5C/UZ/vW+bF3nFvNbM="
+    reg = "ghcr.io"
+    repo = "kcl-lang/k8s"
+    oci_tag = "1.32.4"

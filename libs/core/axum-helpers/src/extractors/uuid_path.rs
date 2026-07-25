@@ -40,7 +40,7 @@ where
 
         match Uuid::parse_str(&id) {
             Ok(uuid) => Ok(UuidPath(uuid)),
-            Err(_) => Err(AppError::BadRequest(format!("Invalid UUID: {}", id)).into_response()),
+            Err(_) => Err(AppError::BadRequest(format!("Invalid UUID: {id}")).into_response()),
         }
     }
 }

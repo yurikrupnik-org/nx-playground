@@ -36,18 +36,12 @@
 
 // Domain modules
 pub mod audit;
-pub mod auth;
 pub mod errors;
 pub mod extractors;
 pub mod http;
+pub mod metrics;
 pub mod rate_limit;
 pub mod server;
-
-// Re-export auth types
-pub use auth::{
-    ACCESS_TOKEN_TTL, JwtClaims, JwtConfig, JwtRedisAuth, REFRESH_TOKEN_TTL, RedisAuthStore,
-    jwt_auth_middleware, optional_jwt_auth_middleware,
-};
 
 // Re-export server types
 pub use server::{
@@ -56,9 +50,12 @@ pub use server::{
     shutdown_signal,
 };
 
+// Re-export metrics helpers
+pub use metrics::{init_metrics, metrics_router, spawn_pool_metrics, track_metrics};
+
 // Re-export HTTP middleware
 pub use http::{
-    create_cors_layer, create_permissive_cors_layer, csrf_validation_middleware, security_headers,
+    CsrfConfig, create_cors_layer, create_permissive_cors_layer, csrf_protect, security_headers,
 };
 
 // Re-export error types

@@ -1,16 +1,20 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use database::BaseRepository;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect,
 };
 use uuid::Uuid;
 
 use crate::{
     entity,
     error::{CloudResourceError, CloudResourceResult},
-    models::{CloudResource, CloudResourceFilter, CreateCloudResource, UpdateCloudResource},
+    models::{
+        CloudResource, CloudResourceFilter, CreateCloudResource, ResourceStatus,
+        UpdateCloudResource,
+    },
     repository::CloudResourceRepository,
 };
 
@@ -29,27 +33,14 @@ impl PgCloudResourceRepository {
 #[async_trait]
 impl CloudResourceRepository for PgCloudResourceRepository {
     async fn create(&self, input: CreateCloudResource) -> CloudResourceResult<CloudResource> {
-        // Convert CreateCloudResource to ActiveModel
-        let active_model: entity::ActiveModel = input.into();
-
-        // Insert using base repository
-        let model = self
-            .base
-            .insert(active_model)
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
-
-        Ok(model.into())
+        let active_model: entity::ActiveModel = input.try_into()?;
+        let model = self.base.insert(active_model).await?;
+        model.try_into()
     }
 
     async fn get_by_id(&self, id: Uuid) -> CloudResourceResult<Option<CloudResource>> {
-        let model = self
-            .base
-            .find_by_id(id)
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
-
-        Ok(model.map(|m| m.into()))
+        let model = self.base.find_by_id(id).await?;
+        model.map(TryInto::try_into).transpose()
     }
 
     async fn list(&self, filter: CloudResourceFilter) -> CloudResourceResult<Vec<CloudResource>> {
@@ -77,17 +68,14 @@ impl CloudResourceRepository for PgCloudResourceRepository {
         }
 
         // Apply pagination
-        query = query
+        let models = query
             .order_by_desc(entity::Column::CreatedAt)
             .limit(filter.limit as u64)
-            .offset(filter.offset as u64);
-
-        let models = query
+            .offset(filter.offset as u64)
             .all(self.base.db())
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
+            .await?;
 
-        Ok(models.into_iter().map(|m| m.into()).collect())
+        models.into_iter().map(TryInto::try_into).collect()
     }
 
     async fn list_by_project(&self, project_id: Uuid) -> CloudResourceResult<Vec<CloudResource>> {
@@ -96,10 +84,9 @@ impl CloudResourceRepository for PgCloudResourceRepository {
             .filter(entity::Column::DeletedAt.is_null())
             .order_by_desc(entity::Column::CreatedAt)
             .all(self.base.db())
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
+            .await?;
 
-        Ok(models.into_iter().map(|m| m.into()).collect())
+        models.into_iter().map(TryInto::try_into).collect()
     }
 
     async fn update(
@@ -107,98 +94,68 @@ impl CloudResourceRepository for PgCloudResourceRepository {
         id: Uuid,
         input: UpdateCloudResource,
     ) -> CloudResourceResult<CloudResource> {
-        // Fetch existing resource
         let model = self
             .base
             .find_by_id(id)
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?
+            .await?
             .ok_or(CloudResourceError::NotFound(id))?;
 
-        // Convert to domain model
-        let mut resource: CloudResource = model.into();
+        // Idiomatic sea-orm partial update: mutate only the fields present in
+        // the DTO; untouched columns stay `Unchanged`, avoiding last-write-wins
+        // clobbering of concurrent writers and per-field clones.
+        let mut active = model.into_active_model();
+        if let Some(name) = input.name {
+            active.name = Set(name);
+        }
+        if let Some(status) = input.status {
+            active.status = Set(status.to_string());
+        }
+        if let Some(region) = input.region {
+            active.region = Set(region);
+        }
+        if let Some(configuration) = input.configuration {
+            active.configuration = Set(configuration);
+        }
+        if let Some(cost_per_hour) = input.cost_per_hour {
+            active.cost_per_hour = Set(Some(cost_per_hour));
+            active.monthly_cost_estimate = Set(Some(cost_per_hour * 24.0 * 30.0));
+        }
+        if let Some(monthly_cost_estimate) = input.monthly_cost_estimate {
+            active.monthly_cost_estimate = Set(Some(monthly_cost_estimate));
+        }
+        if let Some(tags) = input.tags {
+            active.tags = Set(serde_json::to_value(&tags)
+                .map_err(|e| CloudResourceError::Internal(format!("serialize tags: {e}")))?);
+        }
+        if let Some(enabled) = input.enabled {
+            active.enabled = Set(enabled);
+        }
+        active.updated_at = Set(Utc::now().into());
 
-        // Apply updates
-        resource.apply_update(input);
-
-        // Convert back to ActiveModel
-        let active_model: entity::ActiveModel = entity::ActiveModel {
-            id: Set(resource.id),
-            project_id: Set(resource.project_id),
-            name: Set(resource.name.clone()),
-            resource_type: Set(resource.resource_type.to_string()),
-            status: Set(resource.status.to_string()),
-            region: Set(resource.region.clone()),
-            configuration: Set(resource.configuration.clone()),
-            cost_per_hour: Set(resource.cost_per_hour),
-            monthly_cost_estimate: Set(resource.monthly_cost_estimate),
-            tags: Set(serde_json::to_value(&resource.tags).unwrap()),
-            enabled: Set(resource.enabled),
-            created_at: Set(resource.created_at.into()),
-            updated_at: Set(resource.updated_at.into()),
-            deleted_at: Set(resource.deleted_at.map(|dt| dt.into())),
-        };
-
-        // Update using base repository
-        let updated_model = self
-            .base
-            .update(active_model)
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
-
-        Ok(updated_model.into())
+        let updated_model = self.base.update(active).await?;
+        updated_model.try_into()
     }
 
-    async fn delete(&self, id: Uuid) -> CloudResourceResult<()> {
-        let rows_affected = self
-            .base
-            .delete_by_id(id)
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
-
-        if rows_affected == 0 {
-            return Err(CloudResourceError::NotFound(id));
-        }
-
-        Ok(())
+    async fn delete(&self, id: Uuid) -> CloudResourceResult<bool> {
+        let rows_affected = self.base.delete_by_id(id).await?;
+        Ok(rows_affected > 0)
     }
 
     async fn soft_delete(&self, id: Uuid) -> CloudResourceResult<()> {
-        // Fetch existing resource
         let model = self
             .base
             .find_by_id(id)
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?
+            .await?
             .ok_or(CloudResourceError::NotFound(id))?;
 
-        // Convert to domain model and soft delete
-        let mut resource: CloudResource = model.into();
-        resource.soft_delete();
+        // Partial update: flip status + timestamps only.
+        let now = Utc::now();
+        let mut active = model.into_active_model();
+        active.status = Set(ResourceStatus::Deleted.to_string());
+        active.deleted_at = Set(Some(now.into()));
+        active.updated_at = Set(now.into());
 
-        // Update database
-        let active_model: entity::ActiveModel = entity::ActiveModel {
-            id: Set(resource.id),
-            project_id: Set(resource.project_id),
-            name: Set(resource.name.clone()),
-            resource_type: Set(resource.resource_type.to_string()),
-            status: Set(resource.status.to_string()),
-            region: Set(resource.region.clone()),
-            configuration: Set(resource.configuration.clone()),
-            cost_per_hour: Set(resource.cost_per_hour),
-            monthly_cost_estimate: Set(resource.monthly_cost_estimate),
-            tags: Set(serde_json::to_value(&resource.tags).unwrap()),
-            enabled: Set(resource.enabled),
-            created_at: Set(resource.created_at.into()),
-            updated_at: Set(resource.updated_at.into()),
-            deleted_at: Set(resource.deleted_at.map(|dt| dt.into())),
-        };
-
-        self.base
-            .update(active_model)
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
-
+        self.base.update(active).await?;
         Ok(())
     }
 
@@ -207,8 +164,7 @@ impl CloudResourceRepository for PgCloudResourceRepository {
             .filter(entity::Column::ProjectId.eq(project_id))
             .filter(entity::Column::DeletedAt.is_null())
             .count(self.base.db())
-            .await
-            .map_err(|e| CloudResourceError::Internal(format!("Database error: {}", e)))?;
+            .await?;
 
         Ok(count as usize)
     }

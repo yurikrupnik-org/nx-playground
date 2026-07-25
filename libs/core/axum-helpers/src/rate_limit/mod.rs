@@ -155,6 +155,7 @@ impl RateLimiter {
     ///
     /// Uses the provided `tier_name` as a key prefix, and the given
     /// `requests_per_window` and `window_secs` instead of `self.config`.
+    #[tracing::instrument(skip(self))]
     pub async fn check_with_config(
         &self,
         key: &str,
@@ -170,8 +171,8 @@ impl RateLimiter {
         let current_window = (now / window_secs) * window_secs;
         let previous_window = current_window - window_secs;
 
-        let curr_key = format!("rl:{}:{}:{}", tier_name, key, current_window);
-        let prev_key = format!("rl:{}:{}:{}", tier_name, key, previous_window);
+        let curr_key = format!("rl:{tier_name}:{key}:{current_window}");
+        let prev_key = format!("rl:{tier_name}:{key}:{previous_window}");
 
         let mut conn = self.redis.clone();
         let result: Vec<i64> = redis::Script::new(SLIDING_WINDOW_SCRIPT)

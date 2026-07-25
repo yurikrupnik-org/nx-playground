@@ -3,8 +3,11 @@ name = "zerg_api"
 version = "0.1.2"
 edition = "2024"
 
+[[bin]]
+name = "zerg_api"
+path = "src/main.rs"
+
 [dependencies]
-async-nats = { workspace = true }
 axum = { workspace = true }
 axum-helpers = { workspace = true }
 chrono = { workspace = true }
@@ -13,14 +16,15 @@ core_config = { workspace = true }
 database = { workspace = true, features = ["all"] }
 domain_cloud_resources = { workspace = true }
 domain_projects = { workspace = true }
-domain_tasks = { path = "../../../libs/domains/tasks" }
-domain_users = { workspace = true, features = ["notifications"] }
+domain_tasks = { workspace = true }
+domain_users = { workspace = true }
 domain_vector = { workspace = true }
 email = { workspace = true }
 eyre = { workspace = true }
 grpc-client = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
 # migration crate removed - using Atlas for migrations
-oauth2 = { workspace = true }
+oidc-auth = { workspace = true }
 redis = { workspace = true }
 #reqwest = { workspace = true }
 rpc = { workspace = true }
@@ -29,6 +33,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
+tonic-health = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }

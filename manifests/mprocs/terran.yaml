@@ -1,0 +1,21 @@
+# Terran group — local Docker development workflow
+# Usage: just dev-terran (or: mprocs -c manifests/mprocs/terran.yaml)
+#
+# Starts the whole terran vertical: Keycloak-auth API (bacon hot-reload) +
+# SolidJS web (vite). Requires the compose infra (postgres/redis/keycloak):
+#   docker compose -f manifests/dockers/compose.yaml up -d postgres redis keycloak
+# Reset the `terran` database with `just db-fresh terran`.
+
+procs:
+  # Rust API (bacon hot-reload). Env matches manifests/mprocs/local.yaml:
+  # [jobs.terran-api] in bacon.toml does not pin DB/port/CORS, so set them here.
+  # PORT=8081 avoids colliding with zerg-api (8080); the BFF flow routes through
+  # the web origin (3001) so the session/CSRF cookies stay first-party.
+  terran-api:
+    shell: "DATABASE_URL='postgres://terran_app:terran_app@localhost:5432/terran' PORT='8081' REDIRECT_BASE_URL='http://localhost:3001' CORS_ALLOWED_ORIGIN='http://localhost:3001' bacon terran-api"
+    stop: "SIGTERM"
+
+  # Frontend (vite HMR on :3001, proxies /api -> http://localhost:8081).
+  terran-web:
+    shell: "bun nx dev terran-web"
+    stop: "SIGTERM"

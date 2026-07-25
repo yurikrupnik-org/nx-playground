@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 //! Vertex AI embedding provider implementation
 //!
 //! Uses Google Cloud's Vertex AI text embedding API.
@@ -6,9 +8,12 @@
 //! - Workload Identity (in GKE)
 //! - Default application credentials
 
+use std::time::{Duration, Instant};
+
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 
 use super::EmbeddingProvider;
 use crate::error::{VectorError, VectorResult};
@@ -68,17 +73,32 @@ impl VertexAIConfig {
     }
 }
 
+/// A metadata-server token together with its expiry deadline.
+struct CachedToken {
+    token: String,
+    expires_at: Instant,
+}
+
 /// Vertex AI embeddings provider
 pub struct VertexAIProvider {
     client: Client,
     config: VertexAIConfig,
+    /// Cached metadata-server access token; refreshed shortly before expiry
+    /// instead of being re-fetched on every request.
+    cached_token: RwLock<Option<CachedToken>>,
 }
 
 impl VertexAIProvider {
+    /// Refresh the cached token this long before it actually expires.
+    const TOKEN_EXPIRY_MARGIN: Duration = Duration::from_secs(60);
+    /// Fallback lifetime when the metadata server omits `expires_in`.
+    const TOKEN_FALLBACK_TTL: Duration = Duration::from_secs(300);
+
     pub fn new(config: VertexAIConfig) -> Self {
         Self {
             client: Client::new(),
             config,
+            cached_token: RwLock::new(None),
         }
     }
 
@@ -86,19 +106,40 @@ impl VertexAIProvider {
         Ok(Self::new(VertexAIConfig::from_env()?))
     }
 
-    /// Get access token, refreshing if needed
+    /// Get an access token, reusing the cached metadata-server token until
+    /// shortly before it expires.
     async fn get_access_token(&self) -> VectorResult<String> {
-        // If we have a configured token, use it
-        if let Some(ref token) = self.config.access_token {
+        // A statically configured token takes precedence.
+        if let Some(token) = &self.config.access_token {
             return Ok(token.clone());
         }
 
-        // Try to get token from metadata server (for GKE workload identity)
-        self.get_metadata_token().await
+        if let Some(cached) = self.cached_token.read().await.as_ref() {
+            if Instant::now() < cached.expires_at {
+                return Ok(cached.token.clone());
+            }
+        }
+
+        let mut guard = self.cached_token.write().await;
+        // Another task may have refreshed while we waited for the write lock.
+        if let Some(cached) = guard.as_ref() {
+            if Instant::now() < cached.expires_at {
+                return Ok(cached.token.clone());
+            }
+        }
+
+        let (token, ttl) = self.fetch_metadata_token().await?;
+        let expires_at = Instant::now() + ttl.saturating_sub(Self::TOKEN_EXPIRY_MARGIN);
+        *guard = Some(CachedToken {
+            token: token.clone(),
+            expires_at,
+        });
+        Ok(token)
     }
 
-    /// Get access token from GCP metadata server (works in GKE with Workload Identity)
-    async fn get_metadata_token(&self) -> VectorResult<String> {
+    /// Fetch an access token and its lifetime from the GCP metadata server
+    /// (works in GKE with Workload Identity).
+    async fn fetch_metadata_token(&self) -> VectorResult<(String, Duration)> {
         let metadata_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
 
         let response = self
@@ -109,9 +150,8 @@ impl VertexAIProvider {
             .await
             .map_err(|e| {
                 VectorError::Config(format!(
-                    "Failed to get access token from metadata server: {}. \
-                     Set GOOGLE_ACCESS_TOKEN environment variable for local development.",
-                    e
+                    "Failed to get access token from metadata server: {e}. \
+                     Set GOOGLE_ACCESS_TOKEN environment variable for local development."
                 ))
             })?;
 
@@ -126,14 +166,19 @@ impl VertexAIProvider {
         #[derive(Deserialize)]
         struct TokenResponse {
             access_token: String,
+            expires_in: Option<u64>,
         }
 
         let token_response: TokenResponse = response
             .json()
             .await
-            .map_err(|e| VectorError::Config(format!("Failed to parse token response: {}", e)))?;
+            .map_err(|e| VectorError::Config(format!("Failed to parse token response: {e}")))?;
 
-        Ok(token_response.access_token)
+        let ttl = token_response
+            .expires_in
+            .map_or(Self::TOKEN_FALLBACK_TTL, Duration::from_secs);
+
+        Ok((token_response.access_token, ttl))
     }
 
     /// Map EmbeddingModel to Vertex AI model name
@@ -152,20 +197,22 @@ impl VertexAIProvider {
 
 // Vertex AI request/response types
 
+/// Request body for the predict endpoint; borrows the caller's texts to avoid
+/// copying every document per request.
 #[derive(Debug, Serialize)]
-struct VertexAIRequest {
-    instances: Vec<TextInstance>,
+struct VertexAIRequest<'a> {
+    instances: Vec<TextInstance<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     parameters: Option<EmbeddingParameters>,
 }
 
 #[derive(Debug, Serialize)]
-struct TextInstance {
-    content: String,
+struct TextInstance<'a> {
+    content: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    task_type: Option<String>,
+    task_type: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    title: Option<String>,
+    title: Option<&'a str>,
 }
 
 #[derive(Debug, Serialize)]
@@ -214,7 +261,8 @@ impl EmbeddingProvider for VertexAIProvider {
     }
 
     async fn embed(&self, model: EmbeddingModel, text: &str) -> VectorResult<EmbeddingResult> {
-        let results = self.embed_batch(model, &[text.to_string()]).await?;
+        let texts = [text.to_owned()];
+        let results = self.embed_batch(model, &texts).await?;
         results
             .into_iter()
             .next()
@@ -234,12 +282,11 @@ impl EmbeddingProvider for VertexAIProvider {
         let model_name = Self::model_name(model);
         let endpoint = self.config.endpoint_url(model_name);
 
-        // Create instances for each text
-        let instances: Vec<TextInstance> = texts
+        let instances: Vec<TextInstance<'_>> = texts
             .iter()
             .map(|text| TextInstance {
-                content: text.clone(),
-                task_type: Some("RETRIEVAL_DOCUMENT".to_string()),
+                content: text,
+                task_type: Some("RETRIEVAL_DOCUMENT"),
                 title: None,
             })
             .collect();
@@ -252,7 +299,7 @@ impl EmbeddingProvider for VertexAIProvider {
         let response = self
             .client
             .post(&endpoint)
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -262,8 +309,7 @@ impl EmbeddingProvider for VertexAIProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             return Err(VectorError::Embedding(format!(
-                "Vertex AI API error ({}): {}",
-                status, error_text
+                "Vertex AI API error ({status}): {error_text}"
             )));
         }
 

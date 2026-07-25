@@ -70,10 +70,8 @@ impl NatsProducer {
         let ack = self
             .jetstream
             .publish(self.subject.clone(), job_json.into())
-            .await
-            .map_err(|e| NatsError::publish_error(e.to_string()))?
-            .await
-            .map_err(|e| NatsError::publish_error(e.to_string()))?;
+            .await?
+            .await?;
 
         debug!(
             stream = %self.stream_name,
@@ -93,10 +91,8 @@ impl NatsProducer {
         let ack = self
             .jetstream
             .publish(subject.to_string(), job_json.into())
-            .await
-            .map_err(|e| NatsError::publish_error(e.to_string()))?
-            .await
-            .map_err(|e| NatsError::publish_error(e.to_string()))?;
+            .await?
+            .await?;
 
         debug!(
             stream = %self.stream_name,
@@ -131,16 +127,9 @@ impl NatsProducer {
 
     /// Ensure the stream exists, creating it if necessary.
     pub async fn ensure_stream(&self) -> Result<(), NatsError> {
-        let mut stream = self
-            .jetstream
-            .get_stream(&self.stream_name)
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+        let mut stream = self.jetstream.get_stream(&self.stream_name).await?;
 
-        let _info = stream
-            .info()
-            .await
-            .map_err(NatsError::from_jetstream_error)?;
+        let _info = stream.info().await?;
 
         Ok(())
     }

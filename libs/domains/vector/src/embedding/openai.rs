@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -56,10 +58,12 @@ impl OpenAIProvider {
     }
 }
 
+/// Request body for the embeddings endpoint; borrows the caller's texts to
+/// avoid copying every document per request.
 #[derive(Debug, Serialize)]
-struct EmbeddingRequest {
-    model: String,
-    input: Vec<String>,
+struct EmbeddingRequest<'a> {
+    model: &'static str,
+    input: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
     dimensions: Option<u32>,
 }
@@ -90,7 +94,8 @@ impl EmbeddingProvider for OpenAIProvider {
     }
 
     async fn embed(&self, model: EmbeddingModel, text: &str) -> VectorResult<EmbeddingResult> {
-        let results = self.embed_batch(model, &[text.to_string()]).await?;
+        let texts = [text.to_owned()];
+        let results = self.embed_batch(model, &texts).await?;
         results
             .into_iter()
             .next()
@@ -112,8 +117,8 @@ impl EmbeddingProvider for OpenAIProvider {
         };
 
         let request = EmbeddingRequest {
-            model: model.model_name().to_string(),
-            input: texts.to_vec(),
+            model: model.model_name(),
+            input: texts,
             dimensions,
         };
 
@@ -130,8 +135,7 @@ impl EmbeddingProvider for OpenAIProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             return Err(VectorError::Embedding(format!(
-                "OpenAI API error ({}): {}",
-                status, error_text
+                "OpenAI API error ({status}): {error_text}"
             )));
         }
 

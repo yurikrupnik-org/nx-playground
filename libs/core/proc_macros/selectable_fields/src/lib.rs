@@ -50,15 +50,13 @@
 //! }
 //! ```
 
-extern crate proc_macro;
-
-use darling::{FromDeriveInput, FromField};
+use darling::{FromDeriveInput, FromField, FromMeta};
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::DeriveInput;
+use syn::{DeriveInput, parse_macro_input};
 
 #[derive(FromDeriveInput)]
-#[darling(attributes(selectable))]
+#[darling(attributes(selectable), supports(struct_named))]
 struct SelectableInput {
     ident: syn::Ident,
     data: darling::ast::Data<(), SelectableField>,
@@ -73,10 +71,29 @@ struct SelectableField {
     skip: bool,
     /// Role required to access this field: "anonymous", "user", or "admin"
     #[darling(default)]
-    role: Option<String>,
+    role: Option<Role>,
     /// Rename the field in the API
     #[darling(default)]
     rename: Option<String>,
+}
+
+/// Minimum role required to access a field.
+#[derive(Debug, Clone, Copy, Default, FromMeta)]
+enum Role {
+    #[default]
+    Anonymous,
+    User,
+    Admin,
+}
+
+impl Role {
+    fn to_tokens(self) -> proc_macro2::TokenStream {
+        match self {
+            Role::Anonymous => quote! { ::field_selector::UserRole::Anonymous },
+            Role::User => quote! { ::field_selector::UserRole::User },
+            Role::Admin => quote! { ::field_selector::UserRole::Admin },
+        }
+    }
 }
 
 /// Derives the `SelectableFields` trait for dynamic field selection with security.
@@ -114,7 +131,7 @@ struct SelectableField {
 /// }
 ///
 /// // All fields accessible to everyone by default
-/// assert_eq!(Product::available_fields(), vec!["id", "name", "price"]);
+/// assert_eq!(Product::available_fields(), ["id", "name", "price"]);
 /// ```
 ///
 /// With security attributes:
@@ -150,17 +167,22 @@ struct SelectableField {
 /// ```
 #[proc_macro_derive(SelectableFields, attributes(field, selectable))]
 pub fn selectable_fields_derive(input: TokenStream) -> TokenStream {
-    let ast: DeriveInput = syn::parse(input).unwrap();
-    let receiver = SelectableInput::from_derive_input(&ast).unwrap();
-    impl_selectable_fields(receiver).into()
+    let ast = parse_macro_input!(input as DeriveInput);
+    match SelectableInput::from_derive_input(&ast) {
+        Ok(receiver) => impl_selectable_fields(receiver).into(),
+        Err(err) => err.write_errors().into(),
+    }
 }
 
 fn impl_selectable_fields(receiver: SelectableInput) -> proc_macro2::TokenStream {
     let ident = &receiver.ident;
 
-    let fields = match receiver.data {
-        darling::ast::Data::Struct(fields) => fields.fields,
-        _ => panic!("SelectableFields can only be derived for structs"),
+    // `supports(struct_named)` guarantees named-struct data; keep a spanned
+    // error rather than a panic if that invariant ever breaks.
+    let Some(fields) = receiver.data.take_struct() else {
+        return darling::Error::unsupported_shape("enum")
+            .with_span(ident)
+            .write_errors();
     };
 
     // Separate fields into different categories
@@ -169,50 +191,40 @@ fn impl_selectable_fields(receiver: SelectableInput) -> proc_macro2::TokenStream
     let mut field_access_items = Vec::new();
 
     for field in fields {
-        let field_ident = field.ident.expect("Only named fields are supported");
+        // Named fields are guaranteed by `supports(struct_named)`.
+        let Some(field_ident) = &field.ident else {
+            continue;
+        };
         let field_name = field.rename.unwrap_or_else(|| field_ident.to_string());
 
         if field.skip {
             // Restricted field - never accessible
-            restricted_fields.push(field_name.clone());
+            restricted_fields.push(field_name);
         } else {
-            // Available field
-            available_fields.push(field_name.clone());
-
-            // Determine role requirement
-            let role = match field.role.as_deref() {
-                Some("user") | Some("User") => quote! { field_selector::UserRole::User },
-                Some("admin") | Some("Admin") => quote! { field_selector::UserRole::Admin },
-                Some("anonymous") | Some("Anonymous") | None => {
-                    quote! { field_selector::UserRole::Anonymous }
-                }
-                Some(other) => panic!(
-                    "Invalid role '{}'. Must be 'anonymous', 'user', or 'admin'",
-                    other
-                ),
-            };
-
+            // Available field with its role requirement
+            let role = field.role.unwrap_or_default().to_tokens();
             field_access_items.push(quote! {
-                field_selector::FieldAccess {
+                ::field_selector::FieldAccess {
                     field: #field_name,
                     required_role: #role,
                 }
             });
+            available_fields.push(field_name);
         }
     }
 
     quote! {
-        impl field_selector::SelectableFields for #ident {
-            fn available_fields() -> Vec<&'static str> {
-                vec![#(#available_fields),*]
+        impl ::field_selector::SelectableFields for #ident {
+            fn available_fields() -> &'static [&'static str] {
+                &[#(#available_fields),*]
             }
 
-            fn restricted_fields() -> Vec<&'static str> {
-                vec![#(#restricted_fields),*]
+            fn restricted_fields() -> &'static [&'static str] {
+                &[#(#restricted_fields),*]
             }
 
-            fn field_access() -> Vec<field_selector::FieldAccess> {
-                vec![
+            fn field_access() -> &'static [::field_selector::FieldAccess] {
+                &[
                     #(#field_access_items),*
                 ]
             }
@@ -221,6 +233,7 @@ fn impl_selectable_fields(receiver: SelectableInput) -> proc_macro2::TokenStream
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use quote::quote;
@@ -239,8 +252,8 @@ mod tests {
         let output = impl_selectable_fields(receiver);
         let output_str = output.to_string();
 
-        assert!(output_str.contains("impl field_selector :: SelectableFields for User"));
-        assert!(output_str.contains(r#"vec ! ["id" , "email"]"#));
+        assert!(output_str.contains("impl :: field_selector :: SelectableFields for User"));
+        assert!(output_str.contains(r#"& ["id" , "email"]"#));
         assert!(output_str.contains("UserRole :: Anonymous"));
     }
 
@@ -261,7 +274,7 @@ mod tests {
         let output_str = output.to_string();
 
         // Available fields should not include password
-        assert!(output_str.contains(r#"vec ! ["id" , "email"]"#));
+        assert!(output_str.contains(r#"& ["id" , "email"]"#));
 
         // Restricted fields should include password
         assert!(output_str.contains(r#"fn restricted_fields"#));
@@ -291,6 +304,33 @@ mod tests {
     }
 
     #[test]
+    fn test_invalid_role_is_error() {
+        let input = quote! {
+            pub struct User {
+                id: String,
+                #[field(role = "superuser")]
+                email: String,
+            }
+        };
+
+        let ast: DeriveInput = syn::parse2(input).unwrap();
+        assert!(SelectableInput::from_derive_input(&ast).is_err());
+    }
+
+    #[test]
+    fn test_enum_is_error() {
+        let input = quote! {
+            pub enum Status {
+                Active,
+                Inactive,
+            }
+        };
+
+        let ast: DeriveInput = syn::parse2(input).unwrap();
+        assert!(SelectableInput::from_derive_input(&ast).is_err());
+    }
+
+    #[test]
     fn test_rename_field() {
         let input = quote! {
             pub struct User {
@@ -305,7 +345,7 @@ mod tests {
         let output = impl_selectable_fields(receiver);
         let output_str = output.to_string();
 
-        assert!(output_str.contains(r#"vec ! ["id" , "user_email"]"#));
+        assert!(output_str.contains(r#"& ["id" , "user_email"]"#));
         assert!(!output_str.contains(r#""email""#));
     }
 
@@ -356,10 +396,10 @@ mod tests {
         let output_str = output.to_string();
 
         // All fields should be available
-        assert!(output_str.contains(r#"vec ! ["name" , "price" , "sku"]"#));
+        assert!(output_str.contains(r#"& ["name" , "price" , "sku"]"#));
 
         // No restricted fields
         assert!(output_str.contains(r#"fn restricted_fields"#));
-        assert!(output_str.contains(r#"vec ! []"#));
+        assert!(output_str.contains(r#"& []"#));
     }
 }

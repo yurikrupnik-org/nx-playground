@@ -7,12 +7,12 @@ pub type GrpcResult<T> = Result<T, GrpcError>;
 #[derive(Error, Debug)]
 pub enum GrpcError {
     /// Invalid URI provided for connection
-    #[error("Invalid URI: {0}")]
-    InvalidUri(#[from] tonic::transport::Error),
+    #[error("invalid URI")]
+    InvalidUri(#[source] tonic::transport::Error),
 
     /// Failed to establish connection
-    #[error("Connection failed: {0}")]
-    ConnectionFailed(tonic::transport::Error),
+    #[error("connection failed")]
+    ConnectionFailed(#[source] tonic::transport::Error),
 
     /// Connection timeout
     #[error("Connection timeout after {0:?}")]
@@ -30,13 +30,23 @@ pub enum GrpcError {
 // Implement conversion to tonic::Status for use in interceptors
 impl From<GrpcError> for tonic::Status {
     fn from(err: GrpcError) -> Self {
+        // Status messages are plain strings, so render the whole source chain
+        // (thiserror keeps sources out of Display to avoid duplication).
+        let mut message = err.to_string();
+        let mut source = std::error::Error::source(&err);
+        while let Some(cause) = source {
+            message.push_str(": ");
+            message.push_str(&cause.to_string());
+            source = cause.source();
+        }
+
         match err {
             GrpcError::InvalidUri(_) | GrpcError::InvalidConfig(_) => {
-                tonic::Status::invalid_argument(err.to_string())
+                tonic::Status::invalid_argument(message)
             }
             GrpcError::ConnectionFailed(_)
             | GrpcError::ConnectionTimeout(_)
-            | GrpcError::MaxRetriesExceeded(_) => tonic::Status::unavailable(err.to_string()),
+            | GrpcError::MaxRetriesExceeded(_) => tonic::Status::unavailable(message),
         }
     }
 }

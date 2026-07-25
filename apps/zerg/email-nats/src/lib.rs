@@ -32,10 +32,9 @@ use email::{
 };
 use eyre::{Result, WrapErr};
 use messaging::nats::{HealthServer, NatsWorker, WorkerConfig};
-use std::time::Duration;
 use tokio::signal;
 use tokio::sync::watch;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Run the email worker
 ///
@@ -53,9 +52,10 @@ use tracing::{error, info, warn};
 /// - Email provider configuration is invalid
 /// - Worker encounters a fatal error
 pub async fn run() -> Result<()> {
-    // Initialize tracing (env-aware: JSON for prod, pretty for dev)
-    let environment = Environment::from_env();
-    core_config::tracing::init_tracing(&environment);
+    // Initialize tracing (env-aware: JSON for prod, pretty for dev).
+    // Guard must outlive run() so OTEL spans flush before the tokio runtime drops.
+    let environment = Environment::from_env()?;
+    let _tracing_guard = core_config::tracing::init_tracing(&environment, core_config::app_info!());
 
     // Initialize Prometheus metrics
     let metrics_handle = messaging::nats::metrics::init_metrics();
@@ -81,43 +81,11 @@ pub async fn run() -> Result<()> {
     let nats_url =
         std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
-    // Connect to NATS with retry (exponential backoff: 500ms, 1s, 2s, 4s, 8s, 10s cap)
+    // Connect to NATS (JetStream) with bounded exponential backoff.
     info!(url = %nats_url, "Connecting to NATS...");
-    let nats_client = {
-        let max_retries: u32 = 10;
-        let base_delay = Duration::from_millis(500);
-        let max_delay = Duration::from_secs(10);
-        let mut attempt = 0u32;
-        loop {
-            match async_nats::connect(&nats_url).await {
-                Ok(client) => break client,
-                Err(e) => {
-                    attempt += 1;
-                    if attempt >= max_retries {
-                        return Err(eyre::eyre!(
-                            "Failed to connect to NATS at {} after {} attempts: {}",
-                            nats_url, max_retries, e
-                        ));
-                    }
-                    let delay = base_delay
-                        .saturating_mul(2u32.saturating_pow(attempt - 1))
-                        .min(max_delay);
-                    warn!(
-                        attempt,
-                        max_retries,
-                        delay_ms = delay.as_millis() as u64,
-                        error = %e,
-                        "Failed to connect to NATS, retrying..."
-                    );
-                    tokio::time::sleep(delay).await;
-                }
-            }
-        }
-    };
-    info!("Connected to NATS successfully");
-
-    // Create JetStream context
-    let jetstream = async_nats::jetstream::new(nats_client);
+    let jetstream = messaging::nats::jetstream_with_retry(&nats_url, None)
+        .await
+        .wrap_err("Failed to connect to NATS")?;
     info!("JetStream context created");
 
     // Create worker configuration from EmailNatsStream
@@ -216,7 +184,7 @@ pub async fn run() -> Result<()> {
 }
 
 /// Wait for a shutdown signal (SIGINT or SIGTERM)
-async fn shutdown_signal() -> Result<()> {
+pub(crate) async fn shutdown_signal() -> Result<()> {
     let ctrl_c = async {
         signal::ctrl_c()
             .await

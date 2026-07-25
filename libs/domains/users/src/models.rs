@@ -32,7 +32,7 @@ impl std::str::FromStr for Role {
             "user" => Ok(Role::User),
             "admin" => Ok(Role::Admin),
             "moderator" => Ok(Role::Moderator),
-            _ => Err(format!("Unknown role: {}", s)),
+            _ => Err(format!("Unknown role: {s}")),
         }
     }
 }
@@ -46,9 +46,8 @@ pub struct User {
     pub email: String,
     /// User display name
     pub name: String,
-    /// Argon2 password hash (never exposed in API responses)
-    #[serde(skip_serializing)]
-    pub password_hash: String,
+    /// IdP subject (`sub`, e.g. WorkOS `user_...`) — set on first OIDC login
+    pub subject: Option<String>,
     /// User roles
     pub roles: Vec<Role>,
     /// Whether email has been verified
@@ -57,25 +56,15 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     /// Last update timestamp
     pub updated_at: DateTime<Utc>,
-    /// Avatar URL (from OAuth or user upload)
+    /// Avatar URL (from the IdP or user upload)
     pub avatar_url: Option<String>,
-    /// Google OAuth ID
-    pub google_id: Option<String>,
-    /// GitHub OAuth ID
-    pub github_id: Option<String>,
     /// Last login timestamp
     pub last_login_at: Option<DateTime<Utc>>,
     /// Account active status
     pub is_active: bool,
-    /// Account locked status
-    pub is_locked: bool,
-    /// Failed login attempt counter
-    pub failed_login_attempts: i32,
-    /// Locked until timestamp
-    pub locked_until: Option<DateTime<Utc>>,
 }
 
-/// User response DTO (without password_hash)
+/// User response DTO
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UserResponse {
     pub id: Uuid,
@@ -112,7 +101,6 @@ pub struct CreateUser {
     pub email: String,
     #[validate(length(min = 1, max = 100))]
     pub name: String,
-    pub password: String,
     #[serde(default)]
     pub roles: Vec<String>,
 }
@@ -124,7 +112,6 @@ pub struct UpdateUser {
     pub email: Option<String>,
     #[validate(length(min = 1, max = 100))]
     pub name: Option<String>,
-    pub password: Option<String>,
     pub roles: Option<Vec<String>>,
     pub email_verified: Option<bool>,
 }
@@ -145,39 +132,15 @@ fn default_limit() -> usize {
     50
 }
 
-/// DTO for user login
-#[derive(Debug, Clone, Deserialize, Validate, ToSchema)]
-pub struct LoginRequest {
-    #[validate(email, length(max = 255))]
-    pub email: String,
-    pub password: String,
-}
-
-/// DTO for user registration
-#[derive(Debug, Clone, Deserialize, Validate, ToSchema)]
-pub struct RegisterRequest {
-    #[validate(email, length(max = 255))]
-    pub email: String,
-    pub password: String,
-    #[validate(length(min = 1, max = 100))]
-    pub name: String,
-}
-
-/// Response after successful login/register
-#[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct LoginResponse {
-    pub user: UserResponse,
-}
-
 impl User {
-    /// Create a new user (password will be hashed by service layer)
-    pub fn new(email: String, name: String, password_hash: String, roles: Vec<Role>) -> Self {
+    /// Create a new user (identity/credentials live at the IdP)
+    pub fn new(email: String, name: String, roles: Vec<Role>) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::now_v7(),
             email,
             name,
-            password_hash,
+            subject: None,
             roles: if roles.is_empty() {
                 vec![Role::User]
             } else {
@@ -187,26 +150,18 @@ impl User {
             created_at: now,
             updated_at: now,
             avatar_url: None,
-            google_id: None,
-            github_id: None,
             last_login_at: None,
             is_active: true,
-            is_locked: false,
-            failed_login_attempts: 0,
-            locked_until: None,
         }
     }
 
-    /// Apply updates (password should already be hashed if provided)
-    pub fn apply_update(&mut self, update: UpdateUser, new_password_hash: Option<String>) {
+    /// Apply updates
+    pub fn apply_update(&mut self, update: UpdateUser) {
         if let Some(email) = update.email {
             self.email = email;
         }
         if let Some(name) = update.name {
             self.name = name;
-        }
-        if let Some(hash) = new_password_hash {
-            self.password_hash = hash;
         }
         if let Some(roles) = update.roles {
             self.roles = roles.iter().filter_map(|r| r.parse().ok()).collect();

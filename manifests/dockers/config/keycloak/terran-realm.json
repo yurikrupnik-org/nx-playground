@@ -1,0 +1,93 @@
+{
+  "realm": "terran",
+  "enabled": true,
+  "sslRequired": "none",
+  "loginWithEmailAllowed": true,
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "organizationsEnabled": true,
+  "roles": {
+    "realm": [
+      { "name": "org_admin", "description": "Organization administrator" },
+      { "name": "member", "description": "Organization member" },
+      { "name": "viewer", "description": "Read-only organization viewer" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "terran-api",
+      "name": "Terran API (BFF)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "local-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [
+        "http://localhost:8081/api/auth/callback",
+        "http://localhost:3001/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3001",
+        "http://localhost:8081"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3001/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "terran-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "terran-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "test@terran.dev",
+      "email": "test@terran.dev",
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "enabled": true,
+      "credentials": [
+        { "type": "password", "value": "test", "temporary": false }
+      ],
+      "realmRoles": ["org_admin", "member"]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "google",
+      "providerId": "google",
+      "enabled": true,
+      "trustEmail": true,
+      "config": {
+        "clientId": "${GOOGLE_CLIENT_ID}",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET}",
+        "defaultScope": "openid profile email",
+        "syncMode": "IMPORT"
+      }
+    },
+    {
+      "alias": "github",
+      "providerId": "github",
+      "enabled": true,
+      "trustEmail": true,
+      "config": {
+        "clientId": "${GITHUB_CLIENT_ID}",
+        "clientSecret": "${GITHUB_CLIENT_SECRET}",
+        "defaultScope": "user:email read:user",
+        "syncMode": "IMPORT"
+      }
+    }
+  ]
+}

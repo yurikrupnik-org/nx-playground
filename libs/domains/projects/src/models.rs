@@ -3,14 +3,14 @@ use regex::Regex;
 use sea_orm::{DeriveActiveEnum, EnumIter};
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
-use strum::{Display, EnumString};
+use strum::Display;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::Validate;
 
 /// Regex pattern for alphanumeric characters with hyphens and underscores
 static ALPHANUMERIC_HYPHEN_UNDERSCORE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]+$").expect("valid alphanumeric regex"));
 
 /// Custom validator for project names
 fn validate_project_name(name: &str) -> Result<(), validator::ValidationError> {
@@ -30,7 +30,6 @@ fn validate_project_name(name: &str) -> Result<(), validator::ValidationError> {
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     DeriveActiveEnum,
     EnumIter,
     ToSchema,
@@ -57,7 +56,6 @@ pub enum CloudProvider {
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     Default,
     DeriveActiveEnum,
     EnumIter,
@@ -95,7 +93,6 @@ pub enum ProjectStatus {
     Serialize,
     Deserialize,
     Display,
-    EnumString,
     Default,
     DeriveActiveEnum,
     EnumIter,

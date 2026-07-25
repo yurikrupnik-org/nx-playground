@@ -1,5 +1,4 @@
 use super::{RateLimitTier, RateLimiter};
-use crate::auth::jwt::JwtClaims;
 use crate::errors::AppError;
 use axum::{
     extract::{ConnectInfo, Request, State},
@@ -7,20 +6,22 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use oidc_auth::AuthIdentity;
 use std::net::SocketAddr;
 
 /// Extract the rate limit key from the request.
 ///
 /// Strategy:
-/// 1. Authenticated user ID from `JwtClaims` in extensions -> `user:<id>`
+/// 1. Authenticated principal (`AuthIdentity` in extensions, inserted by
+///    `oidc_auth::auth_required` when it runs first) -> `user:<subject>`
 /// 2. `X-Real-Ip` header (set by nginx/ingress, single trusted value) -> `ip:<ip>`
 /// 3. `X-Forwarded-For` rightmost IP (last entry = added by our proxy) -> `ip:<ip>`
 /// 4. TCP socket peer address (`ConnectInfo`) -> `ip:<ip>`
 /// 5. Fallback -> `ip:unknown`
 fn extract_key(request: &Request) -> String {
-    // Check for authenticated user (only populated if auth middleware ran first)
-    if let Some(claims) = request.extensions().get::<JwtClaims>() {
-        return format!("user:{}", claims.sub);
+    // Check for an authenticated principal (only populated if auth middleware ran first)
+    if let Some(identity) = request.extensions().get::<AuthIdentity>() {
+        return format!("user:{}", identity.subject);
     }
 
     let headers = request.headers();
@@ -29,21 +30,17 @@ fn extract_key(request: &Request) -> String {
     if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
         let ip = real_ip.trim();
         if !ip.is_empty() {
-            return format!("ip:{}", ip);
+            return format!("ip:{ip}");
         }
     }
 
     // X-Forwarded-For: take the RIGHTMOST entry (added by our trusted proxy).
     // The leftmost entry is client-controlled and trivially spoofable.
-    if let Some(forwarded) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
+    if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
+        && let Some(ip) = forwarded.rsplit(',').next().map(|s| s.trim())
+        && !ip.is_empty()
     {
-        if let Some(ip) = forwarded.rsplit(',').next().map(|s| s.trim()) {
-            if !ip.is_empty() {
-                return format!("ip:{}", ip);
-            }
-        }
+        return format!("ip:{ip}");
     }
 
     // Fall back to TCP socket peer address
@@ -51,7 +48,9 @@ fn extract_key(request: &Request) -> String {
         return format!("ip:{}", connect_info.0.ip());
     }
 
-    tracing::warn!("Could not determine client IP for rate limiting - using shared 'ip:unknown' key");
+    tracing::warn!(
+        "Could not determine client IP for rate limiting - using shared 'ip:unknown' key"
+    );
     "ip:unknown".to_string()
 }
 
@@ -103,8 +102,7 @@ pub async fn rate_limit_middleware(
                 let retry_after = result.reset_at.saturating_sub(now);
 
                 let mut response =
-                    AppError::TooManyRequests("Rate limit exceeded".to_string())
-                        .into_response();
+                    AppError::TooManyRequests("Rate limit exceeded".to_string()).into_response();
 
                 let headers = response.headers_mut();
                 insert_rate_limit_headers(headers, limit, 0, result.reset_at);
@@ -140,6 +138,7 @@ fn insert_rate_limit_headers(headers: &mut HeaderMap, limit: u64, remaining: u64
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use axum::extract::ConnectInfo;
     use axum::http::Request as HttpRequest;
@@ -153,16 +152,15 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_key_jwt_claims() {
+    fn test_extract_key_auth_identity() {
         let mut req = make_request();
-        req.extensions_mut().insert(JwtClaims {
-            sub: "user-123".to_string(),
-            email: "test@example.com".to_string(),
-            name: "Test".to_string(),
+        req.extensions_mut().insert(AuthIdentity {
+            subject: "user-123".to_string(),
+            org_id: None,
             roles: vec![],
-            exp: 0,
-            iat: 0,
-            jti: "jti-1".to_string(),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test".to_string()),
+            session_id: None,
         });
         assert_eq!(extract_key(&req), "user:user-123");
     }

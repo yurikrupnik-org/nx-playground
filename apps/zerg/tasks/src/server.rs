@@ -43,9 +43,10 @@ use crate::vector_service::VectorServiceImpl;
 /// - Server binding fails
 /// - Server runtime encounters an error
 pub async fn run() -> Result<()> {
-    // Initialize tracing (env-aware: JSON for prod, pretty for dev)
-    let environment = Environment::from_env();
-    core_config::tracing::init_tracing(&environment);
+    // Initialize tracing (env-aware: JSON for prod, pretty for dev).
+    // Guard must outlive run() so OTEL spans flush before the tokio runtime drops.
+    let environment = Environment::from_env()?;
+    let _tracing_guard = core_config::tracing::init_tracing(&environment, core_config::app_info!());
 
     // Load gRPC server configuration
     let server_config = ServerConfig::from_env().wrap_err("Failed to load server configuration")?;
@@ -55,7 +56,7 @@ pub async fn run() -> Result<()> {
     info!("Connecting to PostgreSQL...");
     let db = database::postgres::connect_from_config_with_retry(db_config, None)
         .await
-        .wrap_err("Failed to connect to database")?;
+        .wrap_err("Failed to connect to database!")?;
     info!("Connected to PostgreSQL");
 
     // Connect to Qdrant
@@ -93,9 +94,7 @@ pub async fn run() -> Result<()> {
     GrpcServer::log_startup_multiple(&server_config, &services);
 
     // Build and start server
-    let addr = server_config
-        .socket_addr()
-        .wrap_err("Invalid server address")?;
+    let addr = server_config.socket_addr();
 
     Server::builder()
         .add_service(health_service)

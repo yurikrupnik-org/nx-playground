@@ -130,9 +130,9 @@ mod mock_provider_tests {
         provider.send(&email1).await.unwrap();
         provider.send(&email2).await.unwrap();
 
-        assert_eq!(provider.sent_count().await, 2);
+        assert_eq!(provider.sent_count(), 2);
 
-        let sent = provider.sent_emails().await;
+        let sent = provider.sent_emails();
         assert_eq!(sent[0].to, "user1@example.com");
         assert_eq!(sent[1].to, "user2@example.com");
     }
@@ -153,11 +153,11 @@ mod mock_provider_tests {
         let email = Email::new("test@example.com", "Test").with_text("Body");
         provider.send(&email).await.unwrap();
 
-        assert_eq!(provider.sent_count().await, 1);
+        assert_eq!(provider.sent_count(), 1);
 
-        provider.clear().await;
+        provider.clear();
 
-        assert_eq!(provider.sent_count().await, 0);
+        assert_eq!(provider.sent_count(), 0);
     }
 }
 
@@ -272,7 +272,7 @@ mod email_job_tests {
 
         let retried = job.with_retry();
         assert_eq!(retried.retry_count(), 1);
-        assert_ne!(retried.job_id(), job.job_id()); // New ID
+        assert_eq!(retried.job_id(), job.job_id()); // ID preserved across retries (idempotency)
     }
 
     #[test]
@@ -377,7 +377,7 @@ mod nats_integration_tests {
         assert!(ack.sequence > 0);
 
         // Verify stream has the message
-        let stream = jetstream
+        let mut stream = jetstream
             .get_stream(EmailNatsStream::STREAM_NAME)
             .await
             .unwrap();

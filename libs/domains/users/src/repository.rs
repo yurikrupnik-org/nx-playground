@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 use crate::error::{UserError, UserResult};
 use crate::models::{User, UserFilter};
-use crate::oauth::Provider;
 
 /// Repository trait for User persistence
 #[async_trait]
@@ -19,6 +18,15 @@ pub trait UserRepository: Send + Sync {
 
     /// Get a user by email
     async fn get_by_email(&self, email: &str) -> UserResult<Option<User>>;
+
+    /// Get a user by IdP subject (`sub` claim)
+    async fn get_by_subject(&self, subject: &str) -> UserResult<Option<User>>;
+
+    /// Backfill the IdP subject on an existing user (links a pre-IdP account)
+    async fn set_subject(&self, user_id: Uuid, subject: &str) -> UserResult<()>;
+
+    /// Record a successful login
+    async fn touch_last_login(&self, user_id: Uuid) -> UserResult<()>;
 
     /// List users with optional filters
     async fn list(&self, filter: UserFilter) -> UserResult<Vec<User>>;
@@ -34,28 +42,6 @@ pub trait UserRepository: Send + Sync {
 
     /// Count total users (for pagination)
     async fn count(&self, filter: UserFilter) -> UserResult<usize>;
-
-    /// Get a user by OAuth provider ID
-    async fn get_by_oauth_id(
-        &self,
-        provider: Provider,
-        provider_id: &str,
-    ) -> UserResult<Option<User>>;
-
-    /// Link OAuth account to an existing user
-    async fn link_oauth_account(
-        &self,
-        user_id: Uuid,
-        provider: Provider,
-        provider_id: &str,
-        avatar_url: Option<String>,
-    ) -> UserResult<()>;
-
-    /// Update login attempt (increment or reset)
-    async fn update_login_attempt(&self, user_id: Uuid, success: bool) -> UserResult<()>;
-
-    /// Check if account is currently locked
-    async fn check_account_locked(&self, user_id: Uuid) -> UserResult<bool>;
 }
 
 /// In-memory implementation of UserRepository (for development/testing)
@@ -106,18 +92,47 @@ impl UserRepository for InMemoryUserRepository {
         Ok(user)
     }
 
+    async fn get_by_subject(&self, subject: &str) -> UserResult<Option<User>> {
+        let users = self.users.read().await;
+        let user = users
+            .values()
+            .find(|u| u.subject.as_deref() == Some(subject))
+            .cloned();
+        Ok(user)
+    }
+
+    async fn set_subject(&self, user_id: Uuid, subject: &str) -> UserResult<()> {
+        let mut users = self.users.write().await;
+        let user = users
+            .get_mut(&user_id)
+            .ok_or(UserError::NotFound(user_id))?;
+        user.subject = Some(subject.to_string());
+        user.updated_at = chrono::Utc::now();
+        Ok(())
+    }
+
+    async fn touch_last_login(&self, user_id: Uuid) -> UserResult<()> {
+        let mut users = self.users.write().await;
+        let user = users
+            .get_mut(&user_id)
+            .ok_or(UserError::NotFound(user_id))?;
+        user.last_login_at = Some(chrono::Utc::now());
+        user.updated_at = chrono::Utc::now();
+        Ok(())
+    }
+
     async fn list(&self, filter: UserFilter) -> UserResult<Vec<User>> {
         let users = self.users.read().await;
 
         let mut result: Vec<User> = users
             .values()
             .filter(|u| {
-                if let Some(ref email) = filter.email
+                if let Some(email) = &filter.email
                     && !u.email.to_lowercase().contains(&email.to_lowercase())
                 {
                     return false;
                 }
-                if let Some(ref role) = filter.role
+                if let Some(role) = &filter.role
                     && !u.roles.iter().any(|r| r.to_string() == *role)
                 {
                     return false;
@@ -133,7 +148,7 @@ impl UserRepository for InMemoryUserRepository {
             .collect();
 
         // Sort by created_at descending (newest first)
-        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        result.sort_by_key(|b| std::cmp::Reverse(b.created_at));
 
         // Apply pagination
         let result: Vec<User> = result
@@ -193,12 +208,12 @@ impl UserRepository for InMemoryUserRepository {
         let count = users
             .values()
             .filter(|u| {
-                if let Some(ref email) = filter.email
+                if let Some(email) = &filter.email
                     && !u.email.to_lowercase().contains(&email.to_lowercase())
                 {
                     return false;
                 }
-                if let Some(ref role) = filter.role
+                if let Some(role) = &filter.role
                     && !u.roles.iter().any(|r| r.to_string() == *role)
                 {
                     return false;
@@ -214,105 +229,11 @@ impl UserRepository for InMemoryUserRepository {
 
         Ok(count)
     }
-
-    async fn get_by_oauth_id(
-        &self,
-        provider: Provider,
-        provider_id: &str,
-    ) -> UserResult<Option<User>> {
-        let users = self.users.read().await;
-        let user = users
-            .values()
-            .find(|u| match provider {
-                Provider::Google => u
-                    .google_id
-                    .as_ref()
-                    .map(|id| id == provider_id)
-                    .unwrap_or(false),
-                Provider::Github => u
-                    .github_id
-                    .as_ref()
-                    .map(|id| id == provider_id)
-                    .unwrap_or(false),
-            })
-            .cloned();
-        Ok(user)
-    }
-
-    async fn link_oauth_account(
-        &self,
-        user_id: Uuid,
-        provider: Provider,
-        provider_id: &str,
-        avatar_url: Option<String>,
-    ) -> UserResult<()> {
-        let mut users = self.users.write().await;
-        if let Some(user) = users.get_mut(&user_id) {
-            match provider {
-                Provider::Google => {
-                    user.google_id = Some(provider_id.to_string());
-                }
-                Provider::Github => {
-                    user.github_id = Some(provider_id.to_string());
-                }
-            }
-            if avatar_url.is_some() {
-                user.avatar_url = avatar_url;
-            }
-            user.updated_at = chrono::Utc::now();
-            Ok(())
-        } else {
-            Err(UserError::NotFound(user_id))
-        }
-    }
-
-    async fn update_login_attempt(&self, user_id: Uuid, success: bool) -> UserResult<()> {
-        let mut users = self.users.write().await;
-        if let Some(user) = users.get_mut(&user_id) {
-            if success {
-                // Reset on successful login
-                user.failed_login_attempts = 0;
-                user.is_locked = false;
-                user.locked_until = None;
-                user.last_login_at = Some(chrono::Utc::now());
-            } else {
-                // Increment failed attempts
-                user.failed_login_attempts += 1;
-
-                // Lock account after 5 failed attempts
-                if user.failed_login_attempts >= 5 {
-                    user.is_locked = true;
-                    user.locked_until = Some(chrono::Utc::now() + chrono::Duration::minutes(15));
-                }
-            }
-            user.updated_at = chrono::Utc::now();
-            Ok(())
-        } else {
-            Err(UserError::NotFound(user_id))
-        }
-    }
-
-    async fn check_account_locked(&self, user_id: Uuid) -> UserResult<bool> {
-        let users = self.users.read().await;
-        if let Some(user) = users.get(&user_id) {
-            if !user.is_locked {
-                return Ok(false);
-            }
-
-            // Check if lock has expired
-            if let Some(locked_until) = user.locked_until {
-                Ok(locked_until > chrono::Utc::now())
-            } else {
-                Ok(user.is_locked)
-            }
-        } else {
-            Err(UserError::NotFound(user_id))
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::models::Role;
 
@@ -323,7 +244,6 @@ mod tests {
         let user = User::new(
             "test@example.com".to_string(),
             "Test User".to_string(),
-            "hashed_password".to_string(),
             vec![Role::User],
         );
 
@@ -342,7 +262,6 @@ mod tests {
         let user = User::new(
             "test@example.com".to_string(),
             "Test User".to_string(),
-            "hashed_password".to_string(),
             vec![Role::User],
         );
 
@@ -362,14 +281,12 @@ mod tests {
         let user1 = User::new(
             "test@example.com".to_string(),
             "User 1".to_string(),
-            "hash1".to_string(),
             vec![Role::User],
         );
 
         let user2 = User::new(
             "test@example.com".to_string(),
             "User 2".to_string(),
-            "hash2".to_string(),
             vec![Role::User],
         );
 
@@ -377,5 +294,33 @@ mod tests {
 
         let result = repo.create(user2).await;
         assert!(matches!(result, Err(UserError::DuplicateEmail(_))));
+    }
+
+    #[tokio::test]
+    async fn test_subject_lookup_and_backfill() {
+        let repo = InMemoryUserRepository::new();
+
+        let user = User::new(
+            "test@example.com".to_string(),
+            "Test User".to_string(),
+            vec![Role::User],
+        );
+        let created = repo.create(user).await.unwrap();
+
+        // No subject yet.
+        assert!(
+            repo.get_by_subject("user_123").await.unwrap().is_none(),
+            "unlinked subject must not resolve"
+        );
+
+        // Backfill and resolve.
+        repo.set_subject(created.id, "user_123").await.unwrap();
+        let linked = repo.get_by_subject("user_123").await.unwrap().unwrap();
+        assert_eq!(linked.id, created.id);
+
+        // Login stamp.
+        repo.touch_last_login(created.id).await.unwrap();
+        let user = repo.get_by_id(created.id).await.unwrap().unwrap();
+        assert!(user.last_login_at.is_some());
     }
 }

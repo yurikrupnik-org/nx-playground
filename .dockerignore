@@ -1,0 +1,15 @@
+# Build context hygiene for `context: "."` image builds (Nx project.json / CI).
+# Mirrors the `ignore=` lists in the app Tiltfiles so unrelated churn and the
+# multi-GB local target/ dir never enter the context or bust layer caches.
+target/
+**/target/
+.git/
+**/.git/
+**/node_modules/
+**/*.md
+**/k8s/
+**/Tiltfile
+# NOTE: `dist/` is intentionally NOT globally ignored here.
+# Frontend image builds (e.g. zerg-web) need their own dist in context and use a
+# per-build `only=[...]` whitelist. Backend (Rust) builds whitelist `apps/`, so
+# they carry `**/dist/` in their own `ignore=` to stay isolated from dist churn.

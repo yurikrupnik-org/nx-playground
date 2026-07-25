@@ -9,4 +9,4 @@ pub mod tracing;
 pub use auth::AuthInterceptor;
 pub use compose::{ComposedInterceptor, compose_interceptors};
 pub use metrics::MetricsInterceptor;
-pub use tracing::TracingInterceptor;
+pub use tracing::{TracedChannel, TracingInterceptor};

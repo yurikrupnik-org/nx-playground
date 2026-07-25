@@ -3,6 +3,10 @@ name = "zerg_tasks"
 version = "0.1.1"
 edition = "2024"
 
+[[bin]]
+name = "zerg_tasks"
+path = "src/main.rs"
+
 [dependencies]
 chrono = { workspace = true }
 core_config = { workspace = true }

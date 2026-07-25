@@ -5,12 +5,26 @@
 //! - `TemplateStore` trait and `InMemoryTemplateStore` for template storage
 //! - Default templates for common email types
 
-use eyre::{eyre, Result};
+use eyre::Result;
 use handlebars::Handlebars;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+/// Errors from template registration and rendering.
+#[derive(Debug, thiserror::Error)]
+pub enum TemplateError {
+    /// Registering a template string with Handlebars failed.
+    #[error("template registration failed: {0}")]
+    Registration(#[from] Box<handlebars::TemplateError>),
+    /// Rendering a registered template failed.
+    #[error("template render failed: {0}")]
+    Render(#[from] handlebars::RenderError),
+    /// No template registered under the requested name.
+    #[error("template not found: {0}")]
+    NotFound(String),
+}
 
 /// Rendered template result
 #[derive(Debug, Clone)]
@@ -101,71 +115,51 @@ pub struct TemplateEngine {
 
 impl TemplateEngine {
     /// Create a new TemplateEngine with default templates
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self, TemplateError> {
         let mut engine = Self {
             handlebars: Handlebars::new(),
             templates: HashMap::new(),
         };
-
-        // Register default templates
         engine.register_defaults()?;
-
         Ok(engine)
     }
 
     /// Register a template
-    pub fn register(&mut self, template: EmailTemplate) -> Result<()> {
-        // Register subject
+    pub fn register(&mut self, template: EmailTemplate) -> Result<(), TemplateError> {
         self.handlebars
             .register_template_string(&format!("{}_subject", template.name), &template.subject)
-            .map_err(|e| eyre!("Failed to register subject template: {}", e))?;
-
-        // Register text body if present
+            .map_err(Box::new)?;
         if let Some(text) = &template.body_text {
             self.handlebars
                 .register_template_string(&format!("{}_text", template.name), text)
-                .map_err(|e| eyre!("Failed to register text template: {}", e))?;
+                .map_err(Box::new)?;
         }
-
-        // Register HTML body if present
         if let Some(html) = &template.body_html {
             self.handlebars
                 .register_template_string(&format!("{}_html", template.name), html)
-                .map_err(|e| eyre!("Failed to register HTML template: {}", e))?;
+                .map_err(Box::new)?;
         }
-
         self.templates.insert(template.name.clone(), template);
         Ok(())
     }
 
     /// Render a template by name
-    pub fn render(&self, name: &str, data: &Value) -> Result<RenderedTemplate> {
+    pub fn render(&self, name: &str, data: &Value) -> Result<RenderedTemplate, TemplateError> {
         let template = self
             .templates
             .get(name)
-            .ok_or_else(|| eyre!("Template not found: {}", name))?;
+            .ok_or_else(|| TemplateError::NotFound(name.to_string()))?;
 
-        let subject = self
-            .handlebars
-            .render(&format!("{}_subject", name), data)
-            .map_err(|e| eyre!("Failed to render subject: {}", e))?;
+        let subject = self.handlebars.render(&format!("{}_subject", name), data)?;
 
         let body_text = if template.body_text.is_some() {
-            Some(
-                self.handlebars
-                    .render(&format!("{}_text", name), data)
-                    .map_err(|e| eyre!("Failed to render text: {}", e))?,
-            )
+            Some(self.handlebars.render(&format!("{}_text", name), data)?)
         } else {
             None
         };
 
         let body_html = if template.body_html.is_some() {
-            Some(
-                self.handlebars
-                    .render(&format!("{}_html", name), data)
-                    .map_err(|e| eyre!("Failed to render HTML: {}", e))?,
-            )
+            Some(self.handlebars.render(&format!("{}_html", name), data)?)
         } else {
             None
         };
@@ -188,7 +182,7 @@ impl TemplateEngine {
     }
 
     /// Register default email templates
-    fn register_defaults(&mut self) -> Result<()> {
+    fn register_defaults(&mut self) -> Result<(), TemplateError> {
         // Welcome email
         self.register(EmailTemplate {
             name: "welcome".to_string(),

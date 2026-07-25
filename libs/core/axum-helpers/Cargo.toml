@@ -1,7 +1,10 @@
 [package]
 name = "axum-helpers"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
 
 [dependencies]
 async-trait.workspace = true
@@ -11,10 +14,15 @@ chrono.workspace = true
 # Internal dependencies
 core_config = { workspace = true }
 
-# JWT and error handling
 eyre.workspace = true
 futures.workspace = true
-jsonwebtoken.workspace = true
+
+# Auth identity for user-keyed rate limiting (inserted by oidc_auth::auth_required)
+oidc-auth = { workspace = true }
+
+# Prometheus metrics (RED middleware + /metrics endpoint)
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
 
 # Redis - no longer optional, required for auth
 redis = { workspace = true }
@@ -23,6 +31,7 @@ redis = { workspace = true }
 sea-orm = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
+sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tower.workspace = true
@@ -42,3 +51,4 @@ validator.workspace = true
 temp-env = "0.3"
 test-utils = { workspace = true, features = ["redis"] }
 tokio-test = "0.4"
+tower = { workspace = true, features = ["util"] }

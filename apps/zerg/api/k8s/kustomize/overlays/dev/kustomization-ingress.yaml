@@ -18,6 +18,5 @@ configMapGenerator:
       - CORS_ALLOWED_ORIGIN=http://zerg.local
       - REDIRECT_BASE_URL=http://api.zerg.local
       - FRONTEND_URL=http://zerg.local
-      - OAUTH_AUTO_LINK_VERIFIED_EMAILS=true
       - FLAGSMITH_API_URL=http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1
       - TASKS_SERVICE_ADDR=http://zerg-tasks.zerg.svc.cluster.local:50051

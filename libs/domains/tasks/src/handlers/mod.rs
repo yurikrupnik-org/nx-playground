@@ -2,9 +2,9 @@ mod direct;
 mod grpc;
 
 use axum::{routing::get, Router};
+use grpc_client::TracedChannel;
 use rpc::tasks::tasks_service_client::TasksServiceClient;
 use std::sync::Arc;
-use tonic::transport::Channel;
 use utoipa::OpenApi;
 
 use crate::models::{CreateTask, Task, UpdateTask};
@@ -65,7 +65,7 @@ pub fn direct_router<R: TaskRepository + 'static>(service: TaskService<R>) -> Ro
 }
 
 /// Create router for gRPC-backed handlers
-pub fn grpc_router(client: TasksServiceClient<Channel>) -> Router {
+pub fn grpc_router(client: TasksServiceClient<TracedChannel>) -> Router {
     Router::new()
         .route("/", get(grpc::list_tasks).post(grpc::create_task))
         .route(

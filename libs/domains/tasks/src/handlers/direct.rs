@@ -1,11 +1,11 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use axum_helpers::UuidPath;
 use std::sync::Arc;
-use uuid::Uuid;
 
 use crate::error::TaskResult;
 use crate::models::{CreateTask, Task, TaskFilter, UpdateTask};
@@ -24,16 +24,8 @@ use crate::service::TaskService;
 )]
 pub async fn list_tasks<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
+    Query(filter): Query<TaskFilter>,
 ) -> TaskResult<Json<Vec<Task>>> {
-    let filter = TaskFilter {
-        project_id: None,
-        status: None,
-        priority: None,
-        completed: None,
-        limit: 50,
-        offset: 0,
-    };
-
     let tasks = service.list_tasks(filter).await?;
     Ok(Json(tasks))
 }
@@ -55,12 +47,9 @@ pub async fn list_tasks<R: TaskRepository>(
 )]
 pub async fn get_task<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
 ) -> TaskResult<impl IntoResponse> {
-    let task_id = Uuid::parse_str(&id)
-        .map_err(|_| crate::error::TaskError::Validation("Invalid task ID".to_string()))?;
-
-    let task = service.get_task(task_id).await?;
+    let task = service.get_task(id).await?;
     Ok(Json(task))
 }
 
@@ -102,13 +91,10 @@ pub async fn create_task<R: TaskRepository>(
 )]
 pub async fn update_task<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
     Json(input): Json<UpdateTask>,
 ) -> TaskResult<impl IntoResponse> {
-    let task_id = Uuid::parse_str(&id)
-        .map_err(|_| crate::error::TaskError::Validation("Invalid task ID".to_string()))?;
-
-    let task = service.update_task(task_id, input).await?;
+    let task = service.update_task(id, input).await?;
     Ok(Json(task))
 }
 
@@ -129,11 +115,8 @@ pub async fn update_task<R: TaskRepository>(
 )]
 pub async fn delete_task<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
-    Path(id): Path<String>,
+    UuidPath(id): UuidPath,
 ) -> TaskResult<impl IntoResponse> {
-    let task_id = Uuid::parse_str(&id)
-        .map_err(|_| crate::error::TaskError::Validation("Invalid task ID".to_string()))?;
-
-    service.delete_task(task_id).await?;
+    service.delete_task(id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

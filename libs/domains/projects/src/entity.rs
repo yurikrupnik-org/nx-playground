@@ -57,12 +57,17 @@ impl From<Model> for crate::models::Project {
     }
 }
 
-// Conversion from domain CreateProject to Sea-ORM ActiveModel
-impl From<crate::models::CreateProject> for ActiveModel {
-    fn from(input: crate::models::CreateProject) -> Self {
-        let tags_json = serde_json::to_value(&input.tags).expect("Failed to serialize tags");
+// Conversion from domain CreateProject to Sea-ORM ActiveModel.
+// Fallible: tag serialization is surfaced as a crate error rather than a panic.
+impl TryFrom<crate::models::CreateProject> for ActiveModel {
+    type Error = crate::error::ProjectError;
 
-        ActiveModel {
+    fn try_from(input: crate::models::CreateProject) -> Result<Self, Self::Error> {
+        let tags_json = serde_json::to_value(&input.tags)
+            .map_err(|e| crate::error::ProjectError::Internal(format!("serialize tags: {e}")))?;
+        let now = chrono::Utc::now();
+
+        Ok(ActiveModel {
             id: Set(Uuid::now_v7()),
             name: Set(input.name),
             user_id: Set(input.user_id),
@@ -74,8 +79,8 @@ impl From<crate::models::CreateProject> for ActiveModel {
             budget_limit: Set(input.budget_limit),
             tags: Set(tags_json),
             enabled: Set(true),
-            created_at: Set(chrono::Utc::now().into()),
-            updated_at: Set(chrono::Utc::now().into()),
-        }
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+        })
     }
 }

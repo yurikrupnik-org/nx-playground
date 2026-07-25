@@ -9,7 +9,6 @@ use crate::job::{EmailJob, EmailType};
 use crate::provider::{EmailProvider, SendResult};
 use crate::templates::TemplateEngine;
 use crate::Email;
-use async_trait::async_trait;
 use messaging::ProcessingError;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -106,21 +105,13 @@ impl<P: EmailProvider> EmailProcessor<P> {
 
     /// Send an email and handle the result
     async fn send_email(&self, email: &Email) -> Result<SendResult, ProcessingError> {
-        self.provider.send(email).await.map_err(|e| {
-            let msg = e.to_string();
-            // Classify errors for retry logic
-            if msg.contains("rate limit") || msg.contains("429") {
-                ProcessingError::rate_limited(msg)
-            } else if msg.contains("invalid") || msg.contains("malformed") {
-                ProcessingError::permanent(msg)
-            } else {
-                ProcessingError::transient(msg)
-            }
-        })
+        self.provider
+            .send(email)
+            .await
+            .map_err(ProcessingError::from)
     }
 }
 
-#[async_trait]
 impl<P: EmailProvider + 'static> messaging::Processor<EmailJob> for EmailProcessor<P> {
     async fn process(&self, job: &EmailJob) -> Result<(), ProcessingError> {
         debug!(

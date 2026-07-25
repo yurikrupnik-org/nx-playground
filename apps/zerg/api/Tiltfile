@@ -1,32 +1,47 @@
+# Hardcoded Tiltfile for zerg-api (Rust).
+# Fast local dev: builds the dev image (manifests/dockers/rust.dev.Dockerfile) with
+# deps pre-compiled, then live_update syncs source into the running container and
+# recompiles ONLY changed crates in-place — no image rebuild, no dep recompile.
+load('ext://restart_process', 'docker_build_with_restart')
+
 docker_build(
-  'yurikrupnik/zerg-api',
-  build_args={
-    'APP_NAME': 'zerg_api',
-  },
-  context='../../..',
-  dockerfile='../../../manifests/dockers/rust.Dockerfile',
-  only=[
-    'Cargo.toml',
-    'Cargo.lock',
-    'apps/',
-    'libs/',
-    'manifests/dockers/rust.Dockerfile',
-  ],
-  ignore=[
-    'target/',
-    '**/*.md',
-    '**/.git/',
-    '**/k8s/',
-    '**/Tiltfile',
-    'apps/**/node_modules/',
-  ],
-  live_update=[
-    sync('apps/zerg/api/src', '/app/apps/zerg/api/src'),
-  ],
-  target='rust',
-  #platform='linux/amd64',
+    'yurikrupnik/zerg-api',
+    context='../../..',
+    dockerfile='../../../manifests/dockers/rust.Dockerfile',
+    build_args={'APP_NAME': 'zerg_api'},
+    target='rust',
+    #entrypoint='/usr/local/bin/app',
+    only=[
+        'Cargo.toml',
+        'Cargo.lock',
+        'apps/',
+        'libs/',
+        'manifests/dockers/rust.Dockerfile',
+    ],
+    ignore=[
+        'target/',
+        '**/*.md',
+        '**/.git/',
+        '**/k8s/',
+        '**/Tiltfile',
+        'apps/**/node_modules/',
+        # Frontend build outputs never belong in a Rust image context. dist is no
+        # longer globally ignored (zerg-web needs its own dist), so exclude it here
+        # or a web rebuild would bust this image's cache.
+        '**/dist/',
+        'apps/*/*/src',
+        '!apps/zerg/api/src',
+    ],
+    live_update=[
+        # A dependency change (lockfile) needs a fresh cook -> full image rebuild.
+       # fall_back_on(['../../../Cargo.lock', '../../../Cargo.toml']),
+      #  sync('../../../apps', '/app/apps'),
+       # sync('../../../libs', '/app/libs'),
+       # run(
+        #    'cargo build --locked -p zerg_api --target aarch64-unknown-linux-musl',
+        #    trigger=['../../../apps/', '../../../libs/'],
+       # ),
+    ],
 )
-
 k8s_yaml(kustomize('k8s/kustomize/overlays/dev'))
-
-k8s_resource("zerg-api", port_forwards="5221:8080", labels=['backend'], resource_deps=['zerg-tasks', 'zerg-shared-config'])
+k8s_resource('zerg-api', port_forwards='5221:8080', labels=['backend'], resource_deps=['zerg-shared-config'])

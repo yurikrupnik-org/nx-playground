@@ -30,12 +30,12 @@ procs:
   # Note: Start these manually after infra is ready (press 's' to start)
   # =============================================================================
   zerg-api:
-    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/mydatabase' bacon zerg-api"
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/zerg' bacon zerg-api"
     stop: "SIGTERM"
     # autostart: false
 
   zerg-tasks:
-    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/mydatabase' bacon zerg-tasks"
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/zerg' bacon zerg-tasks"
     stop: "SIGTERM"
     # autostart: false
 
@@ -44,10 +44,20 @@ procs:
     stop: "SIGTERM"
     # autostart: false
 
+#  terran-api:
+#    shell: "DATABASE_URL='postgres://terran_app:terran_app@localhost:5432/terran' PORT='8081' REDIRECT_BASE_URL='http://localhost:3001' CORS_ALLOWED_ORIGIN='http://localhost:3001' bacon terran-api"
+#    stop: "SIGTERM"
+    # autostart: false
+
   # =============================================================================
   # Frontend
   # =============================================================================
   zerg-web:
     shell: "bun nx dev zerg-web"
     stop: "SIGTERM"
+    # autostart: false
+
+#  terran-web:
+#    shell: "bun nx dev terran-web"
+#    stop: "SIGTERM"
     # autostart: false

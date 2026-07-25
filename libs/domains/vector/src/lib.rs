@@ -84,4 +84,4 @@ pub use models::{
 };
 pub use qdrant::{QdrantConfig, QdrantRepository};
 pub use repository::VectorRepository;
-pub use service::VectorService;
+pub use service::{SearchWithEmbedding, UpsertWithEmbedding, VectorService};

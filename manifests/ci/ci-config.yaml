@@ -1,0 +1,13 @@
+# CI declaration for this repo - consumed by scripts/kcl/ci (see loader.k).
+# Languages listed here control which toolchains the generated CI sets up.
+# Validated against MonorepoConfig; invalid values fail generation.
+name: nx-playground
+main_branch: main
+monorepo_tool: nx
+package_manager: bun
+languages: [typescript, rust]
+nx_cloud: true
+use_affected: true
+use_mise: false
+use_sccache: true
+sccache_provider: gcp

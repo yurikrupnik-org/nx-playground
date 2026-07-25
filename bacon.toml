@@ -9,6 +9,31 @@ need_stdout = true
 command = ["cargo", "check", "--color", "always"]
 need_stdout = false
 
+[jobs.todo-api]
+command = ["cargo", "run", "-p", "todo_api", "--color", "always"]
+need_stdout = true
+watch = ["apps/todo/api", "libs"]
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+env = { DATABASE_URL = "postgres://myuser:mypassword@localhost:5432/todo" }
+
+[jobs.todo-worker]
+command = ["cargo", "run", "-p", "todo_worker", "--color", "always"]
+need_stdout = true
+watch = ["apps/todo/worker", "libs"]
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+env = { DATABASE_URL = "postgres://myuser:mypassword@localhost:5432/todo" }
+
+[jobs.todo-web]
+command = ["bun", "nx", "dev", "todo-web"]
+need_stdout = true
+# vite owns hot-reload; do NOT let bacon watch/restart it (that would kill HMR).
+default_watch = false
+background = false
+
 [jobs.zerg-api]
 command = ["cargo", "run", "-p", "zerg_api", "--color", "always"]
 need_stdout = true

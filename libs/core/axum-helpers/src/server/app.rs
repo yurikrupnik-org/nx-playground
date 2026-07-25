@@ -36,15 +36,18 @@ use utoipa::OpenApi;
 /// }
 /// ```
 pub async fn create_app(router: Router, server_config: &ServerConfig) -> io::Result<()> {
-    let listener = tokio::net::TcpListener::bind(server_config.address()).await?;
+    let listener = tokio::net::TcpListener::bind(server_config.addr()).await?;
 
     info!("Server starting on {}", listener.local_addr()?);
-    axum::serve(listener, router.into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .inspect_err(|e| {
-            tracing::error!("Server encountered an error: {:?}", e);
-        })?;
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .inspect_err(|e| {
+        tracing::error!("Server encountered an error: {e:?}");
+    })?;
 
     Ok(())
 }
@@ -144,7 +147,7 @@ where
         .map_err(|e| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Invalid CORS_ALLOWED_ORIGIN value: {}", e),
+                format!("Invalid CORS_ALLOWED_ORIGIN value: {e}"),
             )
         })?;
 
@@ -155,7 +158,7 @@ where
         ));
     }
 
-    info!("CORS configured with allowed origins: {}", origins_str);
+    info!("CORS configured with allowed origins: {origins_str}");
 
     let cors_layer = tower_http::cors::CorsLayer::new()
         .allow_origin(AllowOrigin::list(allowed_origins))
@@ -240,7 +243,7 @@ where
     let (coordinator, _rx) = ShutdownCoordinator::new();
     let shutdown_handle = coordinator.clone();
 
-    let listener = tokio::net::TcpListener::bind(server_config.address()).await?;
+    let listener = tokio::net::TcpListener::bind(server_config.addr()).await?;
     info!("Server starting on {}", listener.local_addr()?);
 
     // Spawn cleanup task
@@ -262,12 +265,15 @@ where
     });
 
     // Start server with graceful shutdown
-    let serve_result = axum::serve(listener, router.into_make_service())
-        .with_graceful_shutdown(coordinated_shutdown(coordinator))
-        .await
-        .inspect_err(|e| {
-            tracing::error!("Server encountered an error: {:?}", e);
-        });
+    let serve_result = axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(coordinated_shutdown(coordinator))
+    .await
+    .inspect_err(|e| {
+        tracing::error!("Server encountered an error: {e:?}");
+    });
 
     // Wait for cleanup to complete
     cleanup_handle.await.ok();

@@ -55,7 +55,7 @@ impl GrpcServer {
     /// ```
     pub fn log_startup_multiple(config: &ServerConfig, service_names: &[&str]) {
         info!(
-            addr = %config.addr_string(),
+            addr = %config.socket_addr(),
             services = ?service_names,
             compression = config.enable_compression,
             "gRPC server starting"

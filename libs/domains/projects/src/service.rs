@@ -189,6 +189,7 @@ impl<R: ProjectRepository> ProjectService<R> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::repository::MockProjectRepository;
 

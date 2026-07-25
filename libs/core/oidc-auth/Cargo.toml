@@ -1,0 +1,24 @@
+[package]
+name = "oidc-auth"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = { workspace = true }
+axum = { workspace = true }
+base64 = "0.22"
+jsonwebtoken = { workspace = true }
+oauth2 = { version = "5.0.0", default-features = false }
+redis = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }

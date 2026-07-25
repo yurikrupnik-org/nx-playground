@@ -12,13 +12,13 @@ use axum_helpers::{
         NotFoundResponse,
     },
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::Arc;
 use utoipa::{OpenApi, ToSchema};
 use uuid::Uuid;
 
 use crate::error::UserResult;
-use crate::models::{CreateUser, LoginRequest, UpdateUser, UserFilter, UserResponse};
+use crate::models::{CreateUser, UpdateUser, UserFilter, UserResponse};
 use crate::repository::UserRepository;
 use crate::service::UserService;
 
@@ -32,8 +32,6 @@ use crate::service::UserService;
         update_user,
         delete_user,
         verify_email,
-        change_password,
-        login,
     ),
     components(
         schemas(
@@ -41,9 +39,7 @@ use crate::service::UserService;
             CreateUser,
             UpdateUser,
             UserFilter,
-            LoginRequest,
             ListUsersResponse,
-            ChangePasswordRequest,
             MessageResponse
         ),
         responses(
@@ -67,8 +63,6 @@ pub fn router<R: UserRepository + 'static>(service: UserService<R>) -> Router {
         .route("/", get(list_users).post(create_user))
         .route("/{id}", get(get_user).put(update_user).delete(delete_user))
         .route("/{id}/verify-email", post(verify_email))
-        .route("/{id}/change-password", post(change_password))
-        .route("/login", post(login))
         .with_state(shared_service)
 }
 
@@ -222,68 +216,8 @@ async fn verify_email<R: UserRepository>(
     Ok(Json(user))
 }
 
-/// Change password request
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ChangePasswordRequest {
-    pub current_password: String,
-    pub new_password: String,
-}
-
 /// Change password response
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse {
     pub message: String,
-}
-
-/// Change user password
-#[utoipa::path(
-    post,
-    path = "/{id}/change-password",
-    tag = "users",
-    params(
-        ("id" = Uuid, Path, description = "User ID")
-    ),
-    request_body = ChangePasswordRequest,
-    responses(
-        (status = 200, description = "Password changed successfully", body = MessageResponse),
-        (status = 400, response = BadRequestValidationResponse),
-        (status = 404, response = NotFoundResponse),
-        (status = 500, response = InternalServerErrorResponse)
-    )
-)]
-async fn change_password<R: UserRepository>(
-    State(service): State<Arc<UserService<R>>>,
-    Path(id): Path<Uuid>,
-    Json(input): Json<ChangePasswordRequest>,
-) -> UserResult<Json<MessageResponse>> {
-    service
-        .change_password(id, &input.current_password, &input.new_password)
-        .await?;
-
-    Ok(Json(MessageResponse {
-        message: "Password changed successfully".to_string(),
-    }))
-}
-
-/// User login (verify credentials)
-#[utoipa::path(
-    post,
-    path = "/login",
-    tag = "users",
-    request_body = LoginRequest,
-    responses(
-        (status = 200, description = "Login successful", body = UserResponse),
-        (status = 400, response = BadRequestValidationResponse),
-        (status = 401, description = "Invalid credentials"),
-        (status = 500, response = InternalServerErrorResponse)
-    )
-)]
-async fn login<R: UserRepository>(
-    State(service): State<Arc<UserService<R>>>,
-    ValidatedJson(input): ValidatedJson<LoginRequest>,
-) -> UserResult<Json<UserResponse>> {
-    let user = service
-        .verify_credentials(&input.email, &input.password)
-        .await?;
-    Ok(Json(user))
 }

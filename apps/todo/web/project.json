@@ -1,0 +1,39 @@
+{
+  "name": "todo-web",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/todo/web/src",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run dev",
+        "cwd": "{workspaceRoot}/apps/todo/web"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "command": "bun run build",
+        "cwd": "{workspaceRoot}/apps/todo/web"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "options": {
+        "command": "bun run test",
+        "cwd": "{workspaceRoot}/apps/todo/web"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run lint",
+        "cwd": "{workspaceRoot}/apps/todo/web"
+      }
+    }
+  },
+  "tags": []
+}

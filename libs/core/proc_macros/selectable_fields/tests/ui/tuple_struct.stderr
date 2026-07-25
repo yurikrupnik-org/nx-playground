@@ -1,7 +1,7 @@
-error: proc-macro derive panicked
+error: Unsupported shape `unnamed fields`. Expected named fields.
  --> tests/ui/tuple_struct.rs:3:10
   |
 3 | #[derive(SelectableFields)]
   |          ^^^^^^^^^^^^^^^^
   |
-  = help: message: Only named fields are supported
+  = note: this error originates in the derive macro `SelectableFields` (in Nightly builds, run with -Z macro-backtrace for more info)

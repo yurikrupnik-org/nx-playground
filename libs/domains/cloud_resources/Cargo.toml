@@ -21,3 +21,10 @@ tracing = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true }
 validator = { workspace = true }
+
+[dev-dependencies]
+mockall = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

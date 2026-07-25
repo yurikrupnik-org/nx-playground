@@ -215,7 +215,7 @@ def bootstrap-flux [] {
     info $"Bootstrapping Flux for ($owner)/gitops-v1..."
 
     with-env { GITHUB_TOKEN: $token } {
-        flux bootstrap github --owner $owner --repository gitops-v1 --branch main --path /clusters/mgmt --personal --components-extra image-reflector-controller,image-automation-controller
+        flux bootstrap github --owner $owner --repository gitops-v1 --branch main --path /clusters/mgmt --personal --token-auth --components-extra image-reflector-controller,image-automation-controller
     }
 
     success "Flux bootstrapped successfully"

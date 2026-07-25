@@ -3,9 +3,35 @@ kind: Kustomization
 
 namespace: zerg
 
+# zerg-api local/dev (Tilt). Consumes the shared backend core and patches
+# zerg-api identity, image, and env. NOTE: Flux dev+prod use overlays/prod
+# (see gitops-v1), so this overlay is the local-only path — safe to base on
+# the shared core without touching any cluster-managed Deployment selector.
 resources:
+#  - ../../../../../../../manifests/apps/core/backend
   - ../../base
-  - external-secret.yaml
+  # - external-secret.yaml
+
+#patches:
+#  - path: tilt-dev-patch.yaml
+  # - database.yaml
+
+# identity: stable selector label, then descriptive labels (metadata + template).
+labels:
+  - pairs:
+      app.kubernetes.io/name: zerg-api
+    includeSelectors: true
+  - pairs:
+      app.kubernetes.io/component: api-server
+      app.kubernetes.io/part-of: zerg
+      app.kubernetes.io/version: "0.1.0"
+    includeTemplates: true
+
+# local image built by Tilt.
+#images:
+#  - name: zerg-api
+#    newName: yurikrupnik/zerg-api
+#    newTag: main
 
 generatorOptions:
   disableNameSuffixHash: true
@@ -17,6 +43,63 @@ configMapGenerator:
       - CORS_ALLOWED_ORIGIN=http://localhost:5206,https://127.0.0.1.nip.io:8443
       - REDIRECT_BASE_URL=http://localhost:5206
       - FRONTEND_URL=http://localhost:5206
-      - OAUTH_AUTO_LINK_VERIFIED_EMAILS=true
       - FLAGSMITH_API_URL=http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1
-      - TASKS_SERVICE_ADDR=http://zerg-tasks.zerg.svc.cluster.local:50051
+      # Same-namespace short DNS — works wherever the Kustomization lands.
+      - TASKS_SERVICE_ADDR=http://zerg-tasks:50051
+secretGenerator:
+  - name: zerg-api-secrets
+    literals:
+      - DATABASE_URL=postgres://myuser:mypassword@postgres.dbs.svc.cluster.local/zerg
+      # WorkOS AuthKit creds — replace with your environment's values (dev only;
+      # real deployments use the ExternalSecret instead).
+      - WORKOS_CLIENT_ID=client_replace-me
+      - WORKOS_API_KEY=sk_replace-me
+
+#patches:
+#  # rename the generic `app` workload -> zerg-api
+#  - target:
+#      kind: Deployment
+#      name: app
+#    patch: |
+#      - op: replace
+#        path: /metadata/name
+#        value: zerg-api
+#  - target:
+#      kind: Service
+#      name: app
+#    patch: |
+#      - op: replace
+#        path: /metadata/name
+#        value: zerg-api
+  # zerg env wiring: shared + app config/secrets (the core ships generic
+  # app-config/app-secrets; here we point it at zerg's real ConfigMaps/Secrets).
+#  - target:
+#      kind: Deployment
+#      name: app
+#    patch: |
+#      - op: replace
+#        path: /spec/template/spec/containers/0/envFrom
+#        value:
+#          - configMapRef:
+#              name: zerg-shared-config
+#          - configMapRef:
+#              name: zerg-api-config
+#          - secretRef:
+#              name: zerg-shared-secrets
+#              optional: true
+#          - secretRef:
+#              name: zerg-api-secrets
+#              optional: true
+#          - secretRef:
+#              name: zerg-api-db
+#              optional: true
+  # no autoscaling on local kind
+#  - target:
+#      kind: HorizontalPodAutoscaler
+#      name: app
+#    patch: |
+#      $patch: delete
+#      apiVersion: autoscaling/v2
+#      kind: HorizontalPodAutoscaler
+#      metadata:
+#        name: app

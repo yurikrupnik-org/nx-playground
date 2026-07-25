@@ -2,12 +2,17 @@
 name = "domain_vector"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+
+[lints]
+workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
 axum = { workspace = true }
 axum-helpers = { workspace = true }
 chrono = { workspace = true }
+futures = { workspace = true }
 qdrant-client = { workspace = true }
 reqwest = { workspace = true }
 rpc = { workspace = true }

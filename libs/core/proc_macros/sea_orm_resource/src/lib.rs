@@ -64,11 +64,10 @@
 //! assert_eq!(Model::TAG, "Project Management");
 //! ```
 
-extern crate proc_macro;
-
 use darling::FromDeriveInput;
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::spanned::Spanned;
 use syn::{DeriveInput, Lit, Meta, parse_macro_input};
 
 #[derive(Debug, FromDeriveInput)]
@@ -135,20 +134,11 @@ pub fn sea_orm_resource_derive(input: TokenStream) -> TokenStream {
 }
 
 fn capitalize_first_letter(input: &str) -> String {
-    if input.is_empty() {
-        return input.to_owned();
+    let mut chars = input.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
     }
-
-    input
-        .char_indices()
-        .fold(String::with_capacity(input.len()), |mut acc, (i, c)| {
-            if i == 0 {
-                acc.push_str(&c.to_uppercase().to_string());
-            } else {
-                acc.push(c);
-            }
-            acc
-        })
 }
 
 /// Convert underscores to hyphens for URL-friendly paths
@@ -166,40 +156,59 @@ fn snake_case_to_title_case(input: &str) -> String {
         .join(" ")
 }
 
-fn extract_table_name(attrs: &[syn::Attribute]) -> Option<String> {
+fn extract_table_name(attrs: &[syn::Attribute]) -> syn::Result<Option<String>> {
     for attr in attrs {
         if attr.path().is_ident("sea_orm")
             && let Meta::List(meta_list) = &attr.meta
         {
             let mut table_name = None;
-            let _ = meta_list.parse_nested_meta(|meta| {
+            meta_list.parse_nested_meta(|meta| {
                 if meta.path.is_ident("table_name") {
-                    let value = meta.value()?;
-                    let lit: Lit = value.parse()?;
-                    if let Lit::Str(lit_str) = lit {
+                    let lit: Lit = meta.value()?.parse()?;
+                    if let Lit::Str(lit_str) = &lit {
                         table_name = Some(lit_str.value());
+                        Ok(())
+                    } else {
+                        Err(syn::Error::new(
+                            lit.span(),
+                            "expected a string literal for `table_name`",
+                        ))
                     }
+                } else {
+                    // Consume and ignore the value of any other sea_orm
+                    // option (e.g. `schema_name = "..."`); bare flags need
+                    // no consumption.
+                    if let Ok(value) = meta.value() {
+                        let _: syn::Expr = value.parse()?;
+                    }
+                    Ok(())
                 }
-                Ok(())
-            });
+            })?;
             if table_name.is_some() {
-                return table_name;
+                return Ok(table_name);
             }
         }
     }
-    None
+    Ok(None)
 }
 
 fn impl_sea_orm_resource(receiver: SeaOrmResourceInput) -> syn::Result<proc_macro2::TokenStream> {
     let ident = &receiver.ident;
 
     // Extract table_name from #[sea_orm(table_name = "...")]
-    let table_name = extract_table_name(&receiver.attrs).ok_or_else(|| {
-        syn::Error::new_spanned(
-            ident,
+    let Some(table_name) = extract_table_name(&receiver.attrs)? else {
+        // Point the diagnostic at the sea_orm attribute when one exists,
+        // otherwise at the struct name.
+        let span = receiver
+            .attrs
+            .iter()
+            .find(|attr| attr.path().is_ident("sea_orm"))
+            .map_or_else(|| ident.span(), |attr| attr.span());
+        return Err(syn::Error::new(
+            span,
             "SeaOrmResource requires #[sea_orm(table_name = \"...\")] attribute",
-        )
-    })?;
+        ));
+    };
 
     // Generate defaults based on table_name
     let collection = receiver.collection.unwrap_or_else(|| table_name.clone());
@@ -217,7 +226,7 @@ fn impl_sea_orm_resource(receiver: SeaOrmResourceInput) -> syn::Result<proc_macr
         .unwrap_or_else(|| snake_case_to_title_case(&collection));
 
     Ok(quote! {
-        impl core_proc_macros::ApiResource for #ident {
+        impl ::core_proc_macros::ApiResource for #ident {
             const URL: &'static str = #url;
             const COLLECTION: &'static str = #collection;
             const TAG: &'static str = #tag;
@@ -226,6 +235,7 @@ fn impl_sea_orm_resource(receiver: SeaOrmResourceInput) -> syn::Result<proc_macr
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use quote::quote;
@@ -240,7 +250,7 @@ mod tests {
         };
 
         let ast: DeriveInput = syn::parse2(input).unwrap();
-        let table_name = extract_table_name(&ast.attrs);
+        let table_name = extract_table_name(&ast.attrs).unwrap();
         assert_eq!(table_name, Some("projects".to_string()));
     }
 
@@ -255,7 +265,7 @@ mod tests {
         };
 
         let ast: DeriveInput = syn::parse2(input).unwrap();
-        let table_name = extract_table_name(&ast.attrs);
+        let table_name = extract_table_name(&ast.attrs).unwrap();
         assert_eq!(table_name, Some("users".to_string()));
     }
 
@@ -274,7 +284,7 @@ mod tests {
         let output = impl_sea_orm_resource(receiver).unwrap();
         let output_str = output.to_string();
 
-        assert!(output_str.contains("impl core_proc_macros :: ApiResource for Model"));
+        assert!(output_str.contains("impl :: core_proc_macros :: ApiResource for Model"));
         assert!(output_str.contains(r#"const COLLECTION : & 'static str = "projects""#));
         assert!(output_str.contains(r#"const URL : & 'static str = "/projects""#));
         assert!(output_str.contains(r#"const TAG : & 'static str = "Projects""#));

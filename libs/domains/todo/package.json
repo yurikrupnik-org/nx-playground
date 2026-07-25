@@ -1,0 +1,12 @@
+{
+  "name": "@domain/todo",
+  "version": "0.0.1",
+  "description": "ts-rs generated Todo DTOs (source of truth: libs/domains/todo Rust models)",
+  "type": "module",
+  "types": "types/index.ts",
+  "main": "types/index.ts",
+  "exports": {
+    ".": "./types/index.ts"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,42 @@
+[package]
+name = "domain_todo"
+version = "0.1.0"
+edition = "2021"
+description = "Todo domain: DDD CRUD + NATS JetStream lifecycle events + ts-rs DTOs"
+
+[dependencies]
+async-nats = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true }
+axum-helpers = { workspace = true }
+chrono = { workspace = true }
+core_proc_macros = { workspace = true, features = ["sea_orm_resource"] }
+database = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+strum = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+ts-rs = { workspace = true }
+utoipa = { workspace = true }
+uuid = { workspace = true }
+validator = { workspace = true }
+
+[dev-dependencies]
+async-nats = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+http-body-util = "0.1"
+mockall = { workspace = true }
+parking_lot = "0.12"
+serde_json = { workspace = true }
+test-utils = { workspace = true, features = ["postgres", "nats"] }
+tower = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

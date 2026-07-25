@@ -21,5 +21,5 @@ pub mod security;
 
 // Re-export commonly used functions
 pub use cors::{create_cors_layer, create_permissive_cors_layer};
-pub use csrf::csrf_validation_middleware;
+pub use csrf::{CsrfConfig, csrf_protect};
 pub use security::security_headers;

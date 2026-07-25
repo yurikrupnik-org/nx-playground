@@ -1,6 +1,12 @@
 //! Error types for NATS worker.
 
 use crate::ErrorCategory;
+use async_nats::jetstream::consumer::pull::BatchError;
+use async_nats::jetstream::context::{
+    CreateStreamError, CreateStreamErrorKind, GetStreamError, GetStreamErrorKind, PublishError,
+    PublishErrorKind, RequestError,
+};
+use async_nats::jetstream::stream::{ConsumerError, ConsumerErrorKind};
 use thiserror::Error;
 
 /// Error that can occur in NATS worker operations.
@@ -10,64 +16,105 @@ pub enum NatsError {
     #[error("NATS connection error: {0}")]
     Connection(#[from] async_nats::ConnectError),
 
-    /// JetStream error
-    #[error("JetStream error: {0}")]
-    JetStream(String),
+    /// Stream lookup failed
+    #[error("stream lookup failed: {0}")]
+    GetStream(#[from] GetStreamError),
 
-    /// Consumer error
-    #[error("Consumer error: {0}")]
-    Consumer(String),
+    /// Stream creation failed
+    #[error("stream creation failed: {0}")]
+    CreateStream(#[from] CreateStreamError),
 
-    /// Publish error
-    #[error("Publish error: {0}")]
-    Publish(String),
+    /// Stream info request failed
+    #[error("stream info request failed: {0}")]
+    StreamInfo(#[from] RequestError),
+
+    /// Consumer lookup/creation failed
+    #[error("consumer error: {0}")]
+    Consumer(#[from] ConsumerError),
+
+    /// Batch fetch failed
+    #[error("batch fetch failed: {0}")]
+    Batch(#[from] BatchError),
+
+    /// Receiving a message from an open batch failed
+    #[error("message receive failed: {0}")]
+    Receive(#[source] async_nats::Error),
+
+    /// Publish failed (or the server did not ack)
+    #[error("publish failed: {0}")]
+    Publish(#[from] PublishError),
+
+    /// Message acknowledgement (ack/nak/term) failed
+    #[error("message acknowledgement failed: {0}")]
+    Ack(#[source] async_nats::Error),
 
     /// Serialization error
-    #[error("Serialization error: {0}")]
+    #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
     /// Processing error
-    #[error("Processing error: {0}")]
+    #[error("processing error: {0}")]
     Processing(#[from] crate::ProcessingError),
 
     /// Configuration error
-    #[error("Configuration error: {0}")]
+    #[error("configuration error: {0}")]
     Config(String),
-
-    /// Timeout error
-    #[error("Timeout: {0}")]
-    Timeout(String),
-
-    /// Stream not found
-    #[error("Stream not found: {0}")]
-    StreamNotFound(String),
-
-    /// Consumer not found
-    #[error("Consumer not found: {0}")]
-    ConsumerNotFound(String),
 }
 
 impl NatsError {
     /// Get the error category for retry decisions.
+    ///
+    /// Retryability is decided from the typed error variants (and their
+    /// kinds), never from message-string sniffing.
     pub fn category(&self) -> ErrorCategory {
         match self {
-            // Transient errors - should retry
-            NatsError::Connection(_) => ErrorCategory::Transient,
-            NatsError::Timeout(_) => ErrorCategory::Transient,
-            NatsError::JetStream(msg) if msg.contains("timeout") => ErrorCategory::Transient,
-            NatsError::Publish(msg) if msg.contains("timeout") => ErrorCategory::Transient,
+            // Connectivity problems are always worth retrying.
+            NatsError::Connection(_)
+            | NatsError::Batch(_)
+            | NatsError::Receive(_)
+            | NatsError::Ack(_)
+            | NatsError::StreamInfo(_) => ErrorCategory::Transient,
 
-            // Permanent errors - don't retry
-            NatsError::Serialization(_) => ErrorCategory::Permanent,
-            NatsError::Config(_) => ErrorCategory::Permanent,
-            NatsError::StreamNotFound(_) => ErrorCategory::Permanent,
-            NatsError::ConsumerNotFound(_) => ErrorCategory::Permanent,
+            NatsError::GetStream(e) => match e.kind() {
+                GetStreamErrorKind::EmptyName | GetStreamErrorKind::InvalidStreamName => {
+                    ErrorCategory::Permanent
+                }
+                GetStreamErrorKind::Request | GetStreamErrorKind::JetStream(_) => {
+                    ErrorCategory::Transient
+                }
+            },
 
-            // Processing errors - delegate to inner category
+            NatsError::CreateStream(e) => match e.kind() {
+                CreateStreamErrorKind::EmptyStreamName
+                | CreateStreamErrorKind::InvalidStreamName
+                | CreateStreamErrorKind::DomainAndExternalSet
+                | CreateStreamErrorKind::NotFound => ErrorCategory::Permanent,
+                CreateStreamErrorKind::JetStreamUnavailable
+                | CreateStreamErrorKind::JetStream(_)
+                | CreateStreamErrorKind::TimedOut
+                | CreateStreamErrorKind::Response
+                | CreateStreamErrorKind::ResponseParse => ErrorCategory::Transient,
+            },
+
+            NatsError::Consumer(e) => match e.kind() {
+                ConsumerErrorKind::InvalidConsumerType | ConsumerErrorKind::InvalidName => {
+                    ErrorCategory::Permanent
+                }
+                _ => ErrorCategory::Transient,
+            },
+
+            NatsError::Publish(e) => match e.kind() {
+                PublishErrorKind::StreamNotFound
+                | PublishErrorKind::WrongLastMessageId
+                | PublishErrorKind::WrongLastSequence => ErrorCategory::Permanent,
+                _ => ErrorCategory::Transient,
+            },
+
+            // Bad payloads and bad configuration never fix themselves.
+            NatsError::Serialization(_) | NatsError::Config(_) => ErrorCategory::Permanent,
+
+            // Processing errors carry their own category.
             NatsError::Processing(e) => e.category(),
-
-            // Default to transient
-            _ => ErrorCategory::Transient,
         }
     }
 
@@ -80,21 +127,6 @@ impl NatsError {
     pub fn backoff_delay_ms(&self, retry_count: u32) -> u64 {
         self.category().backoff_delay_ms(retry_count)
     }
-
-    /// Create a JetStream error from an async_nats error.
-    pub fn from_jetstream_error(error: impl std::fmt::Display) -> Self {
-        Self::JetStream(error.to_string())
-    }
-
-    /// Create a publish error.
-    pub fn publish_error(msg: impl Into<String>) -> Self {
-        Self::Publish(msg.into())
-    }
-
-    /// Create a consumer error.
-    pub fn consumer_error(msg: impl Into<String>) -> Self {
-        Self::Consumer(msg.into())
-    }
 }
 
 #[cfg(test)]
@@ -103,8 +135,10 @@ mod tests {
 
     #[test]
     fn test_error_category() {
-        let timeout_err = NatsError::Timeout("timed out".to_string());
-        assert_eq!(timeout_err.category(), ErrorCategory::Transient);
+        let batch_err = NatsError::Batch(BatchError::new(
+            async_nats::jetstream::consumer::pull::BatchErrorKind::Pull,
+        ));
+        assert_eq!(batch_err.category(), ErrorCategory::Transient);
 
         let serialization_err =
             NatsError::Serialization(serde_json::from_str::<String>("invalid").unwrap_err());
@@ -112,11 +146,18 @@ mod tests {
 
         let config_err = NatsError::Config("bad config".to_string());
         assert_eq!(config_err.category(), ErrorCategory::Permanent);
+
+        let publish_not_found =
+            NatsError::Publish(PublishError::new(PublishErrorKind::StreamNotFound));
+        assert_eq!(publish_not_found.category(), ErrorCategory::Permanent);
+
+        let publish_timeout = NatsError::Publish(PublishError::new(PublishErrorKind::TimedOut));
+        assert_eq!(publish_timeout.category(), ErrorCategory::Transient);
     }
 
     #[test]
     fn test_should_retry() {
-        let transient = NatsError::Timeout("timed out".to_string());
+        let transient = NatsError::Publish(PublishError::new(PublishErrorKind::TimedOut));
         assert!(transient.should_retry(0));
         assert!(transient.should_retry(2));
         assert!(!transient.should_retry(3));

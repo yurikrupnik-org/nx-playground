@@ -51,7 +51,7 @@ use axum::{
     response::IntoResponse,
 };
 use domain_vector::{
-    QdrantRepository, VectorService,
+    QdrantRepository, SearchWithEmbedding, VectorService,
     error::VectorResult,
     models::{
         CollectionInfo, CreateCollection, EmbeddingResult, SearchResult, TenantContext, Vector,
@@ -105,7 +105,7 @@ pub async fn get_collection(
     let collection = service
         .get_collection(&tenant, &name)
         .await?
-        .ok_or_else(|| domain_vector::error::VectorError::CollectionNotFound(name))?;
+        .ok_or(domain_vector::error::VectorError::CollectionNotFound(name))?;
 
     Ok(Json(collection))
 }
@@ -262,9 +262,7 @@ pub async fn embed(
     State(service): State<Arc<VectorService<QdrantRepository>>>,
     Json(request): Json<EmbedRequest>,
 ) -> VectorResult<Json<EmbeddingResult>> {
-    let result = service
-        .embed(request.provider, request.model, &request.text)
-        .await?;
+    let result = service.embed(request.model, &request.text).await?;
     Ok(Json(result))
 }
 
@@ -276,13 +274,14 @@ pub async fn search_with_embedding(
         .search_with_embedding(
             &request.tenant,
             &request.collection_name,
-            &request.text,
-            request.limit,
-            request.score_threshold,
-            request.with_vectors,
-            request.with_payloads,
-            request.provider,
-            request.model,
+            SearchWithEmbedding {
+                text: request.text,
+                limit: request.limit,
+                score_threshold: request.score_threshold,
+                with_vectors: request.with_vectors,
+                with_payloads: request.with_payloads,
+                model: request.model,
+            },
         )
         .await?;
     Ok(Json(results))

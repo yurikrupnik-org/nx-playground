@@ -5,15 +5,15 @@ This package generates CI configurations for multiple providers (GitHub Actions,
 from a single configuration source. Users can choose from pre-built presets or create
 custom configurations.
 
-Usage:
-    # Generate GitHub workflow using preset
-    kcl run main.k -e githubWorkflow
+Usage (run from the consumer repo root):
+    # Generate GitHub workflow from ./manifests/ci/ci-config.yaml
+    kcl run scripts/kcl/ci/main.k -S githubWorkflow
 
-    # Generate Tekton resources using preset
-    kcl run main.k -e tektonResources
+    # Generate Tekton resources
+    kcl run scripts/kcl/ci/main.k -S tektonResources
 
-    # Generate all for a specific config
-    kcl run main.k -D config_file=./my-config.k
+    # Point at a different config file
+    kcl run scripts/kcl/ci/main.k -D config_file=path/to/ci-config.yaml -S githubWorkflow
 
 Presets available:
     - presets/rust_single.k     - Rust single application
@@ -27,15 +27,17 @@ Presets available:
 import .providers.github.main as github
 import .providers.tekton.main as tekton
 
-# Import presets
-import .presets.nx_monorepo as nx_preset
+# Config loader (reads the consumer repo's ci-config.yaml)
+import .loader
 
 # =============================================================================
 # CURRENT REPO CONFIGURATION
 # =============================================================================
 
-# Using the nx_monorepo preset for this repo
-config = nx_preset.nx_playground
+# The repo's CI shape (languages, package manager, caching, ...) is declared
+# in manifests/ci/ci-config.yaml - data, not code. Override the path with
+# -D config_file=...
+config = loader.load_monorepo(option("config_file", default="manifests/ci/ci-config.yaml"))
 
 # =============================================================================
 # GENERATE CI FOR CONFIGURED PROVIDERS
@@ -46,6 +48,19 @@ githubWorkflow = github.generate_monorepo(config)
 
 # Tekton resources (tasks + pipeline)
 tektonResources = tekton.generate_monorepo(config)
+
+# --- Per-repo version overrides (optional) -----------------------------------
+# Tool versions (node/bun/go/rust/python) are set on the preset config, e.g.
+#   config = nx_preset.nx_playground | {bun_version = "1.2.5", rust_channel = "1.83"}
+# GHA action pins and Tekton images are overridden per logical name via the
+# provider config (keys match common.GHA_ACTIONS / common.TEKTON_IMAGES):
+#   import .schemas.config as cfg
+#   githubWorkflow = github.generate_monorepo(config, cfg.GitHubConfig {
+#       action_versions = {checkout = "actions/checkout@v5", sccache = "mozilla-actions/sccache-action@v0.0.9"}
+#   })
+#   tektonResources = tekton.generate_monorepo(config, cfg.TektonConfig {
+#       images = {rust = "rust:1.86", git = "alpine/git:v2.47.0"}
+#   })
 # =============================================================================
 # EXAMPLE: USING OTHER PRESETS
 # =============================================================================
@@ -69,15 +84,3 @@ tektonResources = tekton.generate_monorepo(config)
 # go_config = go_preset.default_config("my-go-api")
 # go_github = github.generate_go(go_config)
 # go_tekton = tekton.generate_go(go_config)
-#apiVersion: security.istio.io/v1
- #  kind: AuthorizationPolicy
- #  metadata:
-  #   name: allow-external-to-gateway
-  #   namespace: gateway
-  # spec:
-  #   selector:
-  #     matchLabels:
-  #       istio.io/gateway-name: main-gateway
-  #   action: ALLOW
-  #   rules:
-  #   - {}

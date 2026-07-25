@@ -18,11 +18,16 @@
 //!
 //! ### Basic Usage
 //! ```ignore
-//! use grpc_client::{create_channel, configure_client};
+//! use grpc_client::create_channel;
 //! use rpc::tasks::tasks_service_client::TasksServiceClient;
+//! use tonic::codec::CompressionEncoding;
 //!
 //! let channel = create_channel("http://[::1]:50051").await?;
-//! let client = configure_client(TasksServiceClient::new(channel));
+//! let client = TasksServiceClient::new(channel)
+//!     .accept_compressed(CompressionEncoding::Zstd)
+//!     .send_compressed(CompressionEncoding::Zstd)
+//!     .max_decoding_message_size(8 * 1024 * 1024)
+//!     .max_encoding_message_size(8 * 1024 * 1024);
 //! ```
 //!
 //! ### With Interceptors
@@ -49,8 +54,7 @@
 //!
 //! let config = ChannelConfig::default()
 //!     .with_connect_timeout(Duration::from_secs(10))
-//!     .with_request_timeout(Duration::from_secs(120))
-//!     .with_max_concurrent_streams(200);
+//!     .with_request_timeout(Duration::from_secs(120));
 //!
 //! let channel = create_channel_with_config("http://[::1]:50051", config).await?;
 //! ```
@@ -64,29 +68,25 @@
 //! ```
 
 pub mod channel;
-pub mod client;
 pub mod conversions;
 pub mod error;
 pub mod interceptors;
-pub mod retry;
 
 #[cfg(feature = "server")]
 pub mod server;
 
 // Re-export main types and functions for convenience
 pub use channel::{
-    ChannelConfig, create_channel, create_channel_with_config, create_channel_with_retry,
-};
-pub use client::{
-    ConfigurableClient, configure_client, with_compression, with_limits, with_standard_limits,
-    with_zstd_compression,
+    ChannelConfig, create_channel, create_channel_lazy, create_channel_lazy_with_config,
+    create_channel_with_config, create_channel_with_retry,
 };
 pub use error::{GrpcError, GrpcResult, ToTonicOption, ToTonicResult};
-pub use retry::{RetryConfig, retry, retry_with_backoff};
+// Retry logic lives in the shared `core_retry` crate; re-exported for convenience.
+pub use core_retry::{RetryConfig, retry, retry_with_backoff};
 
 // Re-export interceptors for convenience
 pub use interceptors::{
-    AuthInterceptor, ComposedInterceptor, MetricsInterceptor, TracingInterceptor,
+    AuthInterceptor, ComposedInterceptor, MetricsInterceptor, TracedChannel, TracingInterceptor,
     compose_interceptors,
 };
 

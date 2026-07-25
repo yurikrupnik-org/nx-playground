@@ -43,8 +43,6 @@
 //! assert_eq!(User::TAG, "User Management");
 //! ```
 
-extern crate proc_macro;
-
 use darling::FromDeriveInput;
 use pluralizer::pluralize;
 use proc_macro::TokenStream;
@@ -140,20 +138,11 @@ pub fn api_resource_derive(input: TokenStream) -> TokenStream {
 }
 
 fn capitalize_first_letter(input: &str) -> String {
-    if input.is_empty() {
-        return input.to_owned();
+    let mut chars = input.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
     }
-
-    input
-        .char_indices()
-        .fold(String::with_capacity(input.len()), |mut acc, (i, c)| {
-            if i == 0 {
-                acc.push_str(&c.to_uppercase().to_string());
-            } else {
-                acc.push(c);
-            }
-            acc
-        })
 }
 
 fn impl_api_resource(receiver: ApiResourceInput) -> proc_macro2::TokenStream {
@@ -165,14 +154,14 @@ fn impl_api_resource(receiver: ApiResourceInput) -> proc_macro2::TokenStream {
         .collection
         .unwrap_or_else(|| pluralize(&name, 2, false));
 
-    let url = receiver.url.unwrap_or_else(|| format!("/{}", name));
+    let url = receiver.url.unwrap_or_else(|| format!("/{name}"));
 
     let tag = receiver
         .tag
         .unwrap_or_else(|| capitalize_first_letter(&collection));
 
     quote! {
-        impl core_proc_macros::ApiResource for #ident {
+        impl ::core_proc_macros::ApiResource for #ident {
             const URL: &'static str = #url;
             const COLLECTION: &'static str = #collection;
             const TAG: &'static str = #tag;
@@ -181,6 +170,7 @@ fn impl_api_resource(receiver: ApiResourceInput) -> proc_macro2::TokenStream {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use quote::quote;
@@ -199,7 +189,7 @@ mod tests {
         let output = impl_api_resource(receiver);
         let output_str = output.to_string();
 
-        assert!(output_str.contains("impl core_proc_macros :: ApiResource for User"));
+        assert!(output_str.contains("impl :: core_proc_macros :: ApiResource for User"));
         assert!(output_str.contains(r#"const COLLECTION : & 'static str = "users""#));
         assert!(output_str.contains(r#"const URL : & 'static str = "/user""#));
         assert!(output_str.contains(r#"const TAG : & 'static str = "Users""#));

@@ -22,8 +22,8 @@ pub async fn connect(database_url: &str) -> Result<DatabaseConnection, DbErr> {
         .min_connections(5)
         .connect_timeout(Duration::from_secs(8))
         .acquire_timeout(Duration::from_secs(8))
-        .idle_timeout(Duration::from_secs(8))
-        .max_lifetime(Duration::from_secs(8))
+        .idle_timeout(Duration::from_secs(600))
+        .max_lifetime(Duration::from_secs(1800))
         .sqlx_logging(true)
         .sqlx_logging_level(LevelFilter::Info); // SeaORM requires log::LevelFilter
 
@@ -150,9 +150,8 @@ pub async fn connect_from_config_with_retry(
     }
 }
 
-// Note: Migrations are now managed by Atlas CLI
-// See manifests/migrations/ for SQL migration files
-// Run `just migrate` to apply migrations
+// Note: Migrations live per-DB under manifests/db/<db>/migrations
+// Run `just migrate <db>` (sqlx) to apply them
 
 #[cfg(test)]
 mod tests {

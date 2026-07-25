@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use uuid::Uuid;
 
 use crate::error::{VectorError, VectorResult};
@@ -17,14 +19,11 @@ use rpc::vector::v1::{
 
 // ===== Tenant Context =====
 
-impl TryFrom<Option<ProtoTenantContext>> for TenantContext {
-    type Error = VectorError;
-
-    fn try_from(proto: Option<ProtoTenantContext>) -> Result<Self, Self::Error> {
-        let proto =
-            proto.ok_or_else(|| VectorError::Validation("Missing tenant context".to_string()))?;
-        Self::try_from(proto)
-    }
+/// Convert an optional proto tenant context, erroring when it is missing.
+pub fn tenant_from_proto(proto: Option<ProtoTenantContext>) -> VectorResult<TenantContext> {
+    proto
+        .ok_or_else(|| VectorError::Validation("Missing tenant context".to_string()))?
+        .try_into()
 }
 
 impl TryFrom<ProtoTenantContext> for TenantContext {
@@ -58,13 +57,15 @@ impl From<TenantContext> for ProtoTenantContext {
 
 // ===== Distance Metric =====
 
-pub fn distance_from_proto(proto: i32) -> DistanceMetric {
+pub fn distance_from_proto(proto: i32) -> VectorResult<DistanceMetric> {
     match ProtoDistance::try_from(proto) {
-        Ok(ProtoDistance::Cosine) => DistanceMetric::Cosine,
-        Ok(ProtoDistance::Euclidean) => DistanceMetric::Euclidean,
-        Ok(ProtoDistance::DotProduct) => DistanceMetric::DotProduct,
-        Ok(ProtoDistance::Manhattan) => DistanceMetric::Manhattan,
-        _ => DistanceMetric::Cosine,
+        Ok(ProtoDistance::Cosine) => Ok(DistanceMetric::Cosine),
+        Ok(ProtoDistance::Euclidean) => Ok(DistanceMetric::Euclidean),
+        Ok(ProtoDistance::DotProduct) => Ok(DistanceMetric::DotProduct),
+        Ok(ProtoDistance::Manhattan) => Ok(DistanceMetric::Manhattan),
+        _ => Err(VectorError::Validation(format!(
+            "Unknown distance metric: {proto}"
+        ))),
     }
 }
 
@@ -97,15 +98,14 @@ pub fn hnsw_to_proto(hnsw: Option<HnswConfig>) -> Option<ProtoHnswConfig> {
 
 // ===== Vector Config =====
 
-pub fn vector_config_from_proto(proto: Option<ProtoVectorConfig>) -> VectorConfig {
-    match proto {
-        Some(c) => VectorConfig {
-            dimension: c.dimension,
-            distance: distance_from_proto(c.distance),
-            hnsw: hnsw_from_proto(c.hnsw),
-        },
-        None => VectorConfig::new(1536),
-    }
+pub fn vector_config_from_proto(proto: Option<ProtoVectorConfig>) -> VectorResult<VectorConfig> {
+    let config =
+        proto.ok_or_else(|| VectorError::Validation("Missing vector config".to_string()))?;
+    Ok(VectorConfig {
+        dimension: config.dimension,
+        distance: distance_from_proto(config.distance)?,
+        hnsw: hnsw_from_proto(config.hnsw),
+    })
 }
 
 impl From<VectorConfig> for ProtoVectorConfig {
@@ -124,9 +124,11 @@ impl From<CollectionInfo> for ProtoCollectionInfo {
     fn from(info: CollectionInfo) -> Self {
         ProtoCollectionInfo {
             collection_name: info.name,
-            vectors_count: info.vectors_count,
-            indexed_vectors_count: info.indexed_vectors_count,
-            points_count: info.points_count,
+            // proto3 cannot express absence for these counters; 0 means
+            // "not reported by the backend".
+            vectors_count: info.vectors_count.unwrap_or(0),
+            indexed_vectors_count: info.indexed_vectors_count.unwrap_or(0),
+            points_count: info.points_count.unwrap_or(0),
             config: Some(info.config.into()),
             status: info.status.as_str().to_string(),
         }
@@ -135,13 +137,11 @@ impl From<CollectionInfo> for ProtoCollectionInfo {
 
 // ===== Vector =====
 
-impl TryFrom<Option<ProtoVector>> for Vector {
-    type Error = VectorError;
-
-    fn try_from(proto: Option<ProtoVector>) -> Result<Self, Self::Error> {
-        let proto = proto.ok_or_else(|| VectorError::Validation("Missing vector".to_string()))?;
-        Self::try_from(proto)
-    }
+/// Convert an optional proto vector, erroring when it is missing.
+pub fn vector_from_proto(proto: Option<ProtoVector>) -> VectorResult<Vector> {
+    proto
+        .ok_or_else(|| VectorError::Validation("Missing vector".to_string()))?
+        .try_into()
 }
 
 impl TryFrom<ProtoVector> for Vector {
@@ -149,13 +149,7 @@ impl TryFrom<ProtoVector> for Vector {
 
     fn try_from(proto: ProtoVector) -> Result<Self, Self::Error> {
         let id = bytes_to_uuid(&proto.id)?;
-        let payload = proto.payload.and_then(|p| {
-            if p.json.is_empty() {
-                None
-            } else {
-                serde_json::from_slice(&p.json).ok()
-            }
-        });
+        let payload = payload_from_proto(proto.payload)?;
 
         Ok(Vector {
             id,
@@ -166,17 +160,38 @@ impl TryFrom<ProtoVector> for Vector {
     }
 }
 
+/// Parse an optional proto payload into a JSON value.
+///
+/// An absent or empty payload is `None`; malformed JSON is a validation error
+/// rather than being silently dropped.
+pub fn payload_from_proto(proto: Option<ProtoPayload>) -> VectorResult<Option<serde_json::Value>> {
+    match proto {
+        Some(p) if !p.json.is_empty() => serde_json::from_slice(&p.json)
+            .map(Some)
+            .map_err(|e| VectorError::Validation(format!("Invalid payload JSON: {e}"))),
+        _ => Ok(None),
+    }
+}
+
+/// Serialize a JSON payload for the wire.
+///
+/// Serializing a `serde_json::Value` cannot realistically fail (object keys
+/// are always strings); a failure is logged and mapped to an empty payload.
+fn payload_to_proto(payload: Option<serde_json::Value>) -> Option<ProtoPayload> {
+    payload.map(|p| ProtoPayload {
+        json: serde_json::to_vec(&p).unwrap_or_else(|e| {
+            tracing::warn!("Failed to serialize payload to proto: {e}");
+            Vec::new()
+        }),
+    })
+}
+
 impl From<Vector> for ProtoVector {
     fn from(vector: Vector) -> Self {
         ProtoVector {
             id: vector.id.as_bytes().to_vec(),
             values: vector.values,
-            payload: vector.payload.map(|p| ProtoPayload {
-                json: serde_json::to_vec(&p).unwrap_or_else(|e| {
-                    tracing::warn!("Failed to serialize vector payload to proto: {e}");
-                    Vec::new()
-                }),
-            }),
+            payload: payload_to_proto(vector.payload),
             sparse: None,
         }
     }
@@ -189,12 +204,7 @@ impl From<SearchResult> for ProtoSearchResult {
         ProtoSearchResult {
             id: result.id.as_bytes().to_vec(),
             score: result.score,
-            payload: result.payload.map(|p| ProtoPayload {
-                json: serde_json::to_vec(&p).unwrap_or_else(|e| {
-                    tracing::warn!("Failed to serialize search result payload to proto: {e}");
-                    Vec::new()
-                }),
-            }),
+            payload: payload_to_proto(result.payload),
             vector: result.vector.map(|values| ProtoVector {
                 id: result.id.as_bytes().to_vec(),
                 values,
@@ -221,15 +231,17 @@ pub fn search_results_to_recommend_response(results: Vec<SearchResult>) -> Recom
 
 // ===== Embedding Provider =====
 
-pub fn embedding_provider_from_proto(proto: i32) -> EmbeddingProviderType {
+pub fn embedding_provider_from_proto(proto: i32) -> VectorResult<EmbeddingProviderType> {
     match ProtoEmbeddingProvider::try_from(proto) {
-        Ok(ProtoEmbeddingProvider::EmbeddingOpenai) => EmbeddingProviderType::OpenAI,
-        Ok(ProtoEmbeddingProvider::EmbeddingAnthropic) => EmbeddingProviderType::Anthropic,
-        Ok(ProtoEmbeddingProvider::EmbeddingLocal) => EmbeddingProviderType::Local,
-        Ok(ProtoEmbeddingProvider::EmbeddingVertexai) => EmbeddingProviderType::VertexAI,
-        Ok(ProtoEmbeddingProvider::EmbeddingCohere) => EmbeddingProviderType::Cohere,
-        Ok(ProtoEmbeddingProvider::EmbeddingVoyage) => EmbeddingProviderType::Voyage,
-        _ => EmbeddingProviderType::OpenAI,
+        Ok(ProtoEmbeddingProvider::EmbeddingOpenai) => Ok(EmbeddingProviderType::OpenAI),
+        Ok(ProtoEmbeddingProvider::EmbeddingAnthropic) => Ok(EmbeddingProviderType::Anthropic),
+        Ok(ProtoEmbeddingProvider::EmbeddingLocal) => Ok(EmbeddingProviderType::Local),
+        Ok(ProtoEmbeddingProvider::EmbeddingVertexai) => Ok(EmbeddingProviderType::VertexAI),
+        Ok(ProtoEmbeddingProvider::EmbeddingCohere) => Ok(EmbeddingProviderType::Cohere),
+        Ok(ProtoEmbeddingProvider::EmbeddingVoyage) => Ok(EmbeddingProviderType::Voyage),
+        _ => Err(VectorError::Validation(format!(
+            "Unknown embedding provider: {proto}"
+        ))),
     }
 }
 
@@ -246,32 +258,44 @@ pub fn embedding_provider_to_proto(provider: EmbeddingProviderType) -> i32 {
 
 // ===== Embedding Model =====
 
-pub fn embedding_model_from_proto(proto: i32, custom_dim: Option<u32>) -> EmbeddingModel {
+pub fn embedding_model_from_proto(
+    proto: i32,
+    custom_dim: Option<u32>,
+) -> VectorResult<EmbeddingModel> {
     match ProtoEmbeddingModel::try_from(proto) {
         // OpenAI models
-        Ok(ProtoEmbeddingModel::Embedding3Small) => EmbeddingModel::TextEmbedding3Small,
-        Ok(ProtoEmbeddingModel::Embedding3Large) => EmbeddingModel::TextEmbedding3Large,
-        Ok(ProtoEmbeddingModel::EmbeddingAda002) => EmbeddingModel::TextEmbeddingAda002,
+        Ok(ProtoEmbeddingModel::Embedding3Small) => Ok(EmbeddingModel::TextEmbedding3Small),
+        Ok(ProtoEmbeddingModel::Embedding3Large) => Ok(EmbeddingModel::TextEmbedding3Large),
+        Ok(ProtoEmbeddingModel::EmbeddingAda002) => Ok(EmbeddingModel::TextEmbeddingAda002),
         // Vertex AI models
-        Ok(ProtoEmbeddingModel::Gecko) => EmbeddingModel::Gecko,
-        Ok(ProtoEmbeddingModel::GeckoMultilingual) => EmbeddingModel::GeckoMultilingual,
-        Ok(ProtoEmbeddingModel::TextEmbedding004) => EmbeddingModel::TextEmbedding004,
-        Ok(ProtoEmbeddingModel::TextEmbedding005) => EmbeddingModel::TextEmbedding005,
+        Ok(ProtoEmbeddingModel::Gecko) => Ok(EmbeddingModel::Gecko),
+        Ok(ProtoEmbeddingModel::GeckoMultilingual) => Ok(EmbeddingModel::GeckoMultilingual),
+        Ok(ProtoEmbeddingModel::TextEmbedding004) => Ok(EmbeddingModel::TextEmbedding004),
+        Ok(ProtoEmbeddingModel::TextEmbedding005) => Ok(EmbeddingModel::TextEmbedding005),
         Ok(ProtoEmbeddingModel::TextMultilingualEmbedding002) => {
-            EmbeddingModel::TextMultilingualEmbedding002
+            Ok(EmbeddingModel::TextMultilingualEmbedding002)
         }
         // Cohere models
-        Ok(ProtoEmbeddingModel::CohereEmbedV3) => EmbeddingModel::CohereEmbedV3,
+        Ok(ProtoEmbeddingModel::CohereEmbedV3) => Ok(EmbeddingModel::CohereEmbedV3),
         Ok(ProtoEmbeddingModel::CohereEmbedMultilingualV3) => {
-            EmbeddingModel::CohereEmbedMultilingualV3
+            Ok(EmbeddingModel::CohereEmbedMultilingualV3)
         }
         // Voyage models
-        Ok(ProtoEmbeddingModel::Voyage3) => EmbeddingModel::Voyage3,
-        Ok(ProtoEmbeddingModel::Voyage3Lite) => EmbeddingModel::Voyage3Lite,
-        Ok(ProtoEmbeddingModel::VoyageCode3) => EmbeddingModel::VoyageCode3,
+        Ok(ProtoEmbeddingModel::Voyage3) => Ok(EmbeddingModel::Voyage3),
+        Ok(ProtoEmbeddingModel::Voyage3Lite) => Ok(EmbeddingModel::Voyage3Lite),
+        Ok(ProtoEmbeddingModel::VoyageCode3) => Ok(EmbeddingModel::VoyageCode3),
         // Custom
-        Ok(ProtoEmbeddingModel::Custom) => EmbeddingModel::Custom(custom_dim.unwrap_or(768)),
-        _ => EmbeddingModel::TextEmbedding3Small,
+        Ok(ProtoEmbeddingModel::Custom) => {
+            let dim = custom_dim.ok_or_else(|| {
+                VectorError::Validation(
+                    "Custom embedding model requires custom_dimension".to_string(),
+                )
+            })?;
+            Ok(EmbeddingModel::Custom(dim))
+        }
+        _ => Err(VectorError::Validation(format!(
+            "Unknown embedding model: {proto}"
+        ))),
     }
 }
 

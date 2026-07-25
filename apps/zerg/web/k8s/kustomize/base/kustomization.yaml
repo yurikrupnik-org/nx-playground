@@ -6,9 +6,6 @@ resources:
   - service.yaml
 #namespace: zerg
 configMapGenerator:
-  - name: nginx-config
-    files:
-      - default.conf.template
   - name: "proxy-envs"
     literals:
       - "upstream_host=zerg-api"

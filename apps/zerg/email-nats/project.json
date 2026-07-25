@@ -57,6 +57,8 @@
       "configurations": {
         "ci": {
           "push": true,
+          "cache-from": ["type=registry,ref=$BUILDCACHE/zerg-email-nats"],
+          "cache-to": ["type=registry,ref=$BUILDCACHE/zerg-email-nats,mode=max,image-manifest=true,oci-mediatypes=true"],
           "metadata": {
             "images": ["$REGISTRY/zerg-email-nats"],
             "tags": [
@@ -73,14 +75,22 @@
       "executor": "nx:run-commands",
       "dependsOn": ["container"],
       "options": {
-        "command": "trivy image $REGISTRY/zerg-email-nats:latest --severity CRITICAL,HIGH --exit-code 0",
+        "command": "trivy image --cache-backend memory $REGISTRY/zerg-email-nats:latest --severity CRITICAL,HIGH --exit-code 0",
         "cwd": "{workspaceRoot}"
       },
       "configurations": {
         "ci": {
-          "command": "trivy image $REGISTRY/zerg-email-nats:sha-$(echo $SHORT_SHA | cut -c1-7) --severity CRITICAL,HIGH --format sarif --output trivy-zerg-email-nats.sarif"
+          "command": "trivy image --cache-backend memory $REGISTRY/zerg-email-nats:sha-$(echo $SHORT_SHA | cut -c1-7) --severity CRITICAL,HIGH --format sarif --output trivy-zerg-email-nats.sarif"
         }
       }
+    }
+  },
+  "metadata": {
+    "tilt": {
+      "resourceDeps": ["zerg-shared-config"],
+      "extraResources": [
+        { "name": "mailhog", "portForwards": "8025:8025", "labels": ["port-forward"] }
+      ]
     }
   },
   "tags": []

@@ -1,9 +1,10 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use database::BaseRepository;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, SqlErr,
 };
 use uuid::Uuid;
 
@@ -26,36 +27,46 @@ impl PgProjectRepository {
     }
 }
 
+/// Map a write-path [`DbErr`] to a domain error.
+///
+/// A unique-constraint violation on `(user_id, name)` becomes
+/// [`ProjectError::DuplicateName`] when a candidate name is known; anything
+/// else keeps its `DbErr` source. This backstops the check-then-write races in
+/// `create`/`update` and **requires a DB unique index on `(user_id, name)`** to
+/// be authoritative.
+fn map_write_err(err: sea_orm::DbErr, name: Option<&str>) -> ProjectError {
+    match (err.sql_err(), name) {
+        (Some(SqlErr::UniqueConstraintViolation(_)), Some(name)) => {
+            ProjectError::DuplicateName(name.to_string())
+        }
+        _ => ProjectError::Database(err),
+    }
+}
+
 #[async_trait]
 impl ProjectRepository for PgProjectRepository {
     async fn create(&self, input: CreateProject) -> ProjectResult<Project> {
-        // Check for duplicate name
-        let exists = self.exists_by_name(input.user_id, &input.name).await?;
-        if exists {
+        // Fast-path duplicate-name check; the DB unique index (see
+        // `map_write_err`) is the authoritative guard when this check races.
+        if self.exists_by_name(input.user_id, &input.name).await? {
             return Err(ProjectError::DuplicateName(input.name));
         }
 
-        // Convert CreateProject to ActiveModel
-        let active_model: entity::ActiveModel = input.into();
+        let name = input.name.clone();
+        let active_model: entity::ActiveModel = input.try_into()?;
 
-        // Insert using a base repository
         let model = self
             .base
             .insert(active_model)
             .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| map_write_err(e, Some(&name)))?;
 
         tracing::info!(project_id = %model.id, "Created project");
         Ok(model.into())
     }
 
     async fn get_by_id(&self, id: Uuid) -> ProjectResult<Option<Project>> {
-        let model = self
-            .base
-            .find_by_id(id)
-            .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?;
-
+        let model = self.base.find_by_id(id).await?;
         Ok(model.map(|m| m.into()))
     }
 
@@ -89,79 +100,78 @@ impl ProjectRepository for PgProjectRepository {
             .limit(filter.limit as u64)
             .offset(filter.offset as u64);
 
-        let models = query
-            .all(self.base.db())
-            .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?;
+        let models = query.all(self.base.db()).await?;
 
         Ok(models.into_iter().map(|m| m.into()).collect())
     }
 
     async fn update(&self, id: Uuid, input: UpdateProject) -> ProjectResult<Project> {
-        // Fetch existing project
         let model = self
             .base
             .find_by_id(id)
-            .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?
+            .await?
             .ok_or(ProjectError::NotFound(id))?;
 
-        // Check for duplicate name if name is being changed
-        if let Some(ref new_name) = input.name {
-            let name_exists = entity::Entity::find()
+        // Fast-path duplicate-name check when the name is changing; the DB
+        // unique index (see `map_write_err`) is the authoritative guard.
+        if let Some(new_name) = &input.name {
+            let name_taken = entity::Entity::find()
                 .filter(entity::Column::UserId.eq(model.user_id))
                 .filter(entity::Column::Name.eq(new_name))
                 .filter(entity::Column::Id.ne(id))
                 .one(self.base.db())
-                .await
-                .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?
+                .await?
                 .is_some();
 
-            if name_exists {
+            if name_taken {
                 return Err(ProjectError::DuplicateName(new_name.clone()));
             }
         }
 
-        // Convert to domain model
-        let mut project: Project = model.into();
+        // Idiomatic sea-orm partial update: mutate only the fields present in
+        // the DTO; untouched columns stay `Unchanged`, avoiding last-write-wins
+        // clobbering of concurrent writers and per-field clones.
+        let dup_name = input.name.clone();
+        let mut active = model.into_active_model();
+        if let Some(name) = input.name {
+            active.name = Set(name);
+        }
+        if let Some(description) = input.description {
+            active.description = Set(description);
+        }
+        if let Some(region) = input.region {
+            active.region = Set(region);
+        }
+        if let Some(environment) = input.environment {
+            active.environment = Set(environment);
+        }
+        if let Some(status) = input.status {
+            active.status = Set(status);
+        }
+        if let Some(budget_limit) = input.budget_limit {
+            active.budget_limit = Set(Some(budget_limit));
+        }
+        if let Some(tags) = input.tags {
+            active.tags = Set(serde_json::to_value(&tags)
+                .map_err(|e| ProjectError::Internal(format!("serialize tags: {e}")))?);
+        }
+        if let Some(enabled) = input.enabled {
+            active.enabled = Set(enabled);
+        }
+        active.updated_at = Set(Utc::now().into());
 
-        // Apply updates
-        project.apply_update(input);
-
-        // Convert back to ActiveModel for update
-        let active_model: entity::ActiveModel = entity::ActiveModel {
-            id: Set(project.id),
-            name: Set(project.name.clone()),
-            user_id: Set(project.user_id),
-            description: Set(project.description.clone()),
-            cloud_provider: Set(project.cloud_provider),
-            region: Set(project.region.clone()),
-            environment: Set(project.environment),
-            status: Set(project.status),
-            budget_limit: Set(project.budget_limit),
-            tags: Set(serde_json::to_value(&project.tags).unwrap()),
-            enabled: Set(project.enabled),
-            created_at: Set(project.created_at.into()),
-            updated_at: Set(project.updated_at.into()),
-        };
-
-        // Update using base repository
         let updated_model = self
             .base
-            .update(active_model)
+            .update(active)
             .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?;
+            .map_err(|e| map_write_err(e, dup_name.as_deref()))?;
 
         tracing::info!(project_id = %id, "Updated project");
         Ok(updated_model.into())
     }
 
     async fn delete(&self, id: Uuid) -> ProjectResult<bool> {
-        let rows_affected = self
-            .base
-            .delete_by_id(id)
-            .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?;
+        let rows_affected = self.base.delete_by_id(id).await?;
 
         if rows_affected > 0 {
             tracing::info!(project_id = %id, "Deleted project");
@@ -176,8 +186,7 @@ impl ProjectRepository for PgProjectRepository {
             .filter(entity::Column::UserId.eq(user_id))
             .filter(entity::Column::Name.eq(name))
             .one(self.base.db())
-            .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?
+            .await?
             .is_some();
 
         Ok(exists)
@@ -187,8 +196,7 @@ impl ProjectRepository for PgProjectRepository {
         let count = entity::Entity::find()
             .filter(entity::Column::UserId.eq(user_id))
             .count(self.base.db())
-            .await
-            .map_err(|e| ProjectError::Internal(format!("Database error: {}", e)))?;
+            .await?;
 
         Ok(count as usize)
     }

@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: terran
+
+# Same shared core as zerg-api — terran-api gets a full backend workload for
+# free from ~30 lines. This is the cross-app DRY win.
+resources:
+  - ../../../../../../../manifests/apps/core/backend
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: terran-api
+    includeSelectors: true
+  - pairs:
+      app.kubernetes.io/component: api-server
+      app.kubernetes.io/part-of: terran
+      app.kubernetes.io/version: "0.1.0"
+    includeTemplates: true
+
+images:
+  - name: app
+    newName: yurikrupnik/terran-api
+    newTag: latest
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: app-config
+    literals:
+      - PORT=8080
+
+patches:
+  - target:
+      kind: Deployment
+      name: app
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: terran-api
+  - target:
+      kind: Service
+      name: app
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: terran-api
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: app
+    patch: |
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: app

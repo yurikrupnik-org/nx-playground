@@ -186,7 +186,7 @@ export def "main setup" [
         let token = ($token_result.stdout | str trim)
 
         with-env { GITHUB_TOKEN: $token } {
-            flux bootstrap github --owner $owner --repository $flux_repo --branch main --path clusters/local --personal
+            flux bootstrap github --owner $owner --repository $flux_repo --branch main --path clusters/local --personal --token-auth
         }
         success "Flux bootstrapped"
     }

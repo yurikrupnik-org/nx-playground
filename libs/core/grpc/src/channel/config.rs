@@ -25,9 +25,6 @@ pub struct ChannelConfig {
     // TCP settings
     pub tcp_nodelay: bool,
     pub tcp_keepalive: Option<Duration>,
-
-    // Concurrency
-    pub max_concurrent_streams: Option<u32>,
 }
 
 impl Default for ChannelConfig {
@@ -47,7 +44,6 @@ impl Default for ChannelConfig {
             http2_adaptive_window: true,
             tcp_nodelay: true,
             tcp_keepalive: Some(Duration::from_secs(30)),
-            max_concurrent_streams: None, // Use tonic's default
         }
     }
 }
@@ -79,18 +75,6 @@ impl ChannelConfig {
     /// ```
     pub fn with_request_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
-        self
-    }
-
-    /// Set the maximum number of concurrent streams per HTTP/2 connection
-    ///
-    /// # Example
-    /// ```ignore
-    /// let config = ChannelConfig::new()
-    ///     .with_max_concurrent_streams(200);
-    /// ```
-    pub fn with_max_concurrent_streams(mut self, max: u32) -> Self {
-        self.max_concurrent_streams = Some(max);
         self
     }
 
@@ -164,14 +148,6 @@ impl ChannelConfig {
             endpoint = endpoint.tcp_keepalive(Some(keepalive));
         }
 
-        // Concurrency
-        // Note: http2_max_concurrent_streams is not available in tonic 0.14.2
-        // The max_concurrent_streams setting is silently ignored for now
-        if let Some(_max_streams) = self.max_concurrent_streams {
-            // This API doesn't exist in current tonic version
-            // Would need tonic upgrade or different approach
-        }
-
         endpoint
     }
 }
@@ -196,12 +172,10 @@ mod tests {
         let config = ChannelConfig::new()
             .with_connect_timeout(Duration::from_secs(10))
             .with_request_timeout(Duration::from_secs(120))
-            .with_max_concurrent_streams(200)
             .with_window_size(2 * 1024 * 1024);
 
         assert_eq!(config.connect_timeout, Duration::from_secs(10));
         assert_eq!(config.timeout, Duration::from_secs(120));
-        assert_eq!(config.max_concurrent_streams, Some(200));
         assert_eq!(config.initial_connection_window_size, Some(2 * 1024 * 1024));
         assert_eq!(config.initial_stream_window_size, Some(2 * 1024 * 1024));
     }

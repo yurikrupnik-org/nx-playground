@@ -5,6 +5,7 @@ GitHub Actions workflow generator.
 import github_workflow as gh
 import ...schemas.config as cfg
 import .steps
+import ...schemas.common as c
 
 # =============================================================================
 # STEP SEQUENCE BUILDERS
@@ -26,6 +27,20 @@ _sccache_env_aws = {
 }
 
 # =============================================================================
+# ACTION VERSION OVERRIDES
+# =============================================================================
+# Remap `uses:` pins from gh_config.action_versions (keyed by common.GHA_ACTIONS
+# logical name) over the assembled jobs, so no step builder needs the map.
+
+_finalize_jobs = lambda jobs: {str: {str:}}, gh_config: cfg.GitHubConfig -> {str:} {
+    _refs = {c.GHA_ACTIONS[k]: gh_config.action_versions[k] for k in gh_config.action_versions if k in c.GHA_ACTIONS}
+    {
+        name: (job | {"steps" = [(s | {"uses" = _refs[s.uses]}) if ("uses" in s and s.uses in _refs) else s for s in job.steps]})
+        for name, job in jobs
+    } if _refs else jobs
+}
+
+# =============================================================================
 # MONOREPO WORKFLOW GENERATOR
 # =============================================================================
 
@@ -34,24 +49,26 @@ _monorepo_base_steps = lambda config: cfg.MonorepoConfig -> [{str:}] {
         steps.checkout(0)
         steps.nx_shas() if config.monorepo_tool == "nx" else None
         # sccache setup (before rust tools)
-        steps.rustup() if config.use_sccache or "rust" in config.languages else None
+        steps.rustup(config.rust_channel) if config.use_sccache or "rust" in config.languages else None
         steps.gcp_auth() if config.use_sccache and config.sccache_provider == "gcp" else None
         steps.aws_auth() if config.use_sccache and config.sccache_provider == "aws" else None
         steps.sccache() if config.use_sccache else None
         # Tool setup
         steps.mise() if config.use_mise else None
-        steps.bun() if not config.use_mise and config.package_manager == "bun" else None
-        steps.node() if not config.use_mise and config.package_manager in ["npm", "pnpm", "yarn"] else None
+        steps.bun(config.bun_version) if not config.use_mise and config.package_manager == "bun" else None
+        steps.node(config.node_version) if not config.use_mise and config.package_manager in ["npm", "pnpm", "yarn"] else None
         steps.go(config.go_version) if not config.use_mise and "go" in config.languages else None
+        steps.uv(config.python_version) if not config.use_mise and "python" in config.languages and config.python_manager == "uv" else None
+        steps.python(config.python_version) if not config.use_mise and "python" in config.languages and config.python_manager != "uv" else None
         steps.install_deps(config.package_manager)
     ]
 }
 
-_monorepo_job = lambda config: cfg.MonorepoConfig, target: str, needs: [str] = [] -> {str:} {
+_monorepo_job = lambda config: cfg.MonorepoConfig, target: str, needs: [str] = [], runs_on: str = "ubuntu-latest" -> {str:} {
     _step_fn = steps.nx_affected if config.use_affected else steps.nx_run_many
     _base = {
         name = target[0].upper() + target[1:]
-        "runs-on" = "ubuntu-latest"
+        "runs-on" = runs_on
         steps = [s for s in _monorepo_base_steps(config) if s] + [
             _step_fn(target, config.package_manager)
         ]
@@ -73,11 +90,11 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, gh_config: cfg.GitHubConf
         }
         env = _env if _env else Undefined
         permissions = gh_config.permissions
-        jobs = {
-            lint = _monorepo_job(config, "lint")
-            test = _monorepo_job(config, "test")
-            build = _monorepo_job(config, "build", ["lint", "test"])
-        }
+        jobs = _finalize_jobs({
+            lint = _monorepo_job(config, "lint", [], gh_config.runs_on)
+            test = _monorepo_job(config, "test", [], gh_config.runs_on)
+            build = _monorepo_job(config, "build", [], gh_config.runs_on)
+        }, gh_config)
     }
 }
 
@@ -118,7 +135,7 @@ generate_rust = lambda config: cfg.RustAppConfig, gh_config: cfg.GitHubConfig = 
         }
         env = _env if _env else Undefined
         permissions = gh_config.permissions
-        jobs = {
+        jobs = _finalize_jobs({
             check = {
                 name = "Check"
                 "runs-on" = gh_config.runs_on
@@ -139,7 +156,7 @@ generate_rust = lambda config: cfg.RustAppConfig, gh_config: cfg.GitHubConfig = 
                     steps.cargo("build", "--release ${_features}")
                 ]
             }
-        }
+        }, gh_config)
     }
 }
 
@@ -151,7 +168,7 @@ _node_base_steps = lambda config: cfg.NodeAppConfig -> [{str:}] {
     [
         steps.checkout(0)
         steps.mise() if config.use_mise else None
-        steps.bun() if not config.use_mise and config.package_manager == "bun" else None
+        steps.bun(config.bun_version) if not config.use_mise and config.package_manager == "bun" else None
         steps.node(config.node_version) if not config.use_mise and config.package_manager != "bun" else None
         steps.install_deps(config.package_manager)
     ]
@@ -178,7 +195,7 @@ generate_node = lambda config: cfg.NodeAppConfig, gh_config: cfg.GitHubConfig = 
         }
         env = config.env if config.env else Undefined
         permissions = gh_config.permissions
-        jobs = {
+        jobs = _finalize_jobs({
             lint = {
                 name = "Lint"
                 "runs-on" = gh_config.runs_on
@@ -199,7 +216,7 @@ generate_node = lambda config: cfg.NodeAppConfig, gh_config: cfg.GitHubConfig = 
                     steps.run_script("Build", "${_pm} run build")
                 ]
             }
-        }
+        }, gh_config)
     }
 }
 
@@ -217,7 +234,7 @@ generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig 
 
     _test_steps = [
         steps.checkout(0)
-        steps.bun() if config.package_manager == "bun" else steps.node(config.node_version)
+        steps.bun(config.bun_version) if config.package_manager == "bun" else steps.node(config.node_version)
         steps.rustup()
     ]
     if config.use_cargo_cache:
@@ -230,7 +247,7 @@ generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig 
 
     _build_steps = [
         steps.checkout(0)
-        steps.bun() if config.package_manager == "bun" else steps.node(config.node_version)
+        steps.bun(config.bun_version) if config.package_manager == "bun" else steps.node(config.node_version)
         steps.rustup()
     ]
     if config.use_cargo_cache:
@@ -247,7 +264,7 @@ generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig 
             pull_request = {}
         }
         permissions = gh_config.permissions
-        jobs = {
+        jobs = _finalize_jobs({
             test = {
                 name = "Test"
                 "runs-on" = "ubuntu-latest"
@@ -264,7 +281,7 @@ generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig 
                 }
                 steps = _build_steps
             }
-        }
+        }, gh_config)
     }
 }
 
@@ -291,7 +308,7 @@ generate_go = lambda config: cfg.GoServiceConfig, gh_config: cfg.GitHubConfig = 
         }
         env = _env if _env else Undefined
         permissions = gh_config.permissions
-        jobs = {
+        jobs = _finalize_jobs({
             lint = {
                 name = "Lint"
                 "runs-on" = gh_config.runs_on
@@ -314,7 +331,7 @@ generate_go = lambda config: cfg.GoServiceConfig, gh_config: cfg.GitHubConfig = 
                     steps.go_cmd("build", config.ldflags or "-v ./...")
                 ]
             }
-        }
+        }, gh_config)
     }
 }
 

@@ -55,7 +55,7 @@ where
         &self,
         request: Request<CreateRequest>,
     ) -> Result<Response<CreateResponse>, Status> {
-        let input: CreateTask = request.into_inner().try_into().to_tonic()?;
+        let input: CreateTask = request.into_inner().try_into()?;
         let task = self
             .service
             .create_task(input)
@@ -97,7 +97,7 @@ where
         let mut req = request.into_inner();
         let id = conv::bytes_to_uuid(&req.id).to_tonic()?;
         req.id = vec![]; // Clear ID before conversion
-        let input: UpdateTask = req.try_into().to_tonic()?;
+        let input: UpdateTask = req.try_into()?;
         let task = self
             .service
             .update_task(id, input)
@@ -110,8 +110,8 @@ where
         let req = request.into_inner();
         let filter = TaskFilter {
             project_id: conv::opt_bytes_to_uuid(req.project_id).to_tonic()?,
-            status: req.status.map(|s| s.try_into()).transpose().to_tonic()?,
-            priority: req.priority.map(|p| p.try_into()).transpose().to_tonic()?,
+            status: req.status.map(|s| s.try_into()).transpose()?,
+            priority: req.priority.map(|p| p.try_into()).transpose()?,
             completed: req.completed,
             limit: req.limit as usize,
             offset: req.offset as usize,
@@ -134,8 +134,8 @@ where
         let req = request.into_inner();
         let filter = TaskFilter {
             project_id: conv::opt_bytes_to_uuid(req.project_id).to_tonic()?,
-            status: req.status.map(|s| s.try_into()).transpose().to_tonic()?,
-            priority: req.priority.map(|p| p.try_into()).transpose().to_tonic()?,
+            status: req.status.map(|s| s.try_into()).transpose()?,
+            priority: req.priority.map(|p| p.try_into()).transpose()?,
             completed: req.completed,
             limit: req.limit as usize,
             offset: 0,
@@ -268,7 +268,7 @@ mod tests {
                 .cloned()
                 .collect();
 
-            result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            result.sort_by_key(|b| std::cmp::Reverse(b.created_at));
             Ok(result
                 .into_iter()
                 .skip(filter.offset)

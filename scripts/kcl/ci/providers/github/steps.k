@@ -67,6 +67,13 @@ python = lambda version: str = c.DEFAULT_PYTHON_VERSION -> {str:} {
     }
 }
 
+uv = lambda python_version: str = "" -> {str:} {
+    {
+        name = "Setup uv"
+        uses = c.GHA_ACTIONS.setup_uv
+    } | ({"with" = {"python-version" = python_version}} if python_version else {})
+}
+
 rustup = lambda channel: str = "stable", components: [str] = [] -> {str:} {
     _components = ",".join(components) if components else ""
     {
@@ -124,12 +131,13 @@ aws_auth = lambda role_arn_secret: str = "AWS_ROLE_ARN", region: str = "us-east-
 
 install_deps = lambda pm: str = "bun" -> {str:} {
     _cmd = {
-        bun = "bun install"
+        bun = "bun install --frozen-lockfile"
         npm = "npm ci"
         pnpm = "pnpm install --frozen-lockfile"
         yarn = "yarn install --frozen-lockfile"
         pip = "pip install -r requirements.txt"
         poetry = "poetry install"
+        uv = "uv sync --frozen"
     }[pm]
     {
         name = "Install dependencies"

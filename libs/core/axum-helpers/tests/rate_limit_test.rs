@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use axum_helpers::rate_limit::{RateLimitConfig, RateLimiter};
 use redis::aio::ConnectionManager;
 use test_utils::TestRedis;
@@ -29,7 +31,7 @@ async fn test_allows_requests_within_limit() {
             .check_with_config("test:user1", "standard", limit, 60)
             .await
             .expect("check should succeed");
-        assert!(result.allowed, "request {} should be allowed", i);
+        assert!(result.allowed, "request {i} should be allowed");
         assert_eq!(
             result.remaining,
             limit - i - 1,
@@ -84,7 +86,10 @@ async fn test_separate_keys_independent() {
         .check_with_config("user:bob", "standard", limit, 60)
         .await
         .unwrap();
-    assert!(result.allowed, "bob should not be affected by alice's limit");
+    assert!(
+        result.allowed,
+        "bob should not be affected by alice's limit"
+    );
 }
 
 #[tokio::test]

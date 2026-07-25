@@ -1,18 +1,13 @@
-import {
-  createMutation,
-  createQuery,
-  useQueryClient,
-} from '@tanstack/solid-query';
+import { createMutation, createQuery } from '@tanstack/solid-query';
 import { createContext, type ParentComponent, useContext } from 'solid-js';
-import type { LoginRequest, RegisterRequest, UserResponse } from './auth-api';
+import type { UserResponse } from './auth-api';
 import * as authApi from './auth-api';
 
 interface AuthContextValue {
   user: () => UserResponse | null | undefined;
   isLoading: () => boolean;
   isAuthenticated: () => boolean;
-  login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => void;
 }
@@ -20,8 +15,6 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>();
 
 export const AuthProvider: ParentComponent = (props) => {
-  const queryClient = useQueryClient();
-
   // Query for current user
   const userQuery = createQuery(() => ({
     queryKey: ['currentUser'],
@@ -32,41 +25,27 @@ export const AuthProvider: ParentComponent = (props) => {
     throwOnError: false,
   }));
 
-  // Login mutation
+  // Auth mutations. On success the login page and the logout handler below perform
+  // a hard redirect; the destination page refetches /me. We deliberately do NOT
+  // call queryClient.setQueryData(['currentUser'], …) here — mutating the auth
+  // query from a mutation callback triggers a synchronous reactive storm in this
+  // Solid app and freezes the tab. A full navigation yields clean state instead.
   const loginMutation = createMutation(() => ({
-    mutationFn: authApi.login,
-    onSuccess: (data) => {
-      // Update user in cache
-      queryClient.setQueryData(['currentUser'], data.user);
-    },
+    mutationFn: (creds: { email: string; password: string }) =>
+      authApi.passwordLogin(creds.email, creds.password),
   }));
 
-  // Register mutation
-  const registerMutation = createMutation(() => ({
-    mutationFn: authApi.register,
-    onSuccess: (data) => {
-      // Update user in cache
-      queryClient.setQueryData(['currentUser'], data.user);
-    },
-  }));
-
-  // Logout mutation
   const logoutMutation = createMutation(() => ({
     mutationFn: authApi.logout,
-    onSuccess: () => {
-      // Clear user from cache
-      queryClient.setQueryData(['currentUser'], null);
-      // Redirect to login
-      window.location.href = '/login';
+    onSuccess: (logoutUrl) => {
+      // Full-page navigation for RP-initiated logout (API → WorkOS end-session →
+      // return_to → /login). The reload discards all client state.
+      window.location.href = logoutUrl;
     },
   }));
 
-  const login = async (data: LoginRequest) => {
-    await loginMutation.mutateAsync(data);
-  };
-
-  const register = async (data: RegisterRequest) => {
-    await registerMutation.mutateAsync(data);
+  const login = async (email: string, password: string) => {
+    await loginMutation.mutateAsync({ email, password });
   };
 
   const logout = async () => {
@@ -90,7 +69,6 @@ export const AuthProvider: ParentComponent = (props) => {
     isLoading,
     isAuthenticated,
     login,
-    register,
     logout,
     checkAuth,
   };

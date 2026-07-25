@@ -1,0 +1,19 @@
+dist
+.output
+.vercel
+.netlify
+
+# Environment
+.env
+.env*.local
+
+# dependencies
+/node_modules
+
+# IDEs and editors
+/.idea
+.settings/
+
+# System Files
+.DS_Store
+Thumbs.db
