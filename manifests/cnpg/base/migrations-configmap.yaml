@@ -13,17 +13,17 @@ data:
     -- Initial Database Schema (Consolidated Best Practices - Lean)
     -- PostgreSQL 17+ required for uuidv7()
     -- Indexes: Only essential ones. Add more based on actual query patterns.
-    
+
     -- =============================================================================
     -- Extensions
     -- =============================================================================
     CREATE EXTENSION IF NOT EXISTS pgcrypto;
-    
+
     -- =============================================================================
     -- Schemas
     -- =============================================================================
     CREATE SCHEMA IF NOT EXISTS util;
-    
+
     -- =============================================================================
     -- Utility Functions
     -- =============================================================================
@@ -34,7 +34,7 @@ data:
       RETURN NEW;
     END;
     $$ LANGUAGE plpgsql;
-    
+
     -- =============================================================================
     -- Enum Types
     -- =============================================================================
@@ -45,11 +45,11 @@ data:
     CREATE TYPE project_status AS ENUM ('provisioning', 'active', 'suspended', 'deleting', 'archived');
     CREATE TYPE resource_type AS ENUM ('compute', 'storage', 'database', 'network', 'serverless', 'analytics', 'other');
     CREATE TYPE resource_status AS ENUM ('creating', 'active', 'updating', 'deleting', 'deleted', 'failed');
-    
+
     -- =============================================================================
     -- Tables
     -- =============================================================================
-    
+
     -- Users table
     CREATE TABLE users (
       id UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -67,9 +67,9 @@ data:
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
-    
+
     CREATE UNIQUE INDEX idx_users_email ON users(email);
-    
+
     -- OAuth accounts table
     CREATE TABLE oauth_accounts (
       id UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -89,10 +89,10 @@ data:
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       CONSTRAINT fk_oauth_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
-    
+
     CREATE UNIQUE INDEX idx_oauth_provider_user ON oauth_accounts(provider, provider_user_id);
     CREATE INDEX idx_oauth_accounts_user_id ON oauth_accounts(user_id);
-    
+
     -- Projects table
     CREATE TABLE projects (
       id UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -112,9 +112,9 @@ data:
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       CONSTRAINT fk_projects_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
-    
+
     CREATE INDEX idx_projects_user_id ON projects(user_id);
-    
+
     -- Tasks table
     CREATE TABLE tasks (
       id UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -129,9 +129,9 @@ data:
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       CONSTRAINT fk_tasks_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
     );
-    
+
     CREATE INDEX idx_tasks_project_id ON tasks(project_id);
-    
+
     -- Cloud resources table
     CREATE TABLE cloud_resources (
       id UUID PRIMARY KEY DEFAULT uuidv7(),
@@ -150,10 +150,10 @@ data:
       deleted_at TIMESTAMPTZ,
       CONSTRAINT fk_cloud_resources_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
-    
+
     CREATE INDEX idx_cloud_resources_project_id ON cloud_resources(project_id);
     CREATE UNIQUE INDEX unique_resource_name_per_project ON cloud_resources(project_id, name);
-    
+
     -- =============================================================================
     -- Triggers
     -- =============================================================================
@@ -161,22 +161,22 @@ data:
       BEFORE UPDATE ON users
       FOR EACH ROW
       EXECUTE FUNCTION util.touch_updated_at();
-    
+
     CREATE TRIGGER oauth_accounts_touch_updated_at
       BEFORE UPDATE ON oauth_accounts
       FOR EACH ROW
       EXECUTE FUNCTION util.touch_updated_at();
-    
+
     CREATE TRIGGER projects_touch_updated_at
       BEFORE UPDATE ON projects
       FOR EACH ROW
       EXECUTE FUNCTION util.touch_updated_at();
-    
+
     CREATE TRIGGER tasks_touch_updated_at
       BEFORE UPDATE ON tasks
       FOR EACH ROW
       EXECUTE FUNCTION util.touch_updated_at();
-    
+
     CREATE TRIGGER cloud_resources_touch_updated_at
       BEFORE UPDATE ON cloud_resources
       FOR EACH ROW
@@ -184,7 +184,7 @@ data:
   20240204000002_seed_data.sql: |
     -- Seed data for local development
     -- This file populates the database with sample data for testing
-    
+
     -- =============================================================================
     -- Seed Users
     -- =============================================================================
@@ -225,7 +225,7 @@ data:
             NOW()
         )
     ON CONFLICT (id) DO NOTHING;
-    
+
     -- =============================================================================
     -- Seed OAuth Accounts (linked to developer user)
     -- =============================================================================
@@ -246,7 +246,7 @@ data:
             NOW()
         )
     ON CONFLICT (id) DO NOTHING;
-    
+
     -- =============================================================================
     -- Seed Projects
     -- =============================================================================
@@ -301,7 +301,7 @@ data:
             NOW()
         )
     ON CONFLICT (id) DO NOTHING;
-    
+
     -- =============================================================================
     -- Seed Cloud Resources (using enum types)
     -- =============================================================================
@@ -376,7 +376,7 @@ data:
             NULL
         )
     ON CONFLICT (id) DO NOTHING;
-    
+
     -- =============================================================================
     -- Seed Tasks
     -- =============================================================================
@@ -465,15 +465,37 @@ data:
     -- Add OAuth provider IDs to users table for backward compatibility
     -- The oauth_accounts table handles detailed OAuth data, but these columns
     -- provide quick lookup for OAuth login flow
-    
+
     ALTER TABLE users ADD COLUMN google_id VARCHAR(255);
     ALTER TABLE users ADD COLUMN github_id VARCHAR(255);
-    
+
     CREATE UNIQUE INDEX idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL;
     CREATE UNIQUE INDEX idx_users_github_id ON users(github_id) WHERE github_id IS NOT NULL;
+  20260724000000_workos_auth.sql: |
+    -- WorkOS AuthKit migration: credentials move to the IdP.
+    -- Drops the custom-auth columns and the oauth_accounts table; adds the IdP
+    -- subject linking column used by JIT provisioning.
+
+    DROP INDEX IF EXISTS idx_users_google_id;
+    DROP INDEX IF EXISTS idx_users_github_id;
+
+    ALTER TABLE users
+      DROP COLUMN password_hash,
+      DROP COLUMN is_locked,
+      DROP COLUMN failed_login_attempts,
+      DROP COLUMN locked_until,
+      DROP COLUMN google_id,
+      DROP COLUMN github_id,
+      ADD COLUMN subject TEXT;
+
+    CREATE UNIQUE INDEX idx_users_subject ON users(subject) WHERE subject IS NOT NULL;
+
+    -- Provider tokens now live server-side in Redis sessions, keyed by the IdP.
+    DROP TABLE oauth_accounts;
   atlas.sum: |
-    h1:KD5uSuB7QL10gogOT5Nj2S/bQF0YfGw72SySqC+iot4=
+    h1:XMqGOs9ziZi2q4zJkemriKmLCr64jxbCOxaJHVuBubs=
     20240204000001_initial.sql h1:u07XlR0qsAD1ogWJZiKZ6pDZQnBDD9UQyPyJrkX596M=
     20240204000002_seed_data.sql h1:ssYU9LX1KYd+uCnBT/yxDD0FBO+eHM1bbtiQUuKOPD0=
     20240205000001_add_project_repository.sql h1:6O783DxdxOHCxRy/jkDMMEf9YP3E6/xiDqN3AX1MqLg=
     20240205000002_add_oauth_ids_to_users.sql h1:zzhxjvX3kOVm5m9mne5efoMCfaLbg6pKETul3Vt/qM4=
+    20260724000000_workos_auth.sql h1:s3ZdhcGjl3ZqODi2PFzFlqOWnmsRjrt99/YTwdhY0jE=

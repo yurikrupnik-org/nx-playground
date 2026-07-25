@@ -264,6 +264,7 @@ mod tests {
                     refresh_token: Some("rt2".into()),
                     id_token: None,
                     expires_in: Some(300),
+                    profile: None,
                 }),
                 None => Err(AuthError::Provider("refresh denied".into())),
             }

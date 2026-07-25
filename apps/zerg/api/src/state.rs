@@ -8,7 +8,7 @@
 //! - Notification service (NATS-based email queueing)
 //! - Vector service (Qdrant-backed)
 
-use axum_helpers::{JwtRedisAuth, RateLimiter};
+use axum_helpers::RateLimiter;
 use domain_vector::{QdrantRepository, VectorService};
 use email::NotificationService;
 use grpc_client::TracedChannel;
@@ -24,7 +24,7 @@ use tonic_health::pb::health_client::HealthClient;
 /// - gRPC tasks service client (cheap to clone, shares underlying connection)
 /// - PostgreSQL database connection pool (SeaORM)
 /// - Redis connection manager
-/// - JWT authentication (hybrid JWT + Redis)
+/// - WorkOS OIDC auth (verifier + server-side sessions + login-flow store)
 /// - Notification service for email queueing via NATS
 /// - Vector service for Qdrant operations
 #[derive(Clone)]
@@ -41,8 +41,14 @@ pub struct AppState {
     pub db: database::postgres::DatabaseConnection,
     /// Redis connection manager
     pub redis: database::redis::ConnectionManager,
-    /// JWT + Redis hybrid authentication
-    pub jwt_auth: JwtRedisAuth,
+    /// Single-use PKCE/CSRF login-flow store (authorize → callback window)
+    pub flows: oidc_auth::LoginFlowStore,
+    /// Opaque server-side session store (token-handler / BFF model)
+    pub sessions: Arc<oidc_auth::RedisSessionStore>,
+    /// WorkOS AuthKit login/acquisition provider
+    pub provider: Arc<oidc_auth::WorkosProvider>,
+    /// JWKS/RS256 bearer-token verifier
+    pub verifier: Arc<oidc_auth::OidcVerifier>,
     /// Notification service for queueing emails via NATS JetStream
     pub notifications: NotificationService,
     /// Vector service for Qdrant operations (wrapped in Arc for cheap cloning)

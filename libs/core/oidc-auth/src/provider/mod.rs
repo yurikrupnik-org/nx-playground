@@ -19,6 +19,19 @@ pub struct TokenSet {
     pub id_token: Option<String>,
     /// Access-token lifetime in seconds, when reported.
     pub expires_in: Option<u64>,
+    /// Provider-supplied user profile, for providers whose access tokens carry no
+    /// profile claims (WorkOS returns a `user` object beside the tokens; Keycloak
+    /// tokens already embed email/name, so its adapter leaves this `None`).
+    pub profile: Option<UserProfile>,
+}
+
+/// Minimal user profile delivered out-of-band with a [`TokenSet`].
+#[derive(Debug, Clone)]
+pub struct UserProfile {
+    /// Provider user id (matches the token `sub`).
+    pub subject: String,
+    pub email: Option<String>,
+    pub name: Option<String>,
 }
 
 /// Abstraction over an OIDC identity provider's login/acquisition flow.
@@ -43,7 +56,9 @@ pub trait IdentityProvider: Send + Sync {
     /// Exchange a refresh token for a fresh token set.
     async fn refresh(&self, refresh_token: &str) -> Result<TokenSet>;
 
-    /// Build the RP-initiated logout URL.
+    /// Build the RP-initiated logout URL. The `hint` is provider-specific: Keycloak
+    /// expects the raw `id_token` (sent as `id_token_hint`); WorkOS expects the
+    /// **access token**, from which the adapter extracts the `sid` session claim.
     fn logout_url(&self, id_token_hint: Option<&str>, post_logout_redirect: &str) -> String;
 
     /// Issuer this provider authenticates against (feeds the shared verifier).

@@ -43,7 +43,6 @@ configMapGenerator:
       - CORS_ALLOWED_ORIGIN=http://localhost:5206,https://127.0.0.1.nip.io:8443
       - REDIRECT_BASE_URL=http://localhost:5206
       - FRONTEND_URL=http://localhost:5206
-      - OAUTH_AUTO_LINK_VERIFIED_EMAILS=true
       - FLAGSMITH_API_URL=http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1
       # Same-namespace short DNS — works wherever the Kustomization lands.
       - TASKS_SERVICE_ADDR=http://zerg-tasks:50051
@@ -51,7 +50,10 @@ secretGenerator:
   - name: zerg-api-secrets
     literals:
       - DATABASE_URL=postgres://myuser:mypassword@postgres.dbs.svc.cluster.local/zerg
-      - JWT_SECRET=HsAOZo0qOc/9WhnXrNeobVQEuZnm5QAggSwBlxeUm8U=
+      # WorkOS AuthKit creds — replace with your environment's values (dev only;
+      # real deployments use the ExternalSecret instead).
+      - WORKOS_CLIENT_ID=client_replace-me
+      - WORKOS_API_KEY=sk_replace-me
 
 #patches:
 #  # rename the generic `app` workload -> zerg-api

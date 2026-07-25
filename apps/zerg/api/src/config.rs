@@ -1,4 +1,4 @@
-use axum_helpers::{JwtConfig, RateLimitConfig};
+use axum_helpers::RateLimitConfig;
 use core_config::{AppInfo, FromEnv, app_info, server::ServerConfig};
 
 // Import database configs from the database library
@@ -17,15 +17,21 @@ pub struct Config {
     pub redis: RedisConfig,
     pub server: ServerConfig,
     pub environment: Environment,
-    // Auth configuration (using library config structs)
-    pub jwt: JwtConfig,
+    // WorkOS AuthKit (BFF auth via the oidc-auth crate)
+    /// WorkOS environment client id (`client_...`).
+    pub workos_client_id: String,
+    /// WorkOS API key (`sk_...`) — sent as `client_secret` on authenticate calls.
+    pub workos_api_key: String,
+    /// Token issuer; `https://api.workos.com` unless a custom auth domain is set.
+    pub oidc_issuer: String,
+    /// Browser session cookie name.
+    pub cookie_name: String,
+    /// Set the `Secure` attribute on auth cookies (false for local http dev).
+    pub cookie_secure: bool,
+    /// Session lifetime in seconds.
+    pub session_ttl_secs: u64,
     pub frontend_url: String,
     pub redirect_base_url: String,
-    // OAuth configuration
-    pub google_client_id: String,
-    pub google_client_secret: String,
-    pub github_client_id: String,
-    pub github_client_secret: String,
     // NATS configuration
     pub nats_url: String,
     // Rate limiting configuration
@@ -44,17 +50,32 @@ impl Config {
         let database = PostgresConfig::from_env()?; // Required - will fail if not set
         let server = ServerConfig::from_env()?; // Uses defaults: HOST=0.0.0.0, PORT=8080
         let redis = RedisConfig::from_env()?; // Required - will fail if not set
-        let jwt = JwtConfig::from_env()?; // Required - validates min 32 chars
 
         let frontend_url = core_config::env_or_default("FRONTEND_URL", "http://localhost:3000");
         let redirect_base_url =
             core_config::env_or_default("REDIRECT_BASE_URL", "http://localhost:8080");
 
-        // OAuth configuration
-        let google_client_id = core_config::env_required("GOOGLE_CLIENT_ID")?;
-        let google_client_secret = core_config::env_required("GOOGLE_CLIENT_SECRET")?;
-        let github_client_id = core_config::env_required("GITHUB_CLIENT_ID")?;
-        let github_client_secret = core_config::env_required("GITHUB_CLIENT_SECRET")?;
+        // WorkOS AuthKit configuration
+        let workos_client_id = core_config::env_required("WORKOS_CLIENT_ID")?;
+        let workos_api_key = core_config::env_required("WORKOS_API_KEY")?;
+        // App-prefixed keys: terran shares the same shell env and reads the generic
+        // OIDC_ISSUER / SESSION_COOKIE_* names for its Keycloak config; on localhost
+        // cookies ignore ports, so the two apps MUST NOT share these values.
+        // Token issuer, per WorkOS OIDC discovery
+        // (`{api}/user_management/{client_id}/.well-known/openid-configuration`):
+        // `https://api.workos.com/user_management/{client_id}`. Override with
+        // WORKOS_ISSUER only for a custom auth domain.
+        let oidc_issuer = std::env::var("WORKOS_ISSUER")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| {
+                format!("https://api.workos.com/user_management/{workos_client_id}")
+            });
+        let cookie_name = core_config::env_or_default("ZERG_SESSION_COOKIE_NAME", "zerg_session");
+        let cookie_secure =
+            core_config::env_or_default("ZERG_SESSION_COOKIE_SECURE", "false") == "true";
+        let session_ttl_secs: u64 =
+            core_config::env_or_default("ZERG_SESSION_TTL_SECS", "28800").parse()?;
 
         // NATS configuration
         let nats_url = core_config::env_or_default("NATS_URL", "nats://localhost:4222");
@@ -88,13 +109,14 @@ impl Config {
             redis,
             server,
             environment,
-            jwt,
+            workos_client_id,
+            workos_api_key,
+            oidc_issuer,
+            cookie_name,
+            cookie_secure,
+            session_ttl_secs,
             frontend_url,
             redirect_base_url,
-            google_client_id,
-            google_client_secret,
-            github_client_id,
-            github_client_secret,
             nats_url,
             rate_limit,
             rate_limit_vector_requests,
@@ -102,5 +124,12 @@ impl Config {
             rate_limit_auth_requests,
             rate_limit_auth_window_secs,
         })
+    }
+}
+
+impl Config {
+    /// OAuth redirect URI registered with WorkOS.
+    pub fn callback_url(&self) -> String {
+        format!("{}/api/auth/callback", self.redirect_base_url)
     }
 }

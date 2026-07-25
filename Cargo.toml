@@ -33,7 +33,6 @@ members = [
 
 [workspace.dependencies]
 api_resource = { path = 'libs/core/proc_macros/api_resource' }
-argon2 = { version = '0.5.3', features = ['std'] }
 async-nats = '0.50.0'
 async-stream = '0.3.6'
 async-trait = '0.1.91'

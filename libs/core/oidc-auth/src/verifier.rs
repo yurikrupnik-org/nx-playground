@@ -28,6 +28,9 @@ pub struct VerifierConfig {
     pub require_org: bool,
     /// Name of the claim carrying the organization id (custom mapper / KC Organizations).
     pub org_claim: String,
+    /// Optional claim holding a single flat role string (e.g. WorkOS `role`), used
+    /// when the token has no Keycloak-style `realm_access.roles`.
+    pub role_claim: Option<String>,
     /// Clock-skew leeway in seconds for `exp`/`nbf`/`iat`.
     pub leeway: u64,
 }
@@ -44,6 +47,26 @@ impl VerifierConfig {
             authorized_parties: Vec::new(),
             require_org: false,
             org_claim: "org_id".to_string(),
+            role_claim: None,
+            leeway: 60,
+        }
+    }
+
+    /// Build a config for WorkOS AuthKit access tokens: JWKS at
+    /// `https://api.workos.com/sso/jwks/{client_id}`, flat `role` claim, `org_id`
+    /// organization claim. WorkOS tokens carry no `aud`/`azp`, so those checks stay
+    /// off. Per WorkOS OIDC discovery, `issuer` is
+    /// `https://api.workos.com/user_management/{client_id}` (a custom auth domain
+    /// changes it).
+    pub fn workos(client_id: &str, issuer: impl Into<String>) -> Self {
+        Self {
+            issuer: issuer.into(),
+            jwks_url: format!("https://api.workos.com/sso/jwks/{client_id}"),
+            audience: None,
+            authorized_parties: Vec::new(), // WorkOS tokens carry no azp
+            require_org: false,
+            org_claim: "org_id".to_string(),
+            role_claim: Some("role".to_string()),
             leeway: 60,
         }
     }
@@ -172,7 +195,13 @@ impl OidcVerifier {
                 )));
             }
         }
-        let roles = c.realm_access.map(|r| r.roles).unwrap_or_default();
+        let mut roles = c.realm_access.map(|r| r.roles).unwrap_or_default();
+        if roles.is_empty()
+            && let Some(rc) = &self.config.role_claim
+            && let Some(r) = c.extra.get(rc).and_then(|v| v.as_str())
+        {
+            roles.push(r.to_string());
+        }
         let org_id = self.extract_org(&c.extra);
         if self.config.require_org && org_id.is_none() {
             return Err(AuthError::OrgRequired);

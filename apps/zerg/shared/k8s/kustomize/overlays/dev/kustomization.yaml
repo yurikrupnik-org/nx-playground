@@ -42,7 +42,8 @@ configMapGenerator:
 
 secretGenerator:
   - name: zerg-shared-secrets
-    # Local dev secrets only (JWT_SECRET, OAuth + API keys). Gitignored; generated
+    # Local dev secrets only (WORKOS_CLIENT_ID/WORKOS_API_KEY + API keys). Gitignored;
+    # generated
     # from the repo-root .env (secrets only — connection addresses stay in the
     # configmap with in-cluster DNS, so they are NOT shadowed here). `envs:` parses
     # KEY=VALUE lines; `files:` would store the whole file under one key.

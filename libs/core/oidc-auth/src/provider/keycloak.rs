@@ -99,6 +99,7 @@ impl KeycloakProvider {
             refresh_token: r.refresh_token,
             id_token: r.id_token,
             expires_in: r.expires_in,
+            profile: None,
         })
     }
 }

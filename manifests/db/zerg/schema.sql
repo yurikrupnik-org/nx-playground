@@ -43,52 +43,23 @@ CREATE TYPE resource_status AS ENUM ('creating', 'active', 'updating', 'deleting
 -- Tables
 -- =============================================================================
 
--- Users table
+-- Users table (credentials live at the IdP — WorkOS; `subject` is the IdP user id)
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuidv7(),
   email VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
   avatar_url TEXT,
   roles TEXT[] NOT NULL DEFAULT ARRAY['user'::text],
   email_verified BOOLEAN NOT NULL DEFAULT false,
   is_active BOOLEAN NOT NULL DEFAULT true,
-  is_locked BOOLEAN NOT NULL DEFAULT false,
-  failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-  locked_until TIMESTAMPTZ,
   last_login_at TIMESTAMPTZ,
-  google_id VARCHAR(255),
-  github_id VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  subject TEXT
 );
 
 CREATE UNIQUE INDEX idx_users_email ON users(email);
-CREATE UNIQUE INDEX idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_users_github_id ON users(github_id) WHERE github_id IS NOT NULL;
-
--- OAuth accounts table
-CREATE TABLE oauth_accounts (
-  id UUID PRIMARY KEY DEFAULT uuidv7(),
-  user_id UUID NOT NULL,
-  provider VARCHAR(50) NOT NULL,
-  provider_user_id VARCHAR(255) NOT NULL,
-  provider_username VARCHAR(255),
-  email VARCHAR(255),
-  display_name VARCHAR(255),
-  avatar_url TEXT,
-  access_token TEXT,
-  refresh_token TEXT,
-  token_expires_at TIMESTAMPTZ,
-  scopes TEXT[],
-  raw_user_data JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT fk_oauth_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE UNIQUE INDEX idx_oauth_provider_user ON oauth_accounts(provider, provider_user_id);
-CREATE INDEX idx_oauth_accounts_user_id ON oauth_accounts(user_id);
+CREATE UNIQUE INDEX idx_users_subject ON users(subject) WHERE subject IS NOT NULL;
 
 -- Projects table
 CREATE TABLE projects (
@@ -164,11 +135,6 @@ CREATE UNIQUE INDEX unique_resource_name_per_project ON cloud_resources(project_
 -- =============================================================================
 CREATE TRIGGER users_touch_updated_at
   BEFORE UPDATE ON users
-  FOR EACH ROW
-  EXECUTE FUNCTION util.touch_updated_at();
-
-CREATE TRIGGER oauth_accounts_touch_updated_at
-  BEFORE UPDATE ON oauth_accounts
   FOR EACH ROW
   EXECUTE FUNCTION util.touch_updated_at();
 

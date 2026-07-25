@@ -36,19 +36,12 @@
 
 // Domain modules
 pub mod audit;
-pub mod auth;
 pub mod errors;
 pub mod extractors;
 pub mod http;
 pub mod metrics;
 pub mod rate_limit;
 pub mod server;
-
-// Re-export auth types
-pub use auth::{
-    ACCESS_TOKEN_TTL, JwtClaims, JwtConfig, JwtRedisAuth, REFRESH_TOKEN_TTL, RedisAuthStore,
-    jwt_auth_middleware, optional_jwt_auth_middleware,
-};
 
 // Re-export server types
 pub use server::{

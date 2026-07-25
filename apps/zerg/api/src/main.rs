@@ -9,6 +9,7 @@ use tracing::info;
 
 mod api;
 mod config;
+mod error;
 mod grpc_pool;
 mod openapi;
 mod state;
@@ -69,9 +70,22 @@ async fn main() -> eyre::Result<()> {
     let notifications = NotificationService::from_jetstream_default(jetstream);
     info!("NotificationService initialized with NATS JetStream");
 
-    // Initialize JWT + Redis authentication
-    let jwt_auth = axum_helpers::JwtRedisAuth::new(redis.clone(), &config.jwt)
-        .map_err(|e| eyre::eyre!("Failed to initialize JWT auth: {}", e))?;
+    // WorkOS OIDC auth: server-side sessions + login-flow store (Redis), AuthKit
+    // provider, and the JWKS verifier for the Bearer path.
+    let sessions = Arc::new(oidc_auth::RedisSessionStore::from_manager(
+        redis.clone(),
+        "zerg",
+    ));
+    let flows = oidc_auth::LoginFlowStore::new(redis.clone(), "zerg", api::auth::FLOW_TTL_SECS);
+    let provider = Arc::new(oidc_auth::WorkosProvider::new(
+        &config.workos_client_id,
+        &config.workos_api_key,
+        config.callback_url(),
+        &config.oidc_issuer,
+    ));
+    let verifier = Arc::new(oidc_auth::OidcVerifier::new(
+        oidc_auth::VerifierConfig::workos(&config.workos_client_id, &config.oidc_issuer),
+    ));
 
     // Initialize Qdrant/Vector service (optional)
     let vector_service = match QdrantConfig::from_env() {
@@ -122,7 +136,10 @@ async fn main() -> eyre::Result<()> {
         tasks_health,
         db,
         redis,
-        jwt_auth,
+        flows,
+        sessions,
+        provider,
+        verifier,
         notifications,
         vector_service,
         rate_limiter,

@@ -1,3 +1,4 @@
+use axum::routing::{get, post};
 use axum::{Extension, Router, middleware};
 use axum_helpers::RateLimitTier;
 
@@ -47,21 +48,42 @@ pub fn routes(state: &crate::state::AppState) -> Router {
     };
 
     // Mandatory auth on every business router: unauthenticated/forged requests are
-    // rejected before the handler (the global layer below is *optional* and only feeds
-    // rate-limit keying). Public auth-flow routes (/auth) are intentionally excluded.
-    let auth_mw = || {
-        middleware::from_fn_with_state(state.jwt_auth.clone(), axum_helpers::jwt_auth_middleware)
-    };
+    // rejected before the handler and an `AuthIdentity` lands in request extensions
+    // (the rate limiter keys on it). Public auth-flow routes (/auth) are excluded.
+    let auth_layer = oidc_auth::AuthLayerState::new(
+        state.verifier.clone(),
+        state.sessions.clone(),
+        state.provider.clone(),
+        state.config.cookie_name.clone(),
+    );
+    let auth_mw = || middleware::from_fn_with_state(auth_layer.clone(), oidc_auth::auth_required);
     // CSRF double-submit on cookie-authed mutations; safe methods and Bearer are exempt.
     let csrf_cfg = axum_helpers::CsrfConfig::new("csrf_token");
     let csrf_mw = || middleware::from_fn_with_state(csrf_cfg.clone(), axum_helpers::csrf_protect);
 
+    // BFF auth routes (terran pattern): flow routes are public; /me requires auth;
+    // logout is a cookie-authed mutation so it sits behind CSRF; the native
+    // password login is CSRF-exempt (no cookie exists yet; JSON body blocks
+    // cross-site form posts).
+    let auth_routes = {
+        let public = Router::new()
+            .route("/login", get(auth::login))
+            .route("/callback", get(auth::callback))
+            .route("/logout", post(auth::logout));
+        let protected = Router::new()
+            .route("/me", get(auth::me))
+            .route_layer(auth_mw());
+        public
+            .merge(protected)
+            .route_layer(csrf_mw())
+            .route("/login/password", post(auth::password_login))
+            .with_state(state.clone())
+    };
+
     let router = Router::new()
         .nest(
             "/auth",
-            auth::router(state)
-                .layer(rl_layer())
-                .layer(Extension(auth_tier)),
+            auth_routes.layer(rl_layer()).layer(Extension(auth_tier)),
         )
         .nest(
             "/tasks",
@@ -105,7 +127,7 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         );
 
     // Add vector routes with stricter tier if Qdrant is configured
-    let router = if let Some(vector_router) = vector::router(state) {
+    if let Some(vector_router) = vector::router(state) {
         router.nest(
             "/vector",
             vector_router
@@ -116,14 +138,7 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         )
     } else {
         router
-    };
-
-    // optional auth is global (outermost) — inserts JwtClaims if token present,
-    // so per-route rate_limit_middleware can key by user:<id> or fall back to ip:<addr>.
-    router.layer(middleware::from_fn_with_state(
-        state.jwt_auth.clone(),
-        axum_helpers::optional_jwt_auth_middleware,
-    ))
+    }
 }
 
 /// Creates a router with the /ready endpoint that performs actual health checks.

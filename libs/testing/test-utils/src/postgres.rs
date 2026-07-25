@@ -245,7 +245,7 @@ impl TestDatabase {
     /// references to the users table.
     pub async fn create_test_user(&self, user_id: uuid::Uuid) -> uuid::Uuid {
         let query = format!(
-            "INSERT INTO users (id, email, name, password_hash) VALUES ('{}', 'test-{}@example.com', 'Test User {}', '$argon2id$v=19$m=19456,t=2,p=1$test$test') ON CONFLICT (id) DO NOTHING",
+            "INSERT INTO users (id, email, name) VALUES ('{}', 'test-{}@example.com', 'Test User {}') ON CONFLICT (id) DO NOTHING",
             user_id, user_id, user_id
         );
         self.connection

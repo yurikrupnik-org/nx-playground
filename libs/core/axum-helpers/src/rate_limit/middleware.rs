@@ -1,5 +1,4 @@
 use super::{RateLimitTier, RateLimiter};
-use crate::auth::jwt::JwtClaims;
 use crate::errors::AppError;
 use axum::{
     extract::{ConnectInfo, Request, State},
@@ -7,20 +6,22 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use oidc_auth::AuthIdentity;
 use std::net::SocketAddr;
 
 /// Extract the rate limit key from the request.
 ///
 /// Strategy:
-/// 1. Authenticated user ID from `JwtClaims` in extensions -> `user:<id>`
+/// 1. Authenticated principal (`AuthIdentity` in extensions, inserted by
+///    `oidc_auth::auth_required` when it runs first) -> `user:<subject>`
 /// 2. `X-Real-Ip` header (set by nginx/ingress, single trusted value) -> `ip:<ip>`
 /// 3. `X-Forwarded-For` rightmost IP (last entry = added by our proxy) -> `ip:<ip>`
 /// 4. TCP socket peer address (`ConnectInfo`) -> `ip:<ip>`
 /// 5. Fallback -> `ip:unknown`
 fn extract_key(request: &Request) -> String {
-    // Check for authenticated user (only populated if auth middleware ran first)
-    if let Some(claims) = request.extensions().get::<JwtClaims>() {
-        return format!("user:{}", claims.sub);
+    // Check for an authenticated principal (only populated if auth middleware ran first)
+    if let Some(identity) = request.extensions().get::<AuthIdentity>() {
+        return format!("user:{}", identity.subject);
     }
 
     let headers = request.headers();
@@ -151,19 +152,15 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_key_jwt_claims() {
+    fn test_extract_key_auth_identity() {
         let mut req = make_request();
-        req.extensions_mut().insert(JwtClaims {
-            sub: "user-123".to_string(),
-            email: "test@example.com".to_string(),
-            name: "Test".to_string(),
+        req.extensions_mut().insert(AuthIdentity {
+            subject: "user-123".to_string(),
+            org_id: None,
             roles: vec![],
-            exp: 0,
-            iat: 0,
-            jti: "jti-1".to_string(),
-            iss: "zerg-api".to_string(),
-            aud: "zerg-api".to_string(),
-            token_type: "access".to_string(),
+            email: Some("test@example.com".to_string()),
+            name: Some("Test".to_string()),
+            session_id: None,
         });
         assert_eq!(extract_key(&req), "user:user-123");
     }

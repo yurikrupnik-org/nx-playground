@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 async-trait = { workspace = true }
 axum = { workspace = true }
+base64 = "0.22"
 jsonwebtoken = { workspace = true }
 oauth2 = { version = "5.0.0", default-features = false }
 redis = { workspace = true }

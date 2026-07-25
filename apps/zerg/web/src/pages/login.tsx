@@ -31,10 +31,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await auth.login({
-        email: email(),
-        password: password(),
-      });
+      await auth.login(email(), password());
       // Hard redirect on auth success: a full reload gives a clean app/query/router
       // state and avoids the SPA-navigate reactive storm at the auth boundary.
       window.location.href = '/tasks';

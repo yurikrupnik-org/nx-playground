@@ -44,9 +44,9 @@ procs:
     stop: "SIGTERM"
     # autostart: false
 
-  terran-api:
-    shell: "DATABASE_URL='postgres://terran_app:terran_app@localhost:5432/terran' PORT='8081' REDIRECT_BASE_URL='http://localhost:3001' CORS_ALLOWED_ORIGIN='http://localhost:3001' bacon terran-api"
-    stop: "SIGTERM"
+#  terran-api:
+#    shell: "DATABASE_URL='postgres://terran_app:terran_app@localhost:5432/terran' PORT='8081' REDIRECT_BASE_URL='http://localhost:3001' CORS_ALLOWED_ORIGIN='http://localhost:3001' bacon terran-api"
+#    stop: "SIGTERM"
     # autostart: false
 
   # =============================================================================
@@ -57,7 +57,7 @@ procs:
     stop: "SIGTERM"
     # autostart: false
 
-  terran-web:
-    shell: "bun nx dev terran-web"
-    stop: "SIGTERM"
+#  terran-web:
+#    shell: "bun nx dev terran-web"
+#    stop: "SIGTERM"
     # autostart: false

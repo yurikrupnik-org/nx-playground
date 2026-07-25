@@ -14,10 +14,11 @@ chrono.workspace = true
 # Internal dependencies
 core_config = { workspace = true }
 
-# JWT and error handling
 eyre.workspace = true
 futures.workspace = true
-jsonwebtoken.workspace = true
+
+# Auth identity for user-keyed rate limiting (inserted by oidc_auth::auth_required)
+oidc-auth = { workspace = true }
 
 # Prometheus metrics (RED middleware + /metrics endpoint)
 metrics.workspace = true

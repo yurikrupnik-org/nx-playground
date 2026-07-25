@@ -10,20 +10,18 @@ This guide explains how to manage environment-specific configurations for the Te
 - `DATABASE_URL`: PostgreSQL connection string
 - `REDIS_HOST`: Redis connection URL
 
-### CORS & OAuth Configuration
+### CORS & Auth Redirects
 - `CORS_ALLOWED_ORIGIN`: Frontend origin for CORS (e.g., http://localhost:3000)
-- `REDIRECT_BASE_URL`: OAuth callback base URL (e.g., http://localhost:8080)
-- `FRONTEND_URL`: Frontend application URL for post-auth redirects
-- `OAUTH_AUTO_LINK_VERIFIED_EMAILS`: Auto-link OAuth accounts with verified emails (true/false)
+- `REDIRECT_BASE_URL`: OAuth callback base URL (e.g., http://localhost:8080); the WorkOS redirect URI is `{REDIRECT_BASE_URL}/api/auth/callback`
+- `FRONTEND_URL`: Frontend application URL for post-auth redirects (login landing, logout `return_to`)
 
-### Authentication
-- `JWT_SECRET`: Secret key for JWT token signing
+### Authentication (WorkOS AuthKit via the oidc-auth BFF)
+- `WORKOS_CLIENT_ID`: WorkOS environment client id (`client_...`) — required
+- `WORKOS_API_KEY`: WorkOS API key (`sk_...`) — required
+- `WORKOS_ISSUER`: Token issuer override; defaults to `https://api.workos.com/user_management/{WORKOS_CLIENT_ID}` (set only for a custom auth domain)
+- `ZERG_SESSION_COOKIE_NAME` / `ZERG_SESSION_COOKIE_SECURE` / `ZERG_SESSION_TTL_SECS`: Browser session cookie settings (defaults: `zerg_session` / `false` / `28800`)
 
-### OAuth Providers
-- `GOOGLE_CLIENT_ID`: Google OAuth client ID
-- `GOOGLE_CLIENT_SECRET`: Google OAuth client secret
-- `GITHUB_CLIENT_ID`: GitHub OAuth client ID
-- `GITHUB_CLIENT_SECRET`: GitHub OAuth client secret
+Google/GitHub social login is brokered by WorkOS — no `GOOGLE_*`/`GITHUB_*` variables are read anymore.
 
 ### Feature Flags (Flagsmith)
 - `FLAGSMITH_API_URL`: Flagsmith API endpoint
@@ -50,7 +48,6 @@ For local Kubernetes development with Tilt:
 CORS_ALLOWED_ORIGIN: "http://localhost:5206"
 REDIRECT_BASE_URL: "http://localhost:5201"
 FRONTEND_URL: "http://localhost:5206"
-OAUTH_AUTO_LINK_VERIFIED_EMAILS: "true"
 ```
 
 **Usage:**
@@ -69,7 +66,6 @@ For production deployments on Google Kubernetes Engine:
 CORS_ALLOWED_ORIGIN: "https://your-production-domain.com"
 REDIRECT_BASE_URL: "https://api.your-production-domain.com"
 FRONTEND_URL: "https://your-production-domain.com"
-OAUTH_AUTO_LINK_VERIFIED_EMAILS: "false"
 ```
 
 ## Security Best Practices
@@ -93,62 +89,56 @@ For production, sensitive values should be stored in Kubernetes Secrets:
 3. **Update kustomization.yaml to use secrets:**
    ```yaml
    # Replace direct value:
-   - name: JWT_SECRET
+   - name: WORKOS_API_KEY
      value: "CHANGE-ME-use-k8s-secret"
 
    # With secret reference:
-   - name: JWT_SECRET
+   - name: WORKOS_API_KEY
      valueFrom:
        secretKeyRef:
-         name: terran-api-secrets
-         key: JWT_SECRET
+         name: zerg-api-secrets
+         key: WORKOS_API_KEY
    ```
 
 ### External Secrets Operator (Recommended)
 
 For better secret management, use External Secrets Operator with cloud secret managers:
 
-**GCP Secret Manager:**
+**GCP Secret Manager** (see `kustomize/overlays/{dev,prod}/external-secret.yaml`):
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: terran-api-secrets
-  namespace: terran
+  name: zerg-api-secrets
 spec:
   refreshInterval: 1h
   secretStoreRef:
-    name: gcpsm-secret-store
-    kind: SecretStore
+    name: gcp-secret-manager
+    kind: ClusterSecretStore
   target:
-    name: terran-api-secrets
+    name: zerg-api-secrets
   data:
-    - secretKey: JWT_SECRET
+    - secretKey: WORKOS_CLIENT_ID
       remoteRef:
-        key: terran-api-jwt-secret
-    - secretKey: GOOGLE_CLIENT_ID
+        key: app-secrets
+        property: zerg.workos_client_id
+    - secretKey: WORKOS_API_KEY
       remoteRef:
-        key: terran-api-google-client-id
-    - secretKey: GOOGLE_CLIENT_SECRET
-      remoteRef:
-        key: terran-api-google-client-secret
+        key: app-secrets
+        property: zerg.workos_api_key
 ```
 
-## OAuth Setup
+## WorkOS Setup
 
-### Google OAuth
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create OAuth 2.0 credentials
-3. Add authorized redirect URIs:
-   - Local: `http://localhost:5201/oauth/google/callback`
-   - Production: `https://api.your-domain.com/oauth/google/callback`
-
-### GitHub OAuth
-1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-2. Create a new OAuth App
-3. Set Authorization callback URL:
-   - Local: `http://localhost:5201/oauth/github/callback`
-   - Production: `https://api.your-domain.com/oauth/github/callback`
+1. Go to the [WorkOS Dashboard](https://dashboard.workos.com/) → Applications
+2. Copy the client id (`client_...`) and API key (`sk_...`) into the secrets above
+3. In the application's **Redirects** tab, register:
+   - Sign-in redirect URI: `{REDIRECT_BASE_URL}/api/auth/callback`
+     (local: `http://localhost:5201/api/auth/callback`)
+   - Sign-out redirect: `{FRONTEND_URL}/login`
+   - App homepage URL: `{FRONTEND_URL}`
+4. Enable the authentication methods you need (Password, Google OAuth, GitHub OAuth) —
+   social providers are brokered by WorkOS, no Google/GitHub console setup in this repo
 
 ## Deploying Configuration Changes
 
@@ -164,8 +154,8 @@ tilt up
 kubectl apply -k k8s/kustomize/overlays/prod
 
 # Verify deployment
-kubectl get pods -n terran
-kubectl logs -n terran deployment/terran-api
+kubectl get pods -n zerg
+kubectl logs -n zerg deployment/zerg-api
 ```
 
 ### Production (ArgoCD)
@@ -175,19 +165,19 @@ Configuration changes are automatically synchronized when committed to the main 
 
 ### Check environment variables in running pod:
 ```bash
-kubectl exec -n terran deployment/terran-api -- env | grep -E "REDIRECT|FRONTEND|CORS|OAUTH"
+kubectl exec -n zerg deployment/zerg-api -- env | grep -E "REDIRECT|FRONTEND|CORS|WORKOS"
 ```
 
 ### View logs:
 ```bash
-kubectl logs -n terran deployment/terran-api -f
+kubectl logs -n zerg deployment/zerg-api -f
 ```
 
-### Test OAuth flow:
+### Test the auth flow:
 ```bash
-# Local
-curl http://localhost:5201/oauth/google
+# Local — expect a 303 redirect to api.workos.com/user_management/authorize
+curl -sI http://localhost:5201/api/auth/login | grep -i location
 
 # Production
-curl https://api.your-domain.com/oauth/google
+curl -sI https://api.your-domain.com/api/auth/login | grep -i location
 ```
