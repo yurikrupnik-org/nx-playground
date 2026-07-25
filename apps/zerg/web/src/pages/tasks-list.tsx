@@ -1,17 +1,30 @@
+import type { TaskPriority, TaskStatus } from '@domain/tasks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/solid-query';
 import { Link } from '@tanstack/solid-router';
-import { createSignal, For, Show } from 'solid-js';
+import { createSignal, createUniqueId, For, Show } from 'solid-js';
+import type { CreateTaskInput } from '../lib/api-client';
 import { tasksApi } from '../lib/api-client';
+import { useAuth } from '../lib/auth-context';
 
 export function TasksListPage() {
   const queryClient = useQueryClient();
+  const auth = useAuth();
   const [filter, setFilter] = createSignal<
     'all' | 'todo' | 'in_progress' | 'done'
   >('all');
+  // Org-wide vs "only mine" — meaningful only for real orgs (personal
+  // workspaces are single-user by construction).
+  const [scope, setScope] = createSignal<'all' | 'mine'>('all');
+  const [showCreate, setShowCreate] = createSignal(false);
 
   const tasksQuery = useQuery(() => ({
-    queryKey: ['tasks'] as const,
-    queryFn: tasksApi.list,
+    queryKey: ['tasks', scope()] as const,
+    queryFn: () => {
+      const user = auth.user();
+      return tasksApi.list(
+        scope() === 'mine' && user ? { user_id: user.id } : undefined,
+      );
+    },
   }));
 
   const deleteMutation = useMutation(() => ({
@@ -20,6 +33,44 @@ export function TasksListPage() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   }));
+
+  // Create-task form state (pattern from task-detail.tsx / terran assets.tsx)
+  const [title, setTitle] = createSignal('');
+  const [description, setDescription] = createSignal('');
+  const [priority, setPriority] = createSignal<TaskPriority>('medium');
+  const [status, setStatus] = createSignal<TaskStatus>('todo');
+  const [dueDate, setDueDate] = createSignal('');
+  const titleId = createUniqueId();
+  const descriptionId = createUniqueId();
+  const priorityId = createUniqueId();
+  const statusId = createUniqueId();
+  const dueDateId = createUniqueId();
+
+  const createMutation = useMutation(() => ({
+    mutationFn: (input: CreateTaskInput) => tasksApi.create(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      setTitle('');
+      setDescription('');
+      setPriority('medium');
+      setStatus('todo');
+      setDueDate('');
+      setShowCreate(false);
+    },
+  }));
+
+  const submitCreate = (e: Event) => {
+    e.preventDefault();
+    if (!title().trim()) return;
+    createMutation.mutate({
+      title: title().trim(),
+      description: description(),
+      project_id: null,
+      priority: priority(),
+      status: status(),
+      due_date: dueDate() ? new Date(dueDate()).toISOString() : null,
+    });
+  };
 
   const filteredTasks = () => {
     const tasks = tasksQuery.data || [];
@@ -59,11 +110,122 @@ export function TasksListPage() {
   return (
     <div class="container mx-auto p-4 max-w-6xl">
       <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold">Tasks</h1>
+        <div>
+          <h1 class="text-3xl font-bold">Tasks</h1>
+          <Show when={auth.user()?.org} keyed>
+            {(org) => (
+              <p class="text-sm text-gray-500 mt-1">
+                {org.name}
+                {' · '}
+                {org.is_personal ? 'personal workspace' : `role ${org.role}`}
+              </p>
+            )}
+          </Show>
+        </div>
+        <button
+          type="button"
+          class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+          onClick={() => setShowCreate(!showCreate())}
+        >
+          {showCreate() ? 'Cancel' : 'New Task'}
+        </button>
       </div>
 
+      {/* Create form */}
+      <Show when={showCreate()}>
+        <form
+          onSubmit={submitCreate}
+          class="border rounded-lg p-4 mb-6 bg-white space-y-4"
+        >
+          <div>
+            <label class="block text-sm font-medium mb-1" for={titleId}>
+              Title
+            </label>
+            <input
+              id={titleId}
+              class="w-full border rounded px-3 py-2"
+              value={title()}
+              onInput={(e) => setTitle(e.currentTarget.value)}
+              placeholder="What needs doing?"
+              required
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1" for={descriptionId}>
+              Description
+            </label>
+            <textarea
+              id={descriptionId}
+              class="w-full border rounded px-3 py-2"
+              rows="2"
+              value={description()}
+              onInput={(e) => setDescription(e.currentTarget.value)}
+            />
+          </div>
+          <div class="flex gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-1" for={priorityId}>
+                Priority
+              </label>
+              <select
+                id={priorityId}
+                class="border rounded px-3 py-2"
+                value={priority()}
+                onChange={(e) =>
+                  setPriority(e.currentTarget.value as TaskPriority)
+                }
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for={statusId}>
+                Status
+              </label>
+              <select
+                id={statusId}
+                class="border rounded px-3 py-2"
+                value={status()}
+                onChange={(e) => setStatus(e.currentTarget.value as TaskStatus)}
+              >
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1" for={dueDateId}>
+                Due date
+              </label>
+              <input
+                id={dueDateId}
+                type="date"
+                class="border rounded px-3 py-2"
+                value={dueDate()}
+                onInput={(e) => setDueDate(e.currentTarget.value)}
+              />
+            </div>
+          </div>
+          <Show when={createMutation.isError}>
+            <p class="text-sm text-red-600">
+              {createMutation.error?.message ?? 'Failed to create task'}
+            </p>
+          </Show>
+          <button
+            type="submit"
+            disabled={createMutation.isPending || !title().trim()}
+            class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {createMutation.isPending ? 'Creating…' : 'Create Task'}
+          </button>
+        </form>
+      </Show>
+
       {/* Filters */}
-      <div class="flex gap-2 mb-4">
+      <div class="flex gap-2 mb-4 items-center">
         <button
           type="button"
           class={`px-4 py-2 rounded ${filter() === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
@@ -92,6 +254,25 @@ export function TasksListPage() {
         >
           Done
         </button>
+        {/* Org scope toggle: hidden for personal workspaces */}
+        <Show when={auth.user()?.org.is_personal === false}>
+          <div class="ml-auto flex gap-2">
+            <button
+              type="button"
+              class={`px-4 py-2 rounded ${scope() === 'all' ? 'bg-indigo-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => setScope('all')}
+            >
+              Everyone
+            </button>
+            <button
+              type="button"
+              class={`px-4 py-2 rounded ${scope() === 'mine' ? 'bg-indigo-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => setScope('mine')}
+            >
+              Mine
+            </button>
+          </div>
+        </Show>
       </div>
 
       {/* Task List */}

@@ -11,6 +11,14 @@ export type Task = {
  */
 id: string, 
 /**
+ * Owning organization (tenant scope)
+ */
+org_id: string, 
+/**
+ * Creating/owning user within the org
+ */
+user_id: string, 
+/**
  * Task title
  */
 title: string, 

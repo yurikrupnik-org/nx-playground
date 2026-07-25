@@ -14,6 +14,8 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub description: String,
     pub completed: bool,
+    pub org_id: Uuid,
+    pub user_id: Uuid,
     pub project_id: Option<Uuid>,
     pub priority: TaskPriority,
     pub status: TaskStatus,
@@ -32,6 +34,8 @@ impl From<Model> for crate::models::Task {
     fn from(model: Model) -> Self {
         Self {
             id: model.id,
+            org_id: model.org_id,
+            user_id: model.user_id,
             title: model.title,
             description: model.description,
             completed: model.completed,
@@ -45,12 +49,15 @@ impl From<Model> for crate::models::Task {
     }
 }
 
-// Conversion from domain CreateTask to Sea-ORM ActiveModel
-impl From<crate::models::CreateTask> for ActiveModel {
-    fn from(input: crate::models::CreateTask) -> Self {
+// Conversion from tenant scope + domain CreateTask to Sea-ORM ActiveModel.
+// The scope comes from the verified session (BFF), never the client payload.
+impl From<(crate::models::TaskScope, crate::models::CreateTask)> for ActiveModel {
+    fn from((scope, input): (crate::models::TaskScope, crate::models::CreateTask)) -> Self {
         let now = chrono::Utc::now();
         ActiveModel {
             id: Set(Uuid::now_v7()),
+            org_id: Set(scope.org_id),
+            user_id: Set(scope.user_id),
             title: Set(input.title),
             description: Set(input.description),
             completed: Set(false),

@@ -2,33 +2,36 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::error::TaskResult;
-use crate::models::{CreateTask, Task, TaskFilter, UpdateTask};
+use crate::models::{CreateTask, Task, TaskFilter, TaskScope, UpdateTask};
 
 /// Repository trait for Task persistence
 ///
 /// This trait defines the data access interface for tasks.
 /// Implementations can use different storage backends (PostgreSQL, etc.)
+///
+/// Every method is tenant-scoped: `org_id` comes from the verified session
+/// (never the client) and cross-tenant ids behave as not-found.
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait TaskRepository: Send + Sync {
-    /// Create a new task
-    async fn create(&self, input: CreateTask) -> TaskResult<Task>;
+    /// Create a new task owned by `scope`
+    async fn create(&self, scope: TaskScope, input: CreateTask) -> TaskResult<Task>;
 
-    /// Get a task by ID
-    async fn get_by_id(&self, id: Uuid) -> TaskResult<Option<Task>>;
+    /// Get a task by ID within the org
+    async fn get_by_id(&self, org_id: Uuid, id: Uuid) -> TaskResult<Option<Task>>;
 
-    /// List tasks with optional filters
-    async fn list(&self, filter: TaskFilter) -> TaskResult<Vec<Task>>;
+    /// List the org's tasks with optional filters
+    async fn list(&self, org_id: Uuid, filter: TaskFilter) -> TaskResult<Vec<Task>>;
 
-    /// Update an existing task
-    async fn update(&self, id: Uuid, input: UpdateTask) -> TaskResult<Task>;
+    /// Update an existing task within the org
+    async fn update(&self, org_id: Uuid, id: Uuid, input: UpdateTask) -> TaskResult<Task>;
 
-    /// Delete a task by ID
-    async fn delete(&self, id: Uuid) -> TaskResult<bool>;
+    /// Delete a task by ID within the org
+    async fn delete(&self, org_id: Uuid, id: Uuid) -> TaskResult<bool>;
 
-    /// Count all tasks
-    async fn count(&self) -> TaskResult<usize>;
+    /// Count the org's tasks
+    async fn count(&self, org_id: Uuid) -> TaskResult<usize>;
 
-    /// Count tasks by project
-    async fn count_by_project(&self, project_id: Uuid) -> TaskResult<usize>;
+    /// Count the org's tasks for a project
+    async fn count_by_project(&self, org_id: Uuid, project_id: Uuid) -> TaskResult<usize>;
 }

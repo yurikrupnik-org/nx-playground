@@ -1,17 +1,25 @@
 # =============================================================================
 # Database Management (multi-DB)
 # =============================================================================
-# Layout: manifests/db/<db>/{schema.sql, seed.sql, migrations/, k8s/}
+# Layout: manifests/db/<db>/{schema.sql, seed.sql, migrations/ (optional), k8s/}
 # Source of truth: schema.sql per DB
-# Migrations: plain SQL applied via sqlx (local) and Atlas Operator (cluster)
 #
-# Workflow:
+# Each DB picks one of two modes:
+#
+# A) Declarative (no migrations/ dir) — e.g. zerg
+#   1. Edit manifests/db/<db>/schema.sql
+#   2. just db-fresh <db>                  → drop/recreate locally from schema + seed
+#   3. just gen-schema-configmap <db>      → regenerate cluster ConfigMap (AtlasSchema)
+#
+# B) Versioned (has migrations/) — e.g. terran
 #   1. Edit manifests/db/<db>/schema.sql (source of truth)
-#   2. just migrate-add <db> <name>   → creates .up.sql + .down.sql
-#   3. Write ALTER/CREATE in .up.sql, reversal in .down.sql
-#   4. just migrate <db>               → apply locally
-#   5. just migrate-validate <db>      → verify schema.sql == migrations result
-#   6. just gen-migrations-configmap <db>  → regenerate cluster ConfigMap
+#   2. just migrate-add <db> <name>        → creates .up.sql
+#   3. Write ALTER/CREATE in .up.sql
+#   4. just migrate <db>                   → apply locally
+#   5. just migrate-validate <db>          → verify schema.sql == migrations result
+#   6. just gen-migrations-configmap <db>  → regenerate cluster ConfigMap (AtlasMigration)
+#
+# The migrate* recipes apply to mode B only; they fail on a declarative DB by design.
 #
 # Local: docker-compose postgres on :5432 with super-user `myuser`.
 # Cluster: kind/CNPG via port-forward on :5433.
@@ -258,14 +266,18 @@ gen-migrations-configmap db: (migrate-hash db)
       --name {{ db }}-migrations \
       -o manifests/db/{{ db }}/k8s/base/migrations-configmap.yaml
 
-# Regenerate ConfigMaps for every DB under manifests/db/
+# Regenerate ConfigMaps for every DB under manifests/db/ (each in its own mode:
+# versioned DBs get a migrations ConfigMap, declarative ones a schema ConfigMap).
 gen-all-configmaps:
     #!/usr/bin/env bash
     set -euo pipefail
     for d in manifests/db/*/; do
-      [[ -d "$d/migrations" ]] || continue
       db=$(basename "$d")
-      just gen-migrations-configmap "$db"
+      if [[ -d "$d/migrations" ]]; then
+        just gen-migrations-configmap "$db"
+      elif [[ -f "$d/schema.sql" ]]; then
+        just gen-schema-configmap "$db"
+      fi
     done
 
 # =============================================================================

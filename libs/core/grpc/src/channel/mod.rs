@@ -22,7 +22,7 @@ use tonic::transport::{Channel, Endpoint};
 /// ## Example
 /// ```ignore
 /// use grpc_client::create_channel;
-/// use rpc::tasks::tasks_service_client::TasksServiceClient;
+/// use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 ///
 /// let channel = create_channel("http://[::1]:50051").await?;
 /// let client = TasksServiceClient::new(channel);

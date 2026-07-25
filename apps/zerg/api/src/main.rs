@@ -12,6 +12,7 @@ mod config;
 mod error;
 mod grpc_pool;
 mod openapi;
+mod orgs;
 mod state;
 
 use config::Config;
@@ -83,6 +84,7 @@ async fn main() -> eyre::Result<()> {
         config.callback_url(),
         &config.oidc_issuer,
     ));
+    let workos_admin = Arc::new(oidc_auth::WorkosAdmin::new(&config.workos_api_key));
     let verifier = Arc::new(oidc_auth::OidcVerifier::new(
         oidc_auth::VerifierConfig::workos(&config.workos_client_id, &config.oidc_issuer),
     ));
@@ -139,6 +141,7 @@ async fn main() -> eyre::Result<()> {
         flows,
         sessions,
         provider,
+        workos_admin,
         verifier,
         notifications,
         vector_service,

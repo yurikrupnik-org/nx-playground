@@ -8,13 +8,13 @@
 //! Generic conversions (UUIDs, timestamps) are named re-exports from
 //! `grpc_client::conversions` and shared across all domains.
 
-use rpc::tasks::{
+use rpc::tasks::v1::{
     CreateRequest, CreateResponse, GetByIdResponse, ListResponse, ListStreamResponse, Priority,
     Status, UpdateByIdRequest, UpdateByIdResponse,
 };
 use uuid::Uuid;
 
-use crate::models::{CreateTask, Task, TaskPriority, TaskStatus, UpdateTask};
+use crate::models::{CreateTask, Task, TaskPriority, TaskScope, TaskStatus, UpdateTask};
 
 // Named re-exports of the domain-agnostic proto helpers. A glob (`*`) would
 // leak the entire foreign helper surface into this crate's public API.
@@ -112,16 +112,19 @@ impl TryFrom<i32> for TaskStatus {
 // Struct Conversions: Domain → Proto (Request types)
 // ============================================================================
 
-impl From<CreateTask> for CreateRequest {
-    fn from(input: CreateTask) -> Self {
-        CreateRequest {
-            title: input.title,
-            description: input.description,
-            project_id: opt_uuid_to_bytes(input.project_id),
-            priority: input.priority.into(),
-            status: input.status.into(),
-            due_date: opt_datetime_to_timestamp(input.due_date),
-        }
+/// Build a [`CreateRequest`] from the BFF-resolved tenant scope + client payload.
+/// A plain `From<CreateTask>` would leave the scope fields empty for the caller
+/// to backfill — same footgun as the retired `From<UpdateTask>` (see below).
+pub fn make_create_request(scope: TaskScope, input: CreateTask) -> CreateRequest {
+    CreateRequest {
+        title: input.title,
+        description: input.description,
+        project_id: opt_uuid_to_bytes(input.project_id),
+        priority: input.priority.into(),
+        status: input.status.into(),
+        due_date: opt_datetime_to_timestamp(input.due_date),
+        org_id: uuid_to_bytes(scope.org_id),
+        user_id: uuid_to_bytes(scope.user_id),
     }
 }
 
@@ -130,9 +133,10 @@ impl From<CreateTask> for CreateRequest {
 /// Replaces the former `From<UpdateTask> for UpdateByIdRequest`, which left
 /// `id: vec![]` for the caller to backfill — a footgun that let a forgotten
 /// assignment produce a type-checked but empty-id request.
-pub fn make_update_request(id: Uuid, input: UpdateTask) -> UpdateByIdRequest {
+pub fn make_update_request(org_id: Uuid, id: Uuid, input: UpdateTask) -> UpdateByIdRequest {
     UpdateByIdRequest {
         id: uuid_to_bytes(id),
+        org_id: uuid_to_bytes(org_id),
         title: input.title,
         description: input.description,
         completed: input.completed,
@@ -191,6 +195,8 @@ impl TryFrom<UpdateByIdRequest> for UpdateTask {
 #[allow(clippy::too_many_arguments)]
 fn task_from_response(
     id: Vec<u8>,
+    org_id: Vec<u8>,
+    user_id: Vec<u8>,
     title: String,
     description: String,
     completed: bool,
@@ -203,6 +209,8 @@ fn task_from_response(
 ) -> Result<Task, ConversionError> {
     Ok(Task {
         id: bytes_to_uuid(&id).map_err(ConversionError::BadUuid)?,
+        org_id: bytes_to_uuid(&org_id).map_err(ConversionError::BadUuid)?,
+        user_id: bytes_to_uuid(&user_id).map_err(ConversionError::BadUuid)?,
         title,
         description,
         completed,
@@ -229,6 +237,8 @@ macro_rules! task_try_from_response {
             fn try_from(proto: $resp) -> Result<Self, Self::Error> {
                 task_from_response(
                     proto.id,
+                    proto.org_id,
+                    proto.user_id,
                     proto.title,
                     proto.description,
                     proto.completed,
@@ -254,6 +264,8 @@ impl From<Task> for CreateResponse {
     fn from(task: Task) -> Self {
         CreateResponse {
             id: uuid_to_bytes(task.id),
+            org_id: uuid_to_bytes(task.org_id),
+            user_id: uuid_to_bytes(task.user_id),
             title: task.title,
             description: task.description,
             completed: task.completed,
@@ -271,6 +283,8 @@ impl From<Task> for GetByIdResponse {
     fn from(task: Task) -> Self {
         GetByIdResponse {
             id: uuid_to_bytes(task.id),
+            org_id: uuid_to_bytes(task.org_id),
+            user_id: uuid_to_bytes(task.user_id),
             title: task.title,
             description: task.description,
             completed: task.completed,
@@ -288,6 +302,8 @@ impl From<Task> for UpdateByIdResponse {
     fn from(task: Task) -> Self {
         UpdateByIdResponse {
             id: uuid_to_bytes(task.id),
+            org_id: uuid_to_bytes(task.org_id),
+            user_id: uuid_to_bytes(task.user_id),
             title: task.title,
             description: task.description,
             completed: task.completed,
@@ -305,6 +321,8 @@ impl From<Task> for ListStreamResponse {
     fn from(task: Task) -> Self {
         ListStreamResponse {
             id: uuid_to_bytes(task.id),
+            org_id: uuid_to_bytes(task.org_id),
+            user_id: uuid_to_bytes(task.user_id),
             title: task.title,
             description: task.description,
             completed: task.completed,

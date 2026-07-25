@@ -12,7 +12,7 @@ use axum_helpers::RateLimiter;
 use domain_vector::{QdrantRepository, VectorService};
 use email::NotificationService;
 use grpc_client::TracedChannel;
-use rpc::tasks::tasks_service_client::TasksServiceClient;
+use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 use std::sync::Arc;
 use tonic::transport::Channel;
 use tonic_health::pb::health_client::HealthClient;
@@ -47,6 +47,8 @@ pub struct AppState {
     pub sessions: Arc<oidc_auth::RedisSessionStore>,
     /// WorkOS AuthKit login/acquisition provider
     pub provider: Arc<oidc_auth::WorkosProvider>,
+    /// WorkOS management-API client (orgs, memberships, invitations)
+    pub workos_admin: Arc<oidc_auth::WorkosAdmin>,
     /// JWKS/RS256 bearer-token verifier
     pub verifier: Arc<oidc_auth::OidcVerifier>,
     /// Notification service for queueing emails via NATS JetStream

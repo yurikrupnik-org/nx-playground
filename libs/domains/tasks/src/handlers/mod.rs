@@ -3,7 +3,7 @@ mod grpc;
 
 use axum::{routing::get, Router};
 use grpc_client::TracedChannel;
-use rpc::tasks::tasks_service_client::TasksServiceClient;
+use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 use std::sync::Arc;
 use utoipa::OpenApi;
 

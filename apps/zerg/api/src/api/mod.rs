@@ -5,6 +5,7 @@ use axum_helpers::RateLimitTier;
 pub mod auth;
 pub mod cloud_resources;
 pub mod health;
+pub mod org;
 pub mod projects;
 pub mod tasks;
 pub mod tasks_direct;
@@ -57,6 +58,10 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         state.config.cookie_name.clone(),
     );
     let auth_mw = || middleware::from_fn_with_state(auth_layer.clone(), oidc_auth::auth_required);
+    // Tenant context: resolves org/user scope from the verified identity; MUST sit
+    // inside auth_mw (innermost) so AuthIdentity is already in extensions.
+    let tenant_mw =
+        || middleware::from_fn_with_state(state.clone(), crate::orgs::tenant_context_mw);
     // CSRF double-submit on cookie-authed mutations; safe methods and Bearer are exempt.
     let csrf_cfg = axum_helpers::CsrfConfig::new("csrf_token");
     let csrf_mw = || middleware::from_fn_with_state(csrf_cfg.clone(), axum_helpers::csrf_protect);
@@ -88,6 +93,7 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         .nest(
             "/tasks",
             tasks::router(state.clone())
+                .layer(tenant_mw())
                 .layer(rl_layer())
                 .layer(Extension(standard.clone()))
                 .layer(auth_mw())
@@ -96,6 +102,16 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         .nest(
             "/tasks-direct",
             tasks_direct::router(state)
+                .layer(tenant_mw())
+                .layer(rl_layer())
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
+        )
+        .nest(
+            "/org",
+            org::router(state)
+                .layer(tenant_mw())
                 .layer(rl_layer())
                 .layer(Extension(standard.clone()))
                 .layer(auth_mw())

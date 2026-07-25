@@ -39,6 +39,9 @@ message CreateRequest {
   Status status = 5; // 1 byte enum instead of string
   // Unix timestamp (seconds): 8 bytes instead of 24+ char ISO8601
   optional int64 due_date = 6;
+  // Tenant scope, filled by the BFF from the verified session (never client-supplied)
+  bytes org_id = 7;
+  bytes user_id = 8;
 }
 
 message CreateResponse {
@@ -52,10 +55,13 @@ message CreateResponse {
   optional int64 due_date = 8;
   int64 created_at = 9; // Unix timestamp
   int64 updated_at = 10;
+  bytes org_id = 11;
+  bytes user_id = 12;
 }
 
 message GetByIdRequest {
   bytes id = 1; // Binary UUID
+  bytes org_id = 2; // Tenant scope (BFF-supplied)
 }
 
 message GetByIdResponse {
@@ -69,6 +75,8 @@ message GetByIdResponse {
   optional int64 due_date = 8;
   int64 created_at = 9;
   int64 updated_at = 10;
+  bytes org_id = 11;
+  bytes user_id = 12;
 }
 
 message UpdateByIdRequest {
@@ -80,6 +88,7 @@ message UpdateByIdRequest {
   optional Priority priority = 6;
   optional Status status = 7;
   optional int64 due_date = 8;
+  bytes org_id = 9; // Tenant scope (BFF-supplied)
 }
 
 message UpdateByIdResponse {
@@ -93,10 +102,13 @@ message UpdateByIdResponse {
   optional int64 due_date = 8;
   int64 created_at = 9;
   int64 updated_at = 10;
+  bytes org_id = 11;
+  bytes user_id = 12;
 }
 
 message DeleteByIdRequest {
   bytes id = 1;
+  bytes org_id = 2; // Tenant scope (BFF-supplied)
 }
 
 message DeleteByIdResponse {}
@@ -108,6 +120,8 @@ message ListRequest {
   optional bool completed = 4;
   int32 limit = 5; // int32 instead of string
   int32 offset = 6; // int32 instead of string
+  bytes org_id = 7; // Tenant scope (BFF-supplied)
+  optional bytes user_id = 8; // optional "mine only" filter within the org
 }
 
 message ListResponse {
@@ -120,6 +134,8 @@ message ListStreamRequest {
   optional Priority priority = 3;
   optional bool completed = 4;
   int32 limit = 5;
+  bytes org_id = 6; // Tenant scope (BFF-supplied)
+  optional bytes user_id = 7; // optional "mine only" filter within the org
 }
 
 message ListStreamResponse {
@@ -133,4 +149,6 @@ message ListStreamResponse {
   optional int64 due_date = 8;
   int64 created_at = 9;
   int64 updated_at = 10;
+  bytes org_id = 11;
+  bytes user_id = 12;
 }

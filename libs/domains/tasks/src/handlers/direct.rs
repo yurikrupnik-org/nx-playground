@@ -2,13 +2,13 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use axum_helpers::UuidPath;
 use std::sync::Arc;
 
 use crate::error::TaskResult;
-use crate::models::{CreateTask, Task, TaskFilter, UpdateTask};
+use crate::models::{CreateTask, Task, TaskFilter, TaskScope, UpdateTask};
 use crate::repository::TaskRepository;
 use crate::service::TaskService;
 
@@ -17,6 +17,7 @@ use crate::service::TaskService;
     get,
     path = "",
     tag = "tasks-direct",
+    params(TaskFilter),
     responses(
         (status = 200, description = "List of tasks", body = Vec<Task>),
         (status = 500, description = "Internal server error")
@@ -24,9 +25,10 @@ use crate::service::TaskService;
 )]
 pub async fn list_tasks<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
+    Extension(scope): Extension<TaskScope>,
     Query(filter): Query<TaskFilter>,
 ) -> TaskResult<Json<Vec<Task>>> {
-    let tasks = service.list_tasks(filter).await?;
+    let tasks = service.list_tasks(scope.org_id, filter).await?;
     Ok(Json(tasks))
 }
 
@@ -47,9 +49,10 @@ pub async fn list_tasks<R: TaskRepository>(
 )]
 pub async fn get_task<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
+    Extension(scope): Extension<TaskScope>,
     UuidPath(id): UuidPath,
 ) -> TaskResult<impl IntoResponse> {
-    let task = service.get_task(id).await?;
+    let task = service.get_task(scope.org_id, id).await?;
     Ok(Json(task))
 }
 
@@ -67,9 +70,10 @@ pub async fn get_task<R: TaskRepository>(
 )]
 pub async fn create_task<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
+    Extension(scope): Extension<TaskScope>,
     Json(input): Json<CreateTask>,
 ) -> TaskResult<impl IntoResponse> {
-    let task = service.create_task(input).await?;
+    let task = service.create_task(scope, input).await?;
     Ok((StatusCode::CREATED, Json(task)))
 }
 
@@ -91,10 +95,11 @@ pub async fn create_task<R: TaskRepository>(
 )]
 pub async fn update_task<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
+    Extension(scope): Extension<TaskScope>,
     UuidPath(id): UuidPath,
     Json(input): Json<UpdateTask>,
 ) -> TaskResult<impl IntoResponse> {
-    let task = service.update_task(id, input).await?;
+    let task = service.update_task(scope.org_id, id, input).await?;
     Ok(Json(task))
 }
 
@@ -115,8 +120,9 @@ pub async fn update_task<R: TaskRepository>(
 )]
 pub async fn delete_task<R: TaskRepository>(
     State(service): State<Arc<TaskService<R>>>,
+    Extension(scope): Extension<TaskScope>,
     UuidPath(id): UuidPath,
 ) -> TaskResult<impl IntoResponse> {
-    service.delete_task(id).await?;
+    service.delete_task(scope.org_id, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

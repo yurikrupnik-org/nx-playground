@@ -4,6 +4,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  Link,
   Navigate,
   Outlet,
   RouterProvider,
@@ -16,6 +17,7 @@ import { UserMenu } from './components/user-menu';
 import { AuthProvider } from './lib/auth-context';
 import { LoginPage } from './pages/login';
 import { RegisterPage } from './pages/register';
+import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';
 import { TasksListPage } from './pages/tasks-list';
 
@@ -28,8 +30,20 @@ function Layout() {
       <nav class="border-b bg-white shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex justify-between h-16 items-center">
-            <div class="flex items-center">
+            <div class="flex items-center gap-6">
               <h1 class="text-xl font-bold">Zerg Tasks</h1>
+              <Link
+                to="/tasks"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Tasks
+              </Link>
+              <Link
+                to="/settings"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Settings
+              </Link>
             </div>
             <div class="flex items-center">
               <UserMenu />
@@ -90,6 +104,16 @@ const taskDetailRoute = createRoute({
   ),
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+  component: () => (
+    <ProtectedRoute>
+      <SettingsPage />
+    </ProtectedRoute>
+  ),
+});
+
 // Build route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -97,6 +121,7 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   tasksRoute,
   taskDetailRoute,
+  settingsRoute,
 ]);
 
 // Create router

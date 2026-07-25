@@ -1,11 +1,11 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::Query, extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use axum_helpers::UuidPath;
 use grpc_client::TracedChannel;
-use rpc::tasks::tasks_service_client::TasksServiceClient;
-use rpc::tasks::{DeleteByIdRequest, GetByIdRequest, ListRequest};
+use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
+use rpc::tasks::v1::{DeleteByIdRequest, GetByIdRequest, ListRequest};
 
 use crate::error::{TaskError, TaskResult};
-use crate::models::{CreateTask, Task, UpdateTask};
+use crate::models::{CreateTask, Task, TaskFilter, TaskScope, UpdateTask};
 
 // Proto conversion helpers (named re-exports + task-specific converters).
 use crate::conversions::*;
@@ -15,6 +15,7 @@ use crate::conversions::*;
     get,
     path = "",
     tag = "tasks",
+    params(TaskFilter),
     responses(
         (status = 200, description = "List of tasks via gRPC", body = Vec<Task>),
         (status = 500, description = "Internal server error")
@@ -22,15 +23,19 @@ use crate::conversions::*;
 )]
 pub async fn list_tasks(
     State(mut client): State<TasksServiceClient<TracedChannel>>,
+    Extension(scope): Extension<TaskScope>,
+    Query(filter): Query<TaskFilter>,
 ) -> TaskResult<Json<Vec<Task>>> {
     let response = client
         .list(ListRequest {
-            project_id: None,
-            status: None,
-            priority: None,
-            completed: None,
-            limit: 50,
-            offset: 0,
+            org_id: uuid_to_bytes(scope.org_id),
+            user_id: filter.user_id.map(uuid_to_bytes),
+            project_id: opt_uuid_to_bytes(filter.project_id),
+            status: filter.status.map(Into::into),
+            priority: filter.priority.map(Into::into),
+            completed: filter.completed,
+            limit: filter.limit as i32,
+            offset: filter.offset as i32,
         })
         .await?;
 
@@ -57,11 +62,13 @@ pub async fn list_tasks(
 )]
 pub async fn get_task(
     State(mut client): State<TasksServiceClient<TracedChannel>>,
+    Extension(scope): Extension<TaskScope>,
     UuidPath(uuid): UuidPath,
 ) -> TaskResult<impl IntoResponse> {
     let response = client
         .get_by_id(GetByIdRequest {
             id: uuid_to_bytes(uuid),
+            org_id: uuid_to_bytes(scope.org_id),
         })
         .await
         .map_err(|e| TaskError::from_status(e, uuid))?;
@@ -88,11 +95,10 @@ pub async fn get_task(
 )]
 pub async fn create_task(
     State(mut client): State<TasksServiceClient<TracedChannel>>,
+    Extension(scope): Extension<TaskScope>,
     Json(input): Json<CreateTask>,
 ) -> TaskResult<impl IntoResponse> {
-    let response = client
-        .create(rpc::tasks::CreateRequest::from(input))
-        .await?;
+    let response = client.create(make_create_request(scope, input)).await?;
 
     let task: Task = response
         .into_inner()
@@ -120,10 +126,11 @@ pub async fn create_task(
 )]
 pub async fn update_task(
     State(mut client): State<TasksServiceClient<TracedChannel>>,
+    Extension(scope): Extension<TaskScope>,
     UuidPath(uuid): UuidPath,
     Json(input): Json<UpdateTask>,
 ) -> TaskResult<impl IntoResponse> {
-    let request = make_update_request(uuid, input);
+    let request = make_update_request(scope.org_id, uuid, input);
 
     let response = client
         .update_by_id(request)
@@ -155,11 +162,13 @@ pub async fn update_task(
 )]
 pub async fn delete_task(
     State(mut client): State<TasksServiceClient<TracedChannel>>,
+    Extension(scope): Extension<TaskScope>,
     UuidPath(uuid): UuidPath,
 ) -> TaskResult<impl IntoResponse> {
     client
         .delete_by_id(DeleteByIdRequest {
             id: uuid_to_bytes(uuid),
+            org_id: uuid_to_bytes(scope.org_id),
         })
         .await
         .map_err(|e| TaskError::from_status(e, uuid))?;

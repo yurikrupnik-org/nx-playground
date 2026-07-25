@@ -16,7 +16,7 @@ use domain_tasks::{PgTaskRepository, TaskService};
 use domain_vector::{OpenAIProvider, QdrantConfig, QdrantRepository, VectorService};
 use eyre::{Result, WrapErr};
 use grpc_client::server::{GrpcServer, ServerConfig, create_health_service};
-use rpc::tasks::tasks_service_server::{SERVICE_NAME as TASKS_SERVICE, TasksServiceServer};
+use rpc::tasks::v1::tasks_service_server::{SERVICE_NAME as TASKS_SERVICE, TasksServiceServer};
 use rpc::vector::v1::vector_service_server::{SERVICE_NAME as VECTOR_SERVICE, VectorServiceServer};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;

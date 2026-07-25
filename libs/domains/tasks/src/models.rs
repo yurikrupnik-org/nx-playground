@@ -80,6 +80,12 @@ pub struct Task {
     /// Unique identifier
     #[ts(as = "String")]
     pub id: Uuid,
+    /// Owning organization (tenant scope)
+    #[ts(as = "String")]
+    pub org_id: Uuid,
+    /// Creating/owning user within the org
+    #[ts(as = "String")]
+    pub user_id: Uuid,
     /// Task title
     pub title: String,
     /// Task description
@@ -141,6 +147,7 @@ pub struct UpdateTask {
 /// Query filters for listing tasks
 #[derive(Debug, Clone, Deserialize, ToSchema, IntoParams)]
 pub struct TaskFilter {
+    pub user_id: Option<Uuid>,
     pub project_id: Option<Uuid>,
     pub status: Option<TaskStatus>,
     pub priority: Option<TaskPriority>,
@@ -158,6 +165,7 @@ fn default_limit() -> usize {
 impl Default for TaskFilter {
     fn default() -> Self {
         Self {
+            user_id: None,
             project_id: None,
             status: None,
             priority: None,
@@ -166,6 +174,13 @@ impl Default for TaskFilter {
             offset: 0,
         }
     }
+}
+
+/// Tenant scope resolved from the verified token by the BFF; never client-supplied.
+#[derive(Debug, Clone, Copy)]
+pub struct TaskScope {
+    pub org_id: Uuid,
+    pub user_id: Uuid,
 }
 
 impl Task {

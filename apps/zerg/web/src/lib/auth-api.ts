@@ -9,6 +9,14 @@ const API_BASE_URL = '/api';
  *  sign-up screen (hosted AuthKit also owns password reset). */
 export type IdpHint = 'google' | 'github' | 'sign-up';
 
+export interface OrgContext {
+  id: string;
+  external_id: string;
+  name: string;
+  role: string;
+  is_personal: boolean;
+}
+
 export interface UserResponse {
   id: string;
   email: string;
@@ -19,6 +27,8 @@ export interface UserResponse {
   updated_at: string;
   avatar_url?: string | null;
   last_login_at?: string | null;
+  /** Active organization context (personal workspace for B2C users). */
+  org: OrgContext;
 }
 
 /** Current user; throws (→ unauthenticated) on non-2xx. */

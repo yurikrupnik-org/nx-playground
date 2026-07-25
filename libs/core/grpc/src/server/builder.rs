@@ -11,7 +11,7 @@ use tracing::info;
 ///
 /// ```ignore
 /// use grpc_client::server::{GrpcServer, ServerConfig};
-/// use rpc::tasks::tasks_service_server::{TasksServiceServer, SERVICE_NAME};
+/// use rpc::tasks::v1::tasks_service_server::{TasksServiceServer, SERVICE_NAME};
 /// use tonic::codec::CompressionEncoding;
 /// use tonic::transport::Server;
 ///
@@ -87,7 +87,7 @@ impl GrpcServer {
     /// # Example
     ///
     /// ```ignore
-    /// use rpc::tasks::tasks_service_server::SERVICE_NAME as TASKS_SERVICE;
+    /// use rpc::tasks::v1::tasks_service_server::SERVICE_NAME as TASKS_SERVICE;
     /// use rpc::vector::vector_service_server::SERVICE_NAME as VECTOR_SERVICE;
     ///
     /// GrpcServer::setup_health_multiple(
