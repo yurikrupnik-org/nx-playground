@@ -24,6 +24,4 @@ pub mod conversions;
 pub mod models;
 
 pub use conversions::ConversionError;
-pub use models::{
-    CreateTask, Task, TaskFilter, TaskPriority, TaskScope, TaskStatus, UpdateTask,
-};
+pub use models::{CreateTask, Task, TaskFilter, TaskPriority, TaskScope, TaskStatus, UpdateTask};

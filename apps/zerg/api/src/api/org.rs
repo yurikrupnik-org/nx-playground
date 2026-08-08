@@ -25,7 +25,10 @@ pub fn router(state: &AppState) -> Router {
     Router::new()
         .route("/", get(get_org).post(create_org))
         .route("/members", get(list_members))
-        .route("/invitations", get(list_invitations).post(create_invitation))
+        .route(
+            "/invitations",
+            get(list_invitations).post(create_invitation),
+        )
         .route("/invitations/{id}/revoke", post(revoke_invitation))
         .with_state(state.clone())
 }
@@ -144,10 +147,14 @@ pub async fn create_org(
             tracing::warn!(error = %e, "org-scoped refresh failed after org creation");
             relogin_err()
         })?;
-    let new_identity = st.verifier.verify(&tokens.access_token).await.map_err(|e| {
-        tracing::warn!(error = %e, "verify failed after org-scoped refresh");
-        relogin_err()
-    })?;
+    let new_identity = st
+        .verifier
+        .verify(&tokens.access_token)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "verify failed after org-scoped refresh");
+            relogin_err()
+        })?;
 
     let now = now_secs();
     rec.access_token = tokens.access_token;

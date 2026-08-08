@@ -47,7 +47,12 @@ impl<R: TaskRepository> TaskService<R> {
 
     /// Update a task within the org
     #[instrument(skip(self, input), fields(task_id = %id))]
-    pub async fn update_task(&self, org_ref: &str, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
+    pub async fn update_task(
+        &self,
+        org_ref: &str,
+        id: Uuid,
+        input: UpdateTask,
+    ) -> TaskResult<Task> {
         // Validate input
         input
             .validate()
@@ -104,7 +109,11 @@ impl<R: TaskRepository> TaskService<R> {
     }
 
     /// Count the org's tasks for a project
-    pub async fn count_tasks_by_project(&self, org_ref: &str, project_id: Uuid) -> TaskResult<usize> {
+    pub async fn count_tasks_by_project(
+        &self,
+        org_ref: &str,
+        project_id: Uuid,
+    ) -> TaskResult<usize> {
         self.repository.count_by_project(org_ref, project_id).await
     }
 }

@@ -2979,6 +2979,9 @@ dependencies = [
 [[package]]
 name = "newtype"
 version = "0.1.0"
+dependencies = [
+ "validator",
+]
 
 [[package]]
 name = "nix"

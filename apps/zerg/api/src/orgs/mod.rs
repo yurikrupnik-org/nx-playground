@@ -17,9 +17,7 @@ use axum::response::{IntoResponse, Response};
 use domain_users::{PostgresUserRepository, UserService};
 use oidc_auth::AuthIdentity;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{
-    ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-};
+use sea_orm::{ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};

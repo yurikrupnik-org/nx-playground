@@ -10,21 +10,14 @@ use validator::Validate;
 
 /// Task priority levels
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Display,
-    Default,
-    ToSchema,
-    TS,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, Default, ToSchema, TS,
 )]
 #[ts(export)]
 #[cfg_attr(feature = "orm", derive(DeriveActiveEnum, EnumIter))]
-#[cfg_attr(feature = "orm", sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_priority"))]
+#[cfg_attr(
+    feature = "orm",
+    sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_priority")
+)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum TaskPriority {
@@ -42,21 +35,14 @@ pub enum TaskPriority {
 
 /// Task status
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Display,
-    Default,
-    ToSchema,
-    TS,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, Default, ToSchema, TS,
 )]
 #[ts(export)]
 #[cfg_attr(feature = "orm", derive(DeriveActiveEnum, EnumIter))]
-#[cfg_attr(feature = "orm", sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_status"))]
+#[cfg_attr(
+    feature = "orm",
+    sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_status")
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum TaskStatus {

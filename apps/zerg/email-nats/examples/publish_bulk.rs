@@ -37,7 +37,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .await?;
 
-    println!("Publishing {count} jobs to {}...", EmailNatsStream::STREAM_NAME);
+    println!(
+        "Publishing {count} jobs to {}...",
+        EmailNatsStream::STREAM_NAME
+    );
     let started = Instant::now();
 
     // Publish in bounded batches: send a chunk, then drain its acks before sending

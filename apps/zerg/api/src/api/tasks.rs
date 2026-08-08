@@ -8,8 +8,8 @@
 use std::time::Duration;
 
 use axum::{
-    extract::Query, extract::State, http::StatusCode, response::IntoResponse, routing::get,
-    Extension, Json, Router,
+    Extension, Json, Router, extract::Query, extract::State, http::StatusCode,
+    response::IntoResponse, routing::get,
 };
 use axum_helpers::UuidPath;
 use grpc_client::TracedChannel;
@@ -56,10 +56,7 @@ pub struct TasksApiDoc;
 pub fn router(state: crate::state::AppState) -> Router {
     Router::new()
         .route("/", get(list_tasks).post(create_task))
-        .route(
-            "/{id}",
-            get(get_task).put(update_task).delete(delete_task),
-        )
+        .route("/{id}", get(get_task).put(update_task).delete(delete_task))
         .with_state(state.tasks_client.clone())
 }
 
@@ -118,7 +115,12 @@ pub async fn get_task(
     UuidPath(uuid): UuidPath,
 ) -> ApiResult<impl IntoResponse> {
     let response = client
-        .get_by_id(authed(&token, GetByIdRequest { id: uuid_to_bytes(uuid) }))
+        .get_by_id(authed(
+            &token,
+            GetByIdRequest {
+                id: uuid_to_bytes(uuid),
+            },
+        ))
         .await?;
 
     let task: Task = response.into_inner().try_into()?;
@@ -202,7 +204,12 @@ pub async fn delete_task(
     UuidPath(uuid): UuidPath,
 ) -> ApiResult<impl IntoResponse> {
     client
-        .delete_by_id(authed(&token, DeleteByIdRequest { id: uuid_to_bytes(uuid) }))
+        .delete_by_id(authed(
+            &token,
+            DeleteByIdRequest {
+                id: uuid_to_bytes(uuid),
+            },
+        ))
         .await?;
 
     Ok(StatusCode::NO_CONTENT)

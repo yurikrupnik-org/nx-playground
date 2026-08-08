@@ -71,10 +71,12 @@ pub async fn run() -> Result<()> {
     // Create tasks service
     let task_repository = PgTaskRepository::new(db);
     let task_service = TaskService::new(task_repository);
-    let tasks_grpc =
-        TasksServiceServer::new(TasksServiceImpl::new(task_service, CallerAuth::new(verifier)))
-            .accept_compressed(CompressionEncoding::Zstd)
-            .send_compressed(CompressionEncoding::Zstd);
+    let tasks_grpc = TasksServiceServer::new(TasksServiceImpl::new(
+        task_service,
+        CallerAuth::new(verifier),
+    ))
+    .accept_compressed(CompressionEncoding::Zstd)
+    .send_compressed(CompressionEncoding::Zstd);
 
     // Create health service
     let (health_reporter, health_service) = create_health_service();

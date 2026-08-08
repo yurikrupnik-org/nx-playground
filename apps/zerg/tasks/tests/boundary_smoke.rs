@@ -2,8 +2,8 @@
 //!
 //! Run against a live server: `cargo test -p zerg_tasks --test boundary_smoke -- --ignored`
 
-use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 use rpc::tasks::v1::ListRequest;
+use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 
 async fn client() -> TasksServiceClient<tonic::transport::Channel> {
     TasksServiceClient::connect("http://[::1]:50051")
@@ -16,7 +16,10 @@ async fn client() -> TasksServiceClient<tonic::transport::Channel> {
 async fn direct_call_without_token_is_rejected() {
     let mut c = client().await;
     let err = c
-        .list(ListRequest { limit: 10, ..Default::default() })
+        .list(ListRequest {
+            limit: 10,
+            ..Default::default()
+        })
         .await
         .expect_err("an unauthenticated direct call must fail");
     assert_eq!(err.code(), tonic::Code::Unauthenticated, "{err:?}");
@@ -26,7 +29,10 @@ async fn direct_call_without_token_is_rejected() {
 #[ignore = "requires a running zerg_tasks on :50051"]
 async fn direct_call_with_forged_token_is_rejected() {
     let mut c = client().await;
-    let mut req = tonic::Request::new(ListRequest { limit: 10, ..Default::default() });
+    let mut req = tonic::Request::new(ListRequest {
+        limit: 10,
+        ..Default::default()
+    });
     // Self-signed HS256 junk: no valid RS256 signature from the IdP's JWKS.
     req.metadata_mut().insert(
         "authorization",

@@ -8,8 +8,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use domain_tasks::{
-    CreateTask, TaskError, TaskFilter, TaskRepository, TaskService, UpdateTask,
-    conversions as conv,
+    CreateTask, TaskError, TaskFilter, TaskRepository, TaskService, UpdateTask, conversions as conv,
 };
 use grpc_client::ToTonicResult;
 use rpc::tasks::v1::{
@@ -182,11 +181,11 @@ where
 mod tests {
     use super::*;
     use crate::auth::CallerAuth;
-    use domain_tasks::TaskScope;
     use chrono::Utc;
+    use domain_tasks::TaskScope;
     use domain_tasks::{Task, TaskError, TaskPriority, TaskStatus};
-    use std::collections::HashMap;
     use parking_lot::Mutex;
+    use std::collections::HashMap;
     use uuid::Uuid;
 
     fn test_org() -> String {
@@ -257,7 +256,12 @@ mod tests {
                 .cloned())
         }
 
-        async fn update(&self, org_ref: &str, id: Uuid, input: UpdateTask) -> Result<Task, TaskError> {
+        async fn update(
+            &self,
+            org_ref: &str,
+            id: Uuid,
+            input: UpdateTask,
+        ) -> Result<Task, TaskError> {
             let mut tasks = self.tasks.lock();
             let task = tasks
                 .get_mut(&id)
@@ -300,7 +304,11 @@ mod tests {
             }
         }
 
-        async fn list(&self, scope: &TaskScope, filter: TaskFilter) -> Result<Vec<Task>, TaskError> {
+        async fn list(
+            &self,
+            scope: &TaskScope,
+            filter: TaskFilter,
+        ) -> Result<Vec<Task>, TaskError> {
             let tasks = self.tasks.lock();
             let mut result: Vec<Task> = tasks
                 .values()
@@ -353,7 +361,11 @@ mod tests {
                 .count())
         }
 
-        async fn count_by_project(&self, org_ref: &str, project_id: Uuid) -> Result<usize, TaskError> {
+        async fn count_by_project(
+            &self,
+            org_ref: &str,
+            project_id: Uuid,
+        ) -> Result<usize, TaskError> {
             Ok(self
                 .tasks
                 .lock()
