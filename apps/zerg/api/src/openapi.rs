@@ -24,8 +24,7 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
         crate::api::auth::me,
     ),
     nest(
-        (path = "/tasks", api = domain_tasks::GrpcApiDoc),
-        (path = "/tasks-direct", api = domain_tasks::DirectApiDoc),
+        (path = "/tasks", api = crate::api::tasks::TasksApiDoc),
         (path = domain_projects::entity::Model::URL, api = domain_projects::ApiDoc),
         (path = "/users", api = domain_users::ApiDoc),
         (path = "/cloud-resources", api = domain_cloud_resources::ApiDoc),

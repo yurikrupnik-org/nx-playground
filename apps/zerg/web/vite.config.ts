@@ -40,9 +40,9 @@ export default defineConfig({
   resolve: {
     conditions: ['development', 'browser'],
     alias: {
-      '@domain/tasks': path.resolve(
+      '@contract/tasks': path.resolve(
         __dirname,
-        '../../../libs/domains/tasks/types/index.ts',
+        '../../../libs/contracts/tasks/types/index.ts',
       ),
     },
   },

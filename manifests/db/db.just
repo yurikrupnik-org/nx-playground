@@ -40,6 +40,8 @@ _db-url db env="local":
     case "{{ db }}-{{ env }}" in
       zerg-local)    echo "postgres://myuser:mypassword@localhost:5432/zerg?sslmode=disable" ;;
       zerg-cluster)  echo "postgres://zerg:zerg@localhost:5433/zerg?sslmode=disable" ;;
+      tasks-local)     echo "postgres://myuser:mypassword@localhost:5432/tasks?sslmode=disable" ;;
+      tasks-cluster)   echo "postgres://tasks:tasks@localhost:5433/tasks?sslmode=disable" ;;
       terran-local)    echo "postgres://myuser:mypassword@localhost:5432/terran?sslmode=disable" ;;
       terran-cluster)  echo "postgres://terran:terran@localhost:5433/terran?sslmode=disable" ;;
       *)

@@ -21,7 +21,7 @@ impl<R: TaskRepository> TaskService<R> {
     }
 
     /// Create a new task with validation, owned by `scope`
-    #[instrument(skip(self, input), fields(task_title = %input.title, org_id = %scope.org_id))]
+    #[instrument(skip(self, input), fields(task_title = %input.title, org_ref = %scope.org_ref))]
     pub async fn create_task(&self, scope: TaskScope, input: CreateTask) -> TaskResult<Task> {
         // Validate input
         input
@@ -33,33 +33,33 @@ impl<R: TaskRepository> TaskService<R> {
 
     /// Get a task by ID within the org
     #[instrument(skip(self), fields(task_id = %id))]
-    pub async fn get_task(&self, org_id: Uuid, id: Uuid) -> TaskResult<Task> {
+    pub async fn get_task(&self, org_ref: &str, id: Uuid) -> TaskResult<Task> {
         self.repository
-            .get_by_id(org_id, id)
+            .get_by_id(org_ref, id)
             .await?
             .ok_or(TaskError::NotFound(id))
     }
 
     /// List the org's tasks with filters
-    pub async fn list_tasks(&self, org_id: Uuid, filter: TaskFilter) -> TaskResult<Vec<Task>> {
-        self.repository.list(org_id, filter).await
+    pub async fn list_tasks(&self, scope: &TaskScope, filter: TaskFilter) -> TaskResult<Vec<Task>> {
+        self.repository.list(scope, filter).await
     }
 
     /// Update a task within the org
     #[instrument(skip(self, input), fields(task_id = %id))]
-    pub async fn update_task(&self, org_id: Uuid, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
+    pub async fn update_task(&self, org_ref: &str, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
         // Validate input
         input
             .validate()
             .map_err(|e| TaskError::Validation(e.to_string()))?;
 
-        self.repository.update(org_id, id, input).await
+        self.repository.update(org_ref, id, input).await
     }
 
     /// Delete a task within the org
     #[instrument(skip(self), fields(task_id = %id))]
-    pub async fn delete_task(&self, org_id: Uuid, id: Uuid) -> TaskResult<()> {
-        let deleted = self.repository.delete(org_id, id).await?;
+    pub async fn delete_task(&self, org_ref: &str, id: Uuid) -> TaskResult<()> {
+        let deleted = self.repository.delete(org_ref, id).await?;
 
         if !deleted {
             return Err(TaskError::NotFound(id));
@@ -69,10 +69,10 @@ impl<R: TaskRepository> TaskService<R> {
     }
 
     /// Mark a task as completed
-    pub async fn complete_task(&self, org_id: Uuid, id: Uuid) -> TaskResult<Task> {
+    pub async fn complete_task(&self, org_ref: &str, id: Uuid) -> TaskResult<Task> {
         self.repository
             .update(
-                org_id,
+                org_ref,
                 id,
                 UpdateTask {
                     completed: Some(true),
@@ -84,10 +84,10 @@ impl<R: TaskRepository> TaskService<R> {
     }
 
     /// Mark a task as incomplete
-    pub async fn uncomplete_task(&self, org_id: Uuid, id: Uuid) -> TaskResult<Task> {
+    pub async fn uncomplete_task(&self, org_ref: &str, id: Uuid) -> TaskResult<Task> {
         self.repository
             .update(
-                org_id,
+                org_ref,
                 id,
                 UpdateTask {
                     completed: Some(false),
@@ -99,12 +99,12 @@ impl<R: TaskRepository> TaskService<R> {
     }
 
     /// Count the org's tasks
-    pub async fn count_tasks(&self, org_id: Uuid) -> TaskResult<usize> {
-        self.repository.count(org_id).await
+    pub async fn count_tasks(&self, org_ref: &str) -> TaskResult<usize> {
+        self.repository.count(org_ref).await
     }
 
     /// Count the org's tasks for a project
-    pub async fn count_tasks_by_project(&self, org_id: Uuid, project_id: Uuid) -> TaskResult<usize> {
-        self.repository.count_by_project(org_id, project_id).await
+    pub async fn count_tasks_by_project(&self, org_ref: &str, project_id: Uuid) -> TaskResult<usize> {
+        self.repository.count_by_project(org_ref, project_id).await
     }
 }

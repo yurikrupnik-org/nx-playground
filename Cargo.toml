@@ -6,6 +6,7 @@ members = [
     'apps/zerg/api',
     'apps/zerg/email-nats',
     'apps/zerg/tasks',
+    'apps/zerg/vector',
     'apps/todo/api',
     'apps/todo/worker',
     'libs/core/axum-helpers',
@@ -19,6 +20,7 @@ members = [
     'libs/core/proc_macros/api_resource',
     'libs/core/proc_macros/sea_orm_resource',
     'libs/core/proc_macros/selectable_fields',
+    'libs/contracts/tasks',
     'libs/database',
     'libs/domains/cloud_resources',
     'libs/domains/projects',
@@ -28,7 +30,7 @@ members = [
     'libs/domains/vector',
     'libs/notifications/email',
     'libs/rpc',
-    'libs/testing/test-utils',
+    'libs/testing/test-utils', "libs/patterns/builder", "libs/patterns/newtype", "libs/patterns/iterator", "libs/patterns/strategy", "libs/patterns/state", "libs/patterns/option_result", "libs/patterns/type_state",
 ]
 
 [workspace.dependencies]
@@ -49,6 +51,7 @@ darling = '0.23.0'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
 domain_projects = { path = 'libs/domains/projects' }
+contract_tasks = { path = 'libs/contracts/tasks' }
 domain_tasks = { path = 'libs/domains/tasks' }
 domain_users = { path = 'libs/domains/users' }
 domain_vector = { path = 'libs/domains/vector' }
@@ -63,7 +66,7 @@ http = { version = '1.4.2' }
 jsonwebtoken = { version = '11.0.0', features = ['aws_lc_rs'] }
 #k8s-openapi = { version = '0.26.0', features = ['v1_34'] }
 #kube = { version = '2.0.1', features = ['derive', 'runtime'] }
-lettre = { version = '0.11.22', default-features = false, features = ['tokio1-rustls-tls', 'builder', 'smtp-transport', 'hostname'] }
+lettre = { version = '0.11.23', default-features = false, features = ['tokio1-rustls-tls', 'builder', 'smtp-transport', 'hostname'] }
 messaging = { path = 'libs/core/messaging' }
 metrics = '0.24.6'
 metrics-exporter-prometheus = '0.18.3'
@@ -79,16 +82,16 @@ parking_lot = '0.12.5'
 pluralizer = '0.5.0'
 proc-macro2 = "1.0.107"
 prost = '0.14.4'
-qdrant-client = "1.18.0"
+qdrant-client = "1.19.0"
 quote = '1.0.47'
 rand = "0.10.2"
 redis = { version = "1.4.1", features = ['aio', 'r2d2', 'tokio-comp', 'connection-manager'] }
 regex = "1.13.1"
 reqwest = { version = "0.13.4", features = ['json', 'rustls'], default-features = false }
 rpc = { path = 'libs/rpc' }
-schemars = "1.2.1"
-sea-orm = { version = "2.0.0", features = ['sqlx-postgres', 'runtime-tokio-rustls', 'macros', 'with-uuid', 'with-chrono', 'mock', 'debug-print', 'with-json'] }
-sea-orm-migration = { version = "2.0.0", features = ['sqlx-postgres', 'runtime-tokio-rustls'] }
+schemars = "1.2.2"
+sea-orm = { version = "2.0.1", features = ['sqlx-postgres', 'runtime-tokio-rustls', 'macros', 'with-uuid', 'with-chrono', 'mock', 'debug-print', 'with-json'] }
+sea-orm-migration = { version = "2.0.1", features = ['sqlx-postgres', 'runtime-tokio-rustls'] }
 sea_orm_resource = { path = 'libs/core/proc_macros/sea_orm_resource' }
 selectable_fields = { path = 'libs/core/proc_macros/selectable_fields' }
 serde = { version = '1.0.229', features = ['derive'] }
@@ -112,7 +115,7 @@ tracing = "0.1.44"
 tracing-error = '0.2.1'
 tracing-opentelemetry = '0.33.0'
 tracing-subscriber = { version = '0.3.23', features = ['env-filter', 'json', 'serde_json'] }
-trybuild = "1.0.118"
+trybuild = "1.0.120"
 ts-rs = { version = "12.0.1", features = ["chrono-impl", "uuid-impl"] }
 utoipa = { version = '5.5.0', features = ['axum_extras', 'chrono', 'uuid'] }
 utoipa-rapidoc = { version = '6.0.0', features = ['axum'] }
@@ -120,7 +123,7 @@ utoipa-redoc = { version = '6.0.0', features = ['axum'] }
 utoipa-scalar = { version = '0.3.0', features = ['axum'] }
 utoipa-swagger-ui = { version = '9.0.2', features = ['axum'] }
 uuid = { version = "1.24.0", features = ['serde', 'v4', 'v7'] }
-validator = { version = '0.20.0', features = ['derive'] }
+validator = { version = '0.21.0', features = ['derive'] }
 
 [workspace.package]
 version = '0.1.0'

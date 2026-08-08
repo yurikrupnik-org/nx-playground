@@ -1,0 +1,9 @@
+[package]
+name = "type_state"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

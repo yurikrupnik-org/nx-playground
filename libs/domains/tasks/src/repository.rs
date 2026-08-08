@@ -18,20 +18,20 @@ pub trait TaskRepository: Send + Sync {
     async fn create(&self, scope: TaskScope, input: CreateTask) -> TaskResult<Task>;
 
     /// Get a task by ID within the org
-    async fn get_by_id(&self, org_id: Uuid, id: Uuid) -> TaskResult<Option<Task>>;
+    async fn get_by_id(&self, org_ref: &str, id: Uuid) -> TaskResult<Option<Task>>;
 
     /// List the org's tasks with optional filters
-    async fn list(&self, org_id: Uuid, filter: TaskFilter) -> TaskResult<Vec<Task>>;
+    async fn list(&self, scope: &TaskScope, filter: TaskFilter) -> TaskResult<Vec<Task>>;
 
     /// Update an existing task within the org
-    async fn update(&self, org_id: Uuid, id: Uuid, input: UpdateTask) -> TaskResult<Task>;
+    async fn update(&self, org_ref: &str, id: Uuid, input: UpdateTask) -> TaskResult<Task>;
 
     /// Delete a task by ID within the org
-    async fn delete(&self, org_id: Uuid, id: Uuid) -> TaskResult<bool>;
+    async fn delete(&self, org_ref: &str, id: Uuid) -> TaskResult<bool>;
 
     /// Count the org's tasks
-    async fn count(&self, org_id: Uuid) -> TaskResult<usize>;
+    async fn count(&self, org_ref: &str) -> TaskResult<usize>;
 
     /// Count the org's tasks for a project
-    async fn count_by_project(&self, org_id: Uuid, project_id: Uuid) -> TaskResult<usize>;
+    async fn count_by_project(&self, org_ref: &str, project_id: Uuid) -> TaskResult<usize>;
 }

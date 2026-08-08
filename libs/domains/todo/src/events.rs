@@ -51,9 +51,6 @@ pub struct TodoEvent {
     pub todo: Option<Todo>,
     #[ts(as = "String")]
     pub occurred_at: DateTime<Utc>,
-    /// Payload-level retry counter (JetStream also tracks delivery_count).
-    #[serde(default)]
-    pub retry_count: u32,
 }
 
 impl TodoEvent {
@@ -65,7 +62,6 @@ impl TodoEvent {
             todo_id: todo.id,
             todo: Some(todo.clone()),
             occurred_at: Utc::now(),
-            retry_count: 0,
         }
     }
 
@@ -77,7 +73,6 @@ impl TodoEvent {
             todo_id,
             todo: None,
             occurred_at: Utc::now(),
-            retry_count: 0,
         }
     }
 
@@ -90,17 +85,6 @@ impl TodoEvent {
 impl messaging::Job for TodoEvent {
     fn job_id(&self) -> uuid::Uuid {
         self.event_id
-    }
-
-    fn retry_count(&self) -> u32 {
-        self.retry_count
-    }
-
-    fn with_retry(&self) -> Self {
-        Self {
-            retry_count: self.retry_count + 1,
-            ..self.clone()
-        }
     }
 
     fn job_type(&self) -> &'static str {

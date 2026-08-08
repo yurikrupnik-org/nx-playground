@@ -10,6 +10,7 @@ default = []
 nats = [
     "dep:async-nats",
     "dep:axum",
+    "dep:base64",
     "dep:futures",
     "dep:metrics",
     "dep:metrics-exporter-prometheus",
@@ -24,6 +25,9 @@ async-nats = { workspace = true, optional = true }
 # Core dependencies (always included)
 async-trait = { workspace = true }
 axum = { workspace = true, optional = true }
+# Poison-message payloads reach the DLQ as opaque bytes; base64 keeps the entry
+# valid JSON. See nats::dlq::DlqPayload::Raw.
+base64 = { version = "0.22", optional = true }
 chrono = { workspace = true, features = ["serde"] }
 eyre = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
@@ -38,4 +42,7 @@ tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
+async-nats = { workspace = true }
+futures = { workspace = true }
+test-utils = { workspace = true, features = ["nats"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

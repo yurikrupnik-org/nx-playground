@@ -221,7 +221,7 @@ mod email_job_tests {
         assert_eq!(job.to_email, "test@example.com");
         assert_eq!(job.subject, "Welcome!");
         assert_eq!(job.email_type, EmailType::Welcome);
-        assert_eq!(job.retry_count, 0);
+        assert_eq!(job.priority, EmailPriority::Normal);
     }
 
     #[test]
@@ -264,15 +264,18 @@ mod email_job_tests {
     }
 
     #[test]
-    fn test_job_with_retry() {
+    fn test_job_id_survives_redelivery() {
         use messaging::Job;
 
+        // There is no payload-level retry counter: JetStream owns the attempt count
+        // (`NatsMessage::delivery_count`). What the job must guarantee is a stable id,
+        // so a redelivered message maps to the same DLQ entry and idempotency key.
         let job = EmailJob::new(EmailType::Transactional, "test@example.com", "Test");
-        assert_eq!(job.retry_count(), 0);
+        let redelivered: EmailJob =
+            serde_json::from_str(&serde_json::to_string(&job).unwrap()).unwrap();
 
-        let retried = job.with_retry();
-        assert_eq!(retried.retry_count(), 1);
-        assert_eq!(retried.job_id(), job.job_id()); // ID preserved across retries (idempotency)
+        assert_eq!(redelivered.job_id(), job.job_id());
+        assert_eq!(redelivered.job_type(), "email_job");
     }
 
     #[test]

@@ -32,24 +32,26 @@ impl TaskRepository for PgTaskRepository {
     async fn create(&self, scope: TaskScope, input: CreateTask) -> TaskResult<Task> {
         let active_model: entity::ActiveModel = (scope, input).into();
         let model = self.base.insert(active_model).await?;
-        tracing::info!(task_id = %model.id, org_id = %scope.org_id, "Created task");
+        tracing::info!(task_id = %model.id, org_ref = %model.org_ref, "Created task");
         Ok(model.into())
     }
 
-    async fn get_by_id(&self, org_id: Uuid, id: Uuid) -> TaskResult<Option<Task>> {
+    async fn get_by_id(&self, org_ref: &str, id: Uuid) -> TaskResult<Option<Task>> {
         let model = entity::Entity::find_by_id(id)
-            .filter(entity::Column::OrgId.eq(org_id))
+            .filter(entity::Column::OrgRef.eq(org_ref))
             .one(self.base.db())
             .await?;
         Ok(model.map(|m| m.into()))
     }
 
-    async fn list(&self, org_id: Uuid, filter: TaskFilter) -> TaskResult<Vec<Task>> {
-        let mut query = entity::Entity::find().filter(entity::Column::OrgId.eq(org_id));
+    async fn list(&self, scope: &TaskScope, filter: TaskFilter) -> TaskResult<Vec<Task>> {
+        let mut query =
+            entity::Entity::find().filter(entity::Column::OrgRef.eq(scope.org_ref.as_str()));
 
-        // Apply filters
-        if let Some(user_id) = filter.user_id {
-            query = query.filter(entity::Column::UserId.eq(user_id));
+        // Apply filters. `mine` narrows to the caller within the already-enforced org;
+        // the caller cannot name a different user.
+        if filter.mine {
+            query = query.filter(entity::Column::UserRef.eq(scope.user_ref.as_str()));
         }
 
         if let Some(project_id) = filter.project_id {
@@ -79,9 +81,9 @@ impl TaskRepository for PgTaskRepository {
         Ok(models.into_iter().map(|m| m.into()).collect())
     }
 
-    async fn update(&self, org_id: Uuid, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
+    async fn update(&self, org_ref: &str, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
         let model = entity::Entity::find_by_id(id)
-            .filter(entity::Column::OrgId.eq(org_id))
+            .filter(entity::Column::OrgRef.eq(org_ref))
             .one(self.base.db())
             .await?
             .ok_or(TaskError::NotFound(id))?;
@@ -118,10 +120,10 @@ impl TaskRepository for PgTaskRepository {
         Ok(updated_model.into())
     }
 
-    async fn delete(&self, org_id: Uuid, id: Uuid) -> TaskResult<bool> {
+    async fn delete(&self, org_ref: &str, id: Uuid) -> TaskResult<bool> {
         let result = entity::Entity::delete_many()
             .filter(entity::Column::Id.eq(id))
-            .filter(entity::Column::OrgId.eq(org_id))
+            .filter(entity::Column::OrgRef.eq(org_ref))
             .exec(self.base.db())
             .await?;
 
@@ -133,17 +135,17 @@ impl TaskRepository for PgTaskRepository {
         }
     }
 
-    async fn count(&self, org_id: Uuid) -> TaskResult<usize> {
+    async fn count(&self, org_ref: &str) -> TaskResult<usize> {
         let count = entity::Entity::find()
-            .filter(entity::Column::OrgId.eq(org_id))
+            .filter(entity::Column::OrgRef.eq(org_ref))
             .count(self.base.db())
             .await?;
         Ok(count as usize)
     }
 
-    async fn count_by_project(&self, org_id: Uuid, project_id: Uuid) -> TaskResult<usize> {
+    async fn count_by_project(&self, org_ref: &str, project_id: Uuid) -> TaskResult<usize> {
         let count = entity::Entity::find()
-            .filter(entity::Column::OrgId.eq(org_id))
+            .filter(entity::Column::OrgRef.eq(org_ref))
             .filter(entity::Column::ProjectId.eq(project_id))
             .count(self.base.db())
             .await?;

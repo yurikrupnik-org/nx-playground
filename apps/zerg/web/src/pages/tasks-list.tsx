@@ -1,4 +1,4 @@
-import type { TaskPriority, TaskStatus } from '@domain/tasks';
+import type { TaskPriority, TaskStatus } from '@contract/tasks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/solid-query';
 import { Link } from '@tanstack/solid-router';
 import { createSignal, createUniqueId, For, Show } from 'solid-js';
@@ -19,12 +19,8 @@ export function TasksListPage() {
 
   const tasksQuery = useQuery(() => ({
     queryKey: ['tasks', scope()] as const,
-    queryFn: () => {
-      const user = auth.user();
-      return tasksApi.list(
-        scope() === 'mine' && user ? { user_id: user.id } : undefined,
-      );
-    },
+    queryFn: () =>
+      tasksApi.list(scope() === 'mine' ? { mine: true } : undefined),
   }));
 
   const deleteMutation = useMutation(() => ({

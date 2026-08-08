@@ -3,7 +3,7 @@
 
 use async_nats::jetstream::Context;
 use async_trait::async_trait;
-use messaging::nats::{NatsProducer, StreamConfig};
+use messaging::nats::{stream_config_for, NatsProducer, StreamConfig, StreamKind};
 
 use crate::error::{TodoError, TodoResult};
 use crate::events::{TodoEvent, TodoEventPublisher};
@@ -13,9 +13,17 @@ pub struct TodoNatsStream;
 
 impl StreamConfig for TodoNatsStream {
     const STREAM_NAME: &'static str = "TODOS";
+    /// Consumer group for the todo worker. Every replica shares it, so each event
+    /// is processed once by this group. A *different* group (analytics, search
+    /// indexing) would use its own name and receive its own copy of every event.
     const CONSUMER_NAME: &'static str = "todo-worker";
     const DLQ_STREAM: &'static str = "TODOS_DLQ";
     const SUBJECT: &'static str = "todos.>";
+    /// These are domain *facts*, not jobs, and facts attract subscribers. An
+    /// `EventLog` keeps a message until every registered group has acked it, so a
+    /// second consumer can be added later without a retention migration —
+    /// `JobQueue` would refuse the overlapping consumer outright.
+    const KIND: StreamKind = StreamKind::EventLog;
     const MAX_DELIVER: i64 = 5;
 }
 
@@ -30,11 +38,11 @@ impl NatsTodoPublisher {
     /// already exist (idempotent). Lets the API publish before any worker runs.
     pub async fn new(jetstream: Context) -> TodoResult<Self> {
         jetstream
-            .get_or_create_stream(async_nats::jetstream::stream::Config {
-                name: TodoNatsStream::STREAM_NAME.to_string(),
-                subjects: vec![TodoNatsStream::SUBJECT.to_string()],
-                ..Default::default()
-            })
+            .get_or_create_stream(stream_config_for(
+                TodoNatsStream::STREAM_NAME,
+                TodoNatsStream::SUBJECT,
+                TodoNatsStream::KIND,
+            ))
             .await
             .map_err(|e| TodoError::Internal(format!("create TODOS stream: {e}")))?;
         let producer = NatsProducer::from_stream_config::<TodoNatsStream>(jetstream);

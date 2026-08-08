@@ -85,7 +85,8 @@ pub async fn run() -> Result<()> {
     let worker_config = WorkerConfig::from_stream::<TodoNatsStream>().with_health_port(health_port);
     info!(
         stream = %worker_config.stream_name,
-        durable = %worker_config.durable_name,
+        consumer_group = %worker_config.consumer_name,
+        kind = ?worker_config.kind,
         "todo worker configuration loaded"
     );
 

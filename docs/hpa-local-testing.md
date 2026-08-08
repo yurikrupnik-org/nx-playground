@@ -143,7 +143,7 @@ kubectl top pods -n zerg
 just bench-cluster-quick
 
 # Full benchmark (30s, heavier load)
-just bench-cluster-compare
+just bench-cluster-all
 ```
 
 ### Manual Load Test

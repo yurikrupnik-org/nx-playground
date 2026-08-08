@@ -11,13 +11,15 @@ export type Task = {
  */
 id: string, 
 /**
- * Owning organization (tenant scope)
+ * Owning tenant, as an identity-provider reference (`org_01…` or
+ * `personal:{subject}`). Not a foreign key - the tasks service owns its own
+ * database and never joins against zerg's `organizations` table.
  */
-org_id: string, 
+org_ref: string, 
 /**
- * Creating/owning user within the org
+ * Owning user, as an identity-provider reference (`user_01…`).
  */
-user_id: string, 
+user_ref: string, 
 /**
  * Task title
  */

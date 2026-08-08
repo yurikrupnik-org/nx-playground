@@ -94,8 +94,8 @@ pub async fn run() -> Result<()> {
 
     info!(
         stream = %worker_config.stream_name,
-        consumer = %worker_config.consumer_name,
-        durable = %worker_config.durable_name,
+        consumer_group = %worker_config.consumer_name,
+        kind = ?worker_config.kind,
         "Worker configuration loaded"
     );
 

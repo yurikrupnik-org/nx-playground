@@ -1,0 +1,28 @@
+[package]
+name = "contract_tasks"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# Server-only: adds the SeaORM `ActiveEnum` derives to `TaskPriority`/`TaskStatus`
+# so `domain_tasks` can use them as column types. Clients (`zerg_api`) must not
+# enable this - the contract stays free of storage concerns.
+orm = ["dep:sea-orm"]
+
+[dependencies]
+chrono = { workspace = true }
+grpc-client = { path = "../../core/grpc" }
+rpc = { path = "../../rpc" }
+sea-orm = { workspace = true, optional = true }
+serde = { workspace = true }
+strum = { workspace = true }
+thiserror = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+ts-rs = { workspace = true }
+utoipa = { workspace = true }
+uuid = { workspace = true }
+validator = { workspace = true }
+
+[lints]
+workspace = true

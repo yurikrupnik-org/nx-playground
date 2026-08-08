@@ -39,9 +39,10 @@ message CreateRequest {
   Status status = 5; // 1 byte enum instead of string
   // Unix timestamp (seconds): 8 bytes instead of 24+ char ISO8601
   optional int64 due_date = 6;
-  // Tenant scope, filled by the BFF from the verified session (never client-supplied)
-  bytes org_id = 7;
-  bytes user_id = 8;
+  // Identity is NOT a request field. The service derives org_ref/user_ref from the
+  // caller's verified access token (see docs/adr-tasks-service-boundary.md Phase 4).
+  reserved 7, 8;
+  reserved "org_id", "user_id";
 }
 
 message CreateResponse {
@@ -55,13 +56,17 @@ message CreateResponse {
   optional int64 due_date = 8;
   int64 created_at = 9; // Unix timestamp
   int64 updated_at = 10;
-  bytes org_id = 11;
-  bytes user_id = 12;
+  reserved 11, 12;
+  reserved "org_id", "user_id";
+  // Identity-provider refs (org_01... / user_01... / personal:{subject}).
+  string org_ref = 13;
+  string user_ref = 14;
 }
 
 message GetByIdRequest {
   bytes id = 1; // Binary UUID
-  bytes org_id = 2; // Tenant scope (BFF-supplied)
+  reserved 2;
+  reserved "org_id";
 }
 
 message GetByIdResponse {
@@ -75,8 +80,11 @@ message GetByIdResponse {
   optional int64 due_date = 8;
   int64 created_at = 9;
   int64 updated_at = 10;
-  bytes org_id = 11;
-  bytes user_id = 12;
+  reserved 11, 12;
+  reserved "org_id", "user_id";
+  // Identity-provider refs (org_01... / user_01... / personal:{subject}).
+  string org_ref = 13;
+  string user_ref = 14;
 }
 
 message UpdateByIdRequest {
@@ -88,7 +96,8 @@ message UpdateByIdRequest {
   optional Priority priority = 6;
   optional Status status = 7;
   optional int64 due_date = 8;
-  bytes org_id = 9; // Tenant scope (BFF-supplied)
+  reserved 9;
+  reserved "org_id";
 }
 
 message UpdateByIdResponse {
@@ -102,13 +111,17 @@ message UpdateByIdResponse {
   optional int64 due_date = 8;
   int64 created_at = 9;
   int64 updated_at = 10;
-  bytes org_id = 11;
-  bytes user_id = 12;
+  reserved 11, 12;
+  reserved "org_id", "user_id";
+  // Identity-provider refs (org_01... / user_01... / personal:{subject}).
+  string org_ref = 13;
+  string user_ref = 14;
 }
 
 message DeleteByIdRequest {
   bytes id = 1;
-  bytes org_id = 2; // Tenant scope (BFF-supplied)
+  reserved 2;
+  reserved "org_id";
 }
 
 message DeleteByIdResponse {}
@@ -120,8 +133,11 @@ message ListRequest {
   optional bool completed = 4;
   int32 limit = 5; // int32 instead of string
   int32 offset = 6; // int32 instead of string
-  bytes org_id = 7; // Tenant scope (BFF-supplied)
-  optional bytes user_id = 8; // optional "mine only" filter within the org
+  reserved 7, 8;
+  reserved "org_id", "user_id";
+  // Narrow to the caller's own tasks. The request can say *whether* to narrow,
+  // never *whose* tasks to fetch - "someone else's tasks" is now inexpressible.
+  bool mine = 9;
 }
 
 message ListResponse {
@@ -134,8 +150,9 @@ message ListStreamRequest {
   optional Priority priority = 3;
   optional bool completed = 4;
   int32 limit = 5;
-  bytes org_id = 6; // Tenant scope (BFF-supplied)
-  optional bytes user_id = 7; // optional "mine only" filter within the org
+  reserved 6, 7;
+  reserved "org_id", "user_id";
+  bool mine = 8;
 }
 
 message ListStreamResponse {
@@ -149,6 +166,9 @@ message ListStreamResponse {
   optional int64 due_date = 8;
   int64 created_at = 9;
   int64 updated_at = 10;
-  bytes org_id = 11;
-  bytes user_id = 12;
+  reserved 11, 12;
+  reserved "org_id", "user_id";
+  // Identity-provider refs (org_01... / user_01... / personal:{subject}).
+  string org_ref = 13;
+  string user_ref = 14;
 }

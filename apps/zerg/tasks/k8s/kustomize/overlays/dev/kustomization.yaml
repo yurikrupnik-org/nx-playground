@@ -17,3 +17,13 @@ configMapGenerator:
     literals:
       - GRPC_HOST=0.0.0.0
       - GRPC_PORT=50051
+
+secretGenerator:
+  # The tasks service owns its own database and holds no zerg credentials.
+  # WORKOS_CLIENT_ID is verification-only — the service derives the tenant from
+  # the caller's token (apps/zerg/tasks/src/auth.rs) and never calls the WorkOS
+  # management API, so it gets no WORKOS_API_KEY.
+  - name: zerg-tasks-secrets
+    literals:
+      - DATABASE_URL=postgres://myuser:mypassword@postgres.dbs.svc.cluster.local/tasks
+      - WORKOS_CLIENT_ID=client_replace-me

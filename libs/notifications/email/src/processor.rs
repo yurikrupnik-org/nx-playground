@@ -98,7 +98,6 @@ impl<P: EmailProvider> EmailProcessor<P> {
         }
 
         email.priority = job.priority.clone();
-        email.retry_count = job.retry_count;
 
         Ok(email)
     }

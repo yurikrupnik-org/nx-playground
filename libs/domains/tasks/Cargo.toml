@@ -5,35 +5,19 @@ edition = "2021"
 
 [dependencies]
 async-trait = { workspace = true }
-axum = { workspace = true }
-axum-helpers = { workspace = true }
 chrono = { workspace = true }
+contract_tasks = { workspace = true, features = ["orm"] }
 core_proc_macros = { workspace = true, features = ["sea_orm_resource"] }
 database = { workspace = true }
-grpc-client = { path = "../../core/grpc" }
-regex = { workspace = true }
-rpc = { path = "../../rpc" }
 sea-orm = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
-sqlx = { workspace = true }
-strum = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
-tonic = { workspace = true }
 tracing = { workspace = true }
-ts-rs = { workspace = true }
-utoipa = { workspace = true }
 uuid = { workspace = true }
 validator = { workspace = true }
 
 [dev-dependencies]
-futures = { workspace = true }
-http-body-util = "0.1"
 mockall = { workspace = true }
-serde_json = { workspace = true }
-test-utils = { workspace = true }
-tower = { workspace = true }
 
 [lints]
 workspace = true

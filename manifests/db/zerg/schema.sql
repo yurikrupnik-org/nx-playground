@@ -31,8 +31,7 @@ $$ LANGUAGE plpgsql;
 -- =============================================================================
 -- Enum Types
 -- =============================================================================
-CREATE TYPE task_priority AS ENUM ('low', 'medium', 'high', 'urgent');
-CREATE TYPE task_status AS ENUM ('todo', 'in_progress', 'done');
+-- `task_priority`/`task_status` moved to the tasks database with their table.
 CREATE TYPE cloud_provider AS ENUM ('aws', 'gcp', 'azure');
 CREATE TYPE environment AS ENUM ('development', 'staging', 'production');
 CREATE TYPE project_status AS ENUM ('provisioning', 'active', 'suspended', 'deleting', 'archived');
@@ -102,31 +101,9 @@ CREATE INDEX idx_projects_user_id ON projects(user_id);
 CREATE INDEX idx_projects_user_status ON projects(user_id, status);
 CREATE UNIQUE INDEX uq_project_name_per_user ON projects(user_id, name);
 
--- Tasks table
-CREATE TABLE tasks (
-  id UUID PRIMARY KEY DEFAULT uuidv7(),
-  title VARCHAR(255) NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  completed BOOLEAN NOT NULL DEFAULT false,
-  user_id UUID NOT NULL,
-  org_id UUID NOT NULL,
-  project_id UUID,
-  priority task_priority NOT NULL DEFAULT 'medium',
-  status task_status NOT NULL DEFAULT 'todo',
-  due_date TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT fk_tasks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_tasks_org FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
-  CONSTRAINT fk_tasks_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
-);
-
-CREATE INDEX idx_tasks_user_id ON tasks(user_id);
-CREATE INDEX idx_tasks_org_id ON tasks(org_id);
-CREATE INDEX idx_tasks_org_user ON tasks(org_id, user_id);
-CREATE INDEX idx_tasks_project_id ON tasks(project_id);
-CREATE INDEX idx_tasks_project_status ON tasks(project_id, status);
-CREATE INDEX idx_tasks_due_date ON tasks(due_date) WHERE due_date IS NOT NULL;
+-- NOTE: the `tasks` table lives in its own database (`manifests/db/tasks/schema.sql`),
+-- owned exclusively by `apps/zerg/tasks`. zerg reaches tasks over gRPC only.
+-- See docs/adr-tasks-service-boundary.md.
 
 -- Cloud resources table
 CREATE TABLE cloud_resources (
@@ -161,11 +138,6 @@ CREATE TRIGGER users_touch_updated_at
 
 CREATE TRIGGER projects_touch_updated_at
   BEFORE UPDATE ON projects
-  FOR EACH ROW
-  EXECUTE FUNCTION util.touch_updated_at();
-
-CREATE TRIGGER tasks_touch_updated_at
-  BEFORE UPDATE ON tasks
   FOR EACH ROW
   EXECUTE FUNCTION util.touch_updated_at();
 

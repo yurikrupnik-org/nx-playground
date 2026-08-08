@@ -42,4 +42,35 @@ impl From<domain_users::error::UserError> for ApiError {
     }
 }
 
+/// Upstream gRPC failure → HTTP. The service's `Status` code carries the intent;
+/// the message is logged, never forwarded (it may describe internals).
+impl From<tonic::Status> for ApiError {
+    fn from(e: tonic::Status) -> Self {
+        use tonic::Code;
+        let (status, message) = match e.code() {
+            Code::NotFound => (StatusCode::NOT_FOUND, "not found"),
+            Code::InvalidArgument | Code::FailedPrecondition | Code::OutOfRange => {
+                (StatusCode::BAD_REQUEST, "invalid request")
+            }
+            Code::PermissionDenied => (StatusCode::FORBIDDEN, "forbidden"),
+            Code::Unauthenticated => (StatusCode::UNAUTHORIZED, "unauthorized"),
+            Code::Unavailable | Code::DeadlineExceeded => {
+                (StatusCode::SERVICE_UNAVAILABLE, "service unavailable")
+            }
+            _ => (StatusCode::INTERNAL_SERVER_ERROR, "internal error"),
+        };
+        tracing::warn!(code = ?e.code(), detail = e.message(), "upstream gRPC error");
+        Self::new(status, message)
+    }
+}
+
+/// A proto message that does not decode into a domain type is our bug, not the
+/// caller's - the two sides are generated from the same `.proto`.
+impl From<contract_tasks::ConversionError> for ApiError {
+    fn from(e: contract_tasks::ConversionError) -> Self {
+        tracing::error!(error = %e, "proto conversion failed");
+        Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+    }
+}
+
 pub type ApiResult<T> = std::result::Result<T, ApiError>;

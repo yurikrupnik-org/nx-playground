@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+#[cfg(feature = "orm")]
 use sea_orm::{DeriveActiveEnum, EnumIter};
 use serde::{Deserialize, Serialize};
 use strum::Display;
@@ -18,25 +19,24 @@ use validator::Validate;
     Deserialize,
     Display,
     Default,
-    DeriveActiveEnum,
-    EnumIter,
     ToSchema,
     TS,
 )]
 #[ts(export)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_priority")]
+#[cfg_attr(feature = "orm", derive(DeriveActiveEnum, EnumIter))]
+#[cfg_attr(feature = "orm", sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_priority"))]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum TaskPriority {
-    #[sea_orm(string_value = "low")]
+    #[cfg_attr(feature = "orm", sea_orm(string_value = "low"))]
     Low,
     /// Default priority
     #[default]
-    #[sea_orm(string_value = "medium")]
+    #[cfg_attr(feature = "orm", sea_orm(string_value = "medium"))]
     Medium,
-    #[sea_orm(string_value = "high")]
+    #[cfg_attr(feature = "orm", sea_orm(string_value = "high"))]
     High,
-    #[sea_orm(string_value = "urgent")]
+    #[cfg_attr(feature = "orm", sea_orm(string_value = "urgent"))]
     Urgent,
 }
 
@@ -51,25 +51,24 @@ pub enum TaskPriority {
     Deserialize,
     Display,
     Default,
-    DeriveActiveEnum,
-    EnumIter,
     ToSchema,
     TS,
 )]
 #[ts(export)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_status")]
+#[cfg_attr(feature = "orm", derive(DeriveActiveEnum, EnumIter))]
+#[cfg_attr(feature = "orm", sea_orm(rs_type = "String", db_type = "Enum", enum_name = "task_status"))]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum TaskStatus {
     /// Task not started
     #[default]
-    #[sea_orm(string_value = "todo")]
+    #[cfg_attr(feature = "orm", sea_orm(string_value = "todo"))]
     Todo,
     /// Task in progress
-    #[sea_orm(string_value = "in_progress")]
+    #[cfg_attr(feature = "orm", sea_orm(string_value = "in_progress"))]
     InProgress,
     /// Task completed
-    #[sea_orm(string_value = "done")]
+    #[cfg_attr(feature = "orm", sea_orm(string_value = "done"))]
     Done,
 }
 
@@ -80,12 +79,12 @@ pub struct Task {
     /// Unique identifier
     #[ts(as = "String")]
     pub id: Uuid,
-    /// Owning organization (tenant scope)
-    #[ts(as = "String")]
-    pub org_id: Uuid,
-    /// Creating/owning user within the org
-    #[ts(as = "String")]
-    pub user_id: Uuid,
+    /// Owning tenant, as an identity-provider reference (`org_01…` or
+    /// `personal:{subject}`). Not a foreign key - the tasks service owns its own
+    /// database and never joins against zerg's `organizations` table.
+    pub org_ref: String,
+    /// Owning user, as an identity-provider reference (`user_01…`).
+    pub user_ref: String,
     /// Task title
     pub title: String,
     /// Task description
@@ -144,10 +143,16 @@ pub struct UpdateTask {
     pub due_date: Option<Option<DateTime<Utc>>>,
 }
 
-/// Query filters for listing tasks
+/// Query filters for listing tasks.
+///
+/// Note what is absent: there is no `user_id`. A caller may ask to narrow to *its own*
+/// tasks (`mine`), never to name whose tasks to fetch - the tenant and the user are
+/// derived from the verified token by the service, so "someone else's tasks" is not
+/// expressible.
 #[derive(Debug, Clone, Deserialize, ToSchema, IntoParams)]
 pub struct TaskFilter {
-    pub user_id: Option<Uuid>,
+    #[serde(default)]
+    pub mine: bool,
     pub project_id: Option<Uuid>,
     pub status: Option<TaskStatus>,
     pub priority: Option<TaskPriority>,
@@ -165,7 +170,7 @@ fn default_limit() -> usize {
 impl Default for TaskFilter {
     fn default() -> Self {
         Self {
-            user_id: None,
+            mine: false,
             project_id: None,
             status: None,
             priority: None,
@@ -176,11 +181,15 @@ impl Default for TaskFilter {
     }
 }
 
-/// Tenant scope resolved from the verified token by the BFF; never client-supplied.
-#[derive(Debug, Clone, Copy)]
+/// Tenant scope for a request, derived by the *service* from a verified access token.
+///
+/// This is deliberately not constructible from a request payload: it exists only on the
+/// server side of the boundary, after `oidc_auth::OidcVerifier` has checked the caller's
+/// token. See `docs/adr-tasks-service-boundary.md` Phase 4.
+#[derive(Debug, Clone)]
 pub struct TaskScope {
-    pub org_id: Uuid,
-    pub user_id: Uuid,
+    pub org_ref: String,
+    pub user_ref: String,
 }
 
 impl Task {

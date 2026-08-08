@@ -8,7 +8,6 @@ pub mod health;
 pub mod org;
 pub mod projects;
 pub mod tasks;
-pub mod tasks_direct;
 pub mod users;
 pub mod vector;
 
@@ -100,15 +99,6 @@ pub fn routes(state: &crate::state::AppState) -> Router {
                 .layer(csrf_mw()),
         )
         .nest(
-            "/tasks-direct",
-            tasks_direct::router(state)
-                .layer(tenant_mw())
-                .layer(rl_layer())
-                .layer(Extension(standard.clone()))
-                .layer(auth_mw())
-                .layer(csrf_mw()),
-        )
-        .nest(
             "/org",
             org::router(state)
                 .layer(tenant_mw())
@@ -157,14 +147,16 @@ pub fn routes(state: &crate::state::AppState) -> Router {
     }
 }
 
-/// Creates a router with the /ready endpoint that performs actual health checks.
+/// Creates a router with the /ready and /upstreams endpoints.
 ///
 /// This router has state applied and can be merged with the stateless app router
-/// from `create_router`. The /ready endpoint checks database and redis connections.
+/// from `create_router`. `/ready` checks only what this process owns (database,
+/// redis); `/upstreams` reports downstream reachability without gating on it.
 pub fn ready_router(state: crate::state::AppState) -> Router {
     use axum::routing::get;
 
     Router::new()
         .route("/ready", get(health::ready_handler))
+        .route("/upstreams", get(health::upstreams_handler))
         .with_state(state)
 }

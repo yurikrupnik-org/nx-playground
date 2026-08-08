@@ -1,0 +1,23 @@
+[package]
+name = "zerg_vector"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "zerg_vector"
+path = "src/main.rs"
+
+[dependencies]
+core_config = { workspace = true }
+domain_vector = { workspace = true }
+eyre = { workspace = true }
+grpc-client = { path = "../../../libs/core/grpc" }
+rpc = { path = "../../../libs/rpc" }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

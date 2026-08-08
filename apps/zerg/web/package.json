@@ -24,7 +24,7 @@
     "vitest": "^4.0.0"
   },
   "dependencies": {
-    "@domain/tasks": "workspace:*",
+    "@contract/tasks": "workspace:*",
     "@tanstack/solid-query": "^5.90.15",
     "@tanstack/solid-router": "^1.139.14",
     "class-variance-authority": "^0.7.1",

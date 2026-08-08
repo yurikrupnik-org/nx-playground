@@ -46,12 +46,15 @@ spec:
                 name: zerg-shared-config
             - configMapRef:
                 name: zerg-tasks-config
-            - secretRef:
-                name: zerg-api-secrets
-                optional: true
+            # zerg-api-secrets is deliberately NOT mounted here: it carries the
+            # zerg database URL and the WorkOS API key, neither of which this
+            # service may hold. Phase 3 of docs/adr-tasks-service-boundary.md
+            # makes the tasks database reachable only from this process, and
+            # inheriting the caller's credentials would silently undo that.
+            # zerg-tasks-secrets supplies DATABASE_URL (tasks DB) +
+            # WORKOS_CLIENT_ID (token verification only, no API key).
             - secretRef:
                 name: zerg-tasks-secrets
-                optional: true
           env:
             # Redis credentials replicated from dbs/redis-redis-account-default
             # by the sync-redis-creds-secret Kyverno policy (gitops-v1).

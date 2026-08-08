@@ -1,4 +1,4 @@
-import type { CreateTask, Task, UpdateTask } from '@domain/tasks';
+import type { CreateTask, Task, UpdateTask } from '@contract/tasks';
 import { csrfHeaders } from './csrf';
 
 const API_BASE_URL = '/api';
@@ -44,9 +44,11 @@ export interface OrgInvitation {
 }
 
 export const tasksApi = {
-  list: async (params?: { user_id?: string }): Promise<Task[]> => {
+  list: async (params?: { mine?: boolean }): Promise<Task[]> => {
     const search = new URLSearchParams();
-    if (params?.user_id) search.set('user_id', params.user_id);
+    // Only ever "narrow to me" - the API has no way to request another user's
+    // tasks, and the server derives who "me" is from the session's token.
+    if (params?.mine) search.set('mine', 'true');
     const qs = search.size > 0 ? `?${search}` : '';
     const response = await fetch(`${API_BASE_URL}/tasks${qs}`, {
       credentials: 'include', // Include session cookies

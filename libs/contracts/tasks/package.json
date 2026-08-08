@@ -1,5 +1,5 @@
 {
-  "name": "@domain/tasks",
+  "name": "@contract/tasks",
   "version": "0.1.0",
   "type": "module",
   "main": "./types/index.ts",
@@ -8,5 +8,5 @@
     ".": "./types/index.ts",
     "./types": "./types/index.ts"
   },
-  "description": "Task domain - Rust models with auto-generated TypeScript types"
+  "description": "Tasks service contract - Rust DTOs with auto-generated TypeScript types"
 }

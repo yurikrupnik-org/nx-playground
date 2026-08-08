@@ -35,7 +35,7 @@ procs:
     # autostart: false
 
   zerg-tasks:
-    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/zerg' bacon zerg-tasks"
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/tasks' bacon zerg-tasks"
     stop: "SIGTERM"
     # autostart: false
 
@@ -43,6 +43,37 @@ procs:
     shell: "bacon zerg-email-nats"
     stop: "SIGTERM"
     # autostart: false
+
+  # ---------------------------------------------------------------------------
+  # Work-queue replica check (manual — `s` to start, intentionally not autostarted)
+  #
+  # These are a TEST HARNESS, not services. Normal dev uses `zerg-email` above;
+  # leave these stopped unless you are checking replica behaviour, otherwise you
+  # are just running three copies of the same worker.
+  #
+  # What they prove: a durable JetStream consumer is identified BY NAME, so both
+  # replicas join the one `email-worker` group and each job is handled exactly
+  # once. Were the name per-process, each replica would get its own cursor and
+  # every email would be sent twice.
+  #
+  # How to run:
+  #   1. start `email-replica-a` and `email-replica-b` (no env needed; they
+  #      default to MailHog on localhost:1025)
+  #   2. `just email-replica-check`  -> PASS: one job, one delivery
+  #      `just email-scale-check`    -> same assertion under N jobs
+  #
+  # Both recipes purge the stream and clear MailHog first — a freshly created
+  # consumer replays history, which would otherwise pollute the count.
+  # ---------------------------------------------------------------------------
+  email-replica-a:
+    shell: "EMAIL_WORKER_HEALTH_PORT=8091 cargo run -p zerg_email_nats"
+    stop: "SIGTERM"
+    autostart: false
+
+  email-replica-b:
+    shell: "EMAIL_WORKER_HEALTH_PORT=8092 cargo run -p zerg_email_nats"
+    stop: "SIGTERM"
+    autostart: false
 
 #  terran-api:
 #    shell: "DATABASE_URL='postgres://terran_app:terran_app@localhost:5432/terran' PORT='8081' REDIRECT_BASE_URL='http://localhost:3001' CORS_ALLOWED_ORIGIN='http://localhost:3001' bacon terran-api"

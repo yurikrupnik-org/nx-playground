@@ -1,7 +1,8 @@
 //! PostgreSQL test infrastructure
 //!
 //! Provides a `TestDatabase` helper that creates a PostgreSQL container for testing.
-//! Uses sqlx to run migrations from manifests/db/zerg/migrations/.
+//! Applies either a declarative `schema.sql` (default: `manifests/db/zerg/schema.sql`)
+//! or an ordered `migrations/` directory, via [`TestDatabase::with_migrations_dir`].
 
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
 use std::path::PathBuf;
@@ -33,7 +34,7 @@ impl TestDatabase {
     /// # }
     /// ```
     pub async fn new() -> Self {
-        Self::with_migrations_dir("manifests/db/zerg/migrations").await
+        Self::with_migrations_dir("manifests/db/zerg/schema.sql").await
     }
 
     /// Create a test database applying SQL migrations from `rel_dir`
@@ -107,41 +108,48 @@ impl TestDatabase {
         }
     }
 
-    /// Run migrations from SQL files in manifests/db/zerg/migrations/
-    async fn run_migrations_from(connection: &DatabaseConnection, rel_dir: &str) {
+    /// Apply a SQL source to the test database.
+    ///
+    /// `rel_path` may be either a **directory** of ordered `*.sql` migrations
+    /// (versioned databases such as `todo`/`terran`) or a **single `schema.sql`
+    /// file** (declarative databases such as `zerg`, which has no migrations
+    /// directory - Atlas reconciles the desired state instead). See
+    /// `manifests/db/README.md` for the two modes.
+    async fn run_migrations_from(connection: &DatabaseConnection, rel_path: &str) {
         // Find workspace root by looking for Cargo.toml with [workspace]
         let workspace_root = Self::find_workspace_root();
-        let migrations_dir = workspace_root.join(rel_dir);
+        let source = workspace_root.join(rel_path);
 
         assert!(
-            migrations_dir.exists(),
-            "Migrations directory not found: {migrations_dir:?}. \
-             Run 'just migrate-diff zerg initial' to regenerate."
+            source.exists(),
+            "SQL source not found: {source:?}. Expected either a migrations \
+             directory or a declarative schema.sql."
         );
 
-        // Read and sort migration files
-        let mut migrations: Vec<_> = std::fs::read_dir(migrations_dir)
-            .expect("Failed to read migrations directory")
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .map(|ext| ext == "sql")
-                    .unwrap_or(false)
-            })
-            .collect();
+        // Collect the files to apply, in order.
+        let mut migrations: Vec<std::path::PathBuf> = if source.is_dir() {
+            let mut files: Vec<_> = std::fs::read_dir(&source)
+                .expect("Failed to read migrations directory")
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().map(|ext| ext == "sql").unwrap_or(false))
+                .collect();
+            files.sort();
+            files
+        } else {
+            vec![source]
+        };
 
-        migrations.sort_by_key(|e| e.path());
+        migrations.sort();
 
         // Execute each migration
-        for entry in migrations {
-            let path = entry.path();
+        for path in migrations {
             let sql = std::fs::read_to_string(&path)
-                .unwrap_or_else(|_| panic!("Failed to read migration: {:?}", path));
+                .unwrap_or_else(|_| panic!("Failed to read SQL source: {:?}", path));
 
             tracing::debug!("Running migration: {:?}", path.file_name());
 
-            // Split by semicolons, but respect dollar-quoted strings ($$...$$)
+            // Split on top-level semicolons (comments/strings/$$ blocks respected).
             let statements = Self::split_sql_statements(&sql);
 
             for statement in statements.iter() {
@@ -155,34 +163,71 @@ impl TestDatabase {
                     && !is_comment_only
                     && let Err(e) = connection.execute_unprepared(statement).await
                 {
-                    // Log but don't fail for certain expected errors
-                    if !e.to_string().contains("already exists") {
-                        tracing::warn!("Migration statement failed: {}", e);
-                    }
+                    // `already exists` is expected when layering into a pre-created
+                    // schema (`with_schema`). Anything else means the harness built a
+                    // database the tests will misread - fail now, loudly. A warning
+                    // here is invisible: tests install no tracing subscriber.
+                    assert!(
+                        e.to_string().contains("already exists"),
+                        "Failed to apply {:?}\n  statement: {}\n  error: {e}",
+                        path.file_name().unwrap_or(path.as_os_str()),
+                        statement.lines().next().unwrap_or(statement),
+                    );
                 }
             }
         }
 
-        tracing::info!("Migrations complete");
+        tracing::info!("Schema ready");
     }
 
-    /// Split SQL into statements, respecting dollar-quoted strings
+    /// Split SQL into statements on top-level semicolons.
+    ///
+    /// A `;` only terminates a statement when it is not inside a `--` line comment,
+    /// a single-quoted literal, or a `$$`-quoted block. Getting this wrong is silent
+    /// and destructive: a comment such as `-- mirrors the IdP; see docs` would split
+    /// mid-comment and glue its tail onto the next `CREATE TABLE`, which then fails.
     fn split_sql_statements(sql: &str) -> Vec<String> {
         let mut statements = Vec::new();
         let mut current = String::new();
         let mut in_dollar_quote = false;
+        let mut in_line_comment = false;
+        let mut in_string = false;
         let mut chars = sql.chars().peekable();
 
         while let Some(c) = chars.next() {
             current.push(c);
 
-            // Check for $$ (dollar quote)
+            if in_line_comment {
+                if c == '\n' {
+                    in_line_comment = false;
+                }
+                continue;
+            }
+
+            if in_string {
+                // '' is an escaped quote, not a terminator.
+                if c == '\'' {
+                    if chars.peek() == Some(&'\'') {
+                        current.push(chars.next().expect("peeked"));
+                    } else {
+                        in_string = false;
+                    }
+                }
+                continue;
+            }
+
             if c == '$' && chars.peek() == Some(&'$') {
                 chars.next(); // consume second $
                 current.push('$');
                 in_dollar_quote = !in_dollar_quote;
-            } else if c == ';' && !in_dollar_quote {
-                // End of statement
+            } else if in_dollar_quote {
+                continue;
+            } else if c == '-' && chars.peek() == Some(&'-') {
+                current.push(chars.next().expect("peeked"));
+                in_line_comment = true;
+            } else if c == '\'' {
+                in_string = true;
+            } else if c == ';' {
                 let stmt = current.trim().to_string();
                 if !stmt.is_empty() {
                     statements.push(stmt);
@@ -200,7 +245,15 @@ impl TestDatabase {
         statements
     }
 
-    /// Create a test database with a specific schema (for parallel test isolation)
+    /// Create a test database whose schema lives under `schema_name` instead of
+    /// `public`.
+    ///
+    /// Each [`TestDatabase`] already owns a container, so this is not required for
+    /// isolation; it exists to prove the schema applies cleanly outside `public`.
+    ///
+    /// `search_path` is pinned in the connection URL rather than issued as a `SET`:
+    /// the connection is a *pool*, so a `SET` binds to whichever single connection
+    /// served it and later statements silently land back in `public`.
     ///
     /// # Example
     ///
@@ -212,26 +265,41 @@ impl TestDatabase {
     /// # }
     /// ```
     pub async fn with_schema(schema_name: &str) -> Self {
-        let db = Self::new().await;
+        let container = Postgres::default()
+            .with_tag("18-alpine")
+            .start()
+            .await
+            .expect("Failed to start Postgres container");
 
-        // Create schema for isolation
-        let create_schema = format!("CREATE SCHEMA IF NOT EXISTS {}", schema_name);
-        db.connection
-            .execute_unprepared(&create_schema)
+        let host_port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("Failed to get host port");
+
+        let base = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+
+        // Bootstrap connection: create the schema before anything targets it.
+        let bootstrap = Database::connect(&base)
+            .await
+            .expect("Failed to connect to test database");
+        bootstrap
+            .execute_unprepared(&format!("CREATE SCHEMA IF NOT EXISTS {schema_name}"))
             .await
             .expect("Failed to create schema");
 
-        // Set search path to use this schema
-        let set_path = format!("SET search_path TO {}", schema_name);
-        db.connection
-            .execute_unprepared(&set_path)
+        // Every pooled connection resolves unqualified names to `schema_name` first.
+        let connection_string = format!("{base}?options=-c%20search_path%3D{schema_name}");
+        let connection = Database::connect(&connection_string)
             .await
-            .expect("Failed to set search path");
+            .expect("Failed to connect with pinned search_path");
 
-        // Run migrations in this schema
-        Self::run_migrations_from(&db.connection, "manifests/db/zerg/migrations").await;
+        Self::run_migrations_from(&connection, "manifests/db/zerg/schema.sql").await;
 
-        db
+        Self {
+            container,
+            connection,
+            connection_string,
+        }
     }
 
     /// Get a cloned connection (useful for passing to repositories)

@@ -17,31 +17,51 @@ This document describes the modular monolith architecture used in the `zerg_api`
 
 The project uses a **modular monolith** architecture where:
 
-- Each domain is self-contained with its own models, repository, service, and handlers
-- Domains can be easily extracted into microservices later
-- Shared infrastructure (database, messaging) is centralized
-- All domains run in a single deployment but maintain clear boundaries
+- Each domain is a self-contained crate with its own models, repository, service, and handlers
+- Domains compose in one deployment (`zerg_api`) but keep compiler-enforced boundaries
+- Shared infrastructure (database, messaging, auth) lives in `libs/core`
+- A domain may later be extracted to its own process — but only under the rules in
+  [Migration to Microservices](#migration-to-microservices)
 
+```mermaid
+graph TD
+  WEB["apps/zerg/web<br/>SolidJS SPA"] --> API
+
+  subgraph proc["apps/zerg/api — single deployment"]
+    API["axum BFF<br/>auth · CSRF · rate limit · tenant ctx"]
+    PROJ["domain_projects"]
+    USERS["domain_users"]
+    CLOUD["domain_cloud_resources"]
+    API --> PROJ
+    API --> USERS
+    API --> CLOUD
+  end
+
+  subgraph core["libs/core — shared infrastructure"]
+    OIDC["oidc-auth"]
+    DB["database"]
+    MSG["messaging"]
+  end
+
+  API --> OIDC
+  PROJ --> DB
+  USERS --> DB
+  CLOUD --> DB
+
+  API -->|"gRPC"| TASKS["apps/zerg/tasks<br/>separate process"]
+  API -->|"NATS JetStream"| MAIL["apps/zerg/email-nats<br/>separate process"]
+  MSG --- MAIL
+
+  PG[("PostgreSQL")]
+  DB --> PG
+  TASKS --> PG
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      zerg_api                           │
-│                   (Single Deployment)                    │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │   Projects   │  │    Users     │  │    Tasks     │  │
-│  │   Domain     │  │   Domain     │  │  (via gRPC)  │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-│         │                 │                  │          │
-│  ┌──────┴─────────────────┴──────────────────┘          │
-│  │         Shared Infrastructure                        │
-│  │  - PostgreSQL Pool                                   │
-│  │  - Tracing/Logging                                   │
-│  │  - Configuration                                     │
-│  └──────────────────────────────────────────────────────┘
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
+
+Two components already run outside the monolith, and they are worth contrasting:
+`email-nats` communicates **asynchronously** over NATS and shares no state — our cleanest
+boundary. `tasks` communicates **synchronously** over gRPC but still shares a crate and a
+database with `zerg_api`; that boundary is incomplete and is being remediated per
+[`adr-tasks-service-boundary.md`](./adr-tasks-service-boundary.md).
 
 ## Architecture Layers
 
@@ -749,23 +769,149 @@ impl IntoResponse for ProjectError {
 
 ### Migration to Microservices
 
-Each domain is already structured to be extracted:
+#### First: do you actually need a separate process?
+
+Modularity is a **compile-time** property; deployment independence is a **runtime** one.
+A domain crate already gives you the compiler-enforced boundary, the trait seam, isolated
+tests, and reuse. Splitting the process adds *only* independent deploy and independent
+scale — and charges you a wire contract, lockstep-or-versioned releases, and a new
+failure mode.
+
+Extract only when you can finish this sentence with something concrete:
+
+> "`<domain>` needs its own process because it must **\_\_\_** — and a library cannot do that."
+
+Valid endings: needs N× the replicas of everything else; must survive when the rest is
+down; is written in another language; is deployed by a different team on a different
+cadence. "It's well-bounded" is *not* a reason — if it's a proper crate it is already
+well-bounded, in-process, for free.
+
+#### Then: the boundary checklist
+
+A separate process is not a boundary. All seven must hold, or you have a distributed
+monolith — network cost for module-level coupling:
+
+| # | Requirement | Failure mode if skipped |
+|---|---|---|
+| 1 | **Client depends on the contract only** — never on the service's domain crate | Model change recompiles and redeploys both; nothing is independent |
+| 2 | **Service exclusively owns its tables** — the caller has no DB grants on them | Two writers, one table; every invariant enforced twice |
+| 3 | **Cross-service references are IDs, not FKs** | Cannot separate the databases later without an ETL |
+| 4 | **The hop is authenticated** — identity from a verified token, never a caller-filled field | Anyone who reaches the port impersonates any tenant |
+| 5 | **Readiness is decoupled** — callee down degrades its routes only | Negative fault isolation: two processes that must both be up |
+| 6 | **Contract evolves additively** — no renumbering, no renames, deprecate instead | Every change is a lockstep deploy |
+| 7 | **One process, one capability** | Co-hosted services cannot scale or deploy apart |
+
+#### Extraction steps
+
+1. **Publish a contract crate** — DTOs + proto conversions only. Never the service's
+   entity, repository, or service types.
+2. **Point the caller at the contract.** Its HTTP→gRPC client handlers live in the
+   *caller's* app, not the callee's crate. Verify: `grep -rn "domain_<x>" apps/<caller>/`
+   returns nothing.
+3. **Give the service its own database** (`manifests/db/<service>/`) and revoke the
+   caller's access. Convert cross-service FKs to plain ID columns.
+4. **Authenticate the hop.** Forward the caller's access token as gRPC metadata; verify
+   it in the service with `oidc_auth::OidcVerifier` and derive tenancy from the verified
+   claim. Scope must never be a request field the caller populates.
+5. **Decouple readiness** and set per-call deadlines.
+6. **Deploy independently** — then prove it by deploying one side alone.
+
+#### What NOT to do — lessons from the `tasks` extraction
+
+Every item below is a mistake actually made in `tasks`, not a hypothetical. Read this
+before splitting `projects`, `users`, or anything else.
+
+**1. Don't split the process before you split the contract.**
+This is the root cause of everything else. We created the second binary first and never
+did the rest, so the "service" ended up sharing a crate and a table with its caller.
+Order matters: contract → data → auth → process. If you only ever do the last step, you
+have added a network hop to a monolith.
+
+**2. Don't let the caller depend on the service's domain crate.**
+`apps/zerg/api` depended on `domain_tasks` — which also handed it `PgTaskRepository`,
+`TaskService`, and SeaORM entities for a table it should not know exists. Once those are
+in scope, someone *will* use them (see #3). The caller depends on the contract crate and
+the generated `rpc::*` types, nothing more.
+*Check:* `grep -rn "domain_<x>" apps/<caller>/` returns nothing. *(Fixed in Phase 2.)*
+
+**3. Don't keep a "direct" fallback route.**
+`/api/tasks-direct` read the same table in-process, bypassing the service entirely. Two
+doors mean every invariant must be implemented twice — when tenant scoping was added, it
+had to be applied to both paths or isolation would have been trivially bypassable. If a
+fallback is worth keeping, the split isn't worth having. *(Deleted in Phase 1.)*
+
+**4. Don't put the caller's handlers in the callee's crate.**
+`domain_tasks/handlers/grpc.rs` was HTTP-to-gRPC glue that runs in `zerg_api`. Because it
+lived server-side, `domain_tasks` grew dependencies on `axum`, `axum-helpers`, `utoipa`,
+`tonic`, `rpc` and `ts-rs` that a data-owning service has no business having; moving the
+handlers to their caller shed 16 dependencies.
+*Check:* after extraction the service's domain crate should need no HTTP framework at all.
+*(Fixed in Phase 2.)*
+
+**5. Don't share a database, and don't create foreign keys across the boundary.**
+`tasks.user_id`/`org_id` were FKs into `users`/`organizations`, which pinned both services
+to one database — separating them later requires an ETL. Cross-boundary
+references are opaque ID columns from day one. You are trading referential integrity for
+independence; make that trade knowingly and up front, not as a migration. *(Fixed in
+Phase 3: `org_ref`/`user_ref` TEXT columns in a `tasks`-owned database. Cascade deletes
+are gone — orphan rows are now possible and accepted.)*
+
+**6. Don't send identity or tenancy as request fields.**
+`bytes org_id` that the server trusts meant the security boundary was "that port isn't
+reachable." Forward the caller's token and let the service verify it and derive scope.
+A useful tell: if a request message can express *"give me someone else's data"*, the
+model is wrong — prefer `bool mine` over `optional user_id`.
+*Check:* call the service directly with no token and with a forged one; both must return
+`Unauthenticated` (`apps/zerg/tasks/tests/boundary_smoke.rs`). *(Fixed in Phase 4.)*
+
+**7. Don't gate the caller's readiness on the callee.**
+`/ready` checked `tasks_grpc`, so tasks being down pulled the entire API out of the load
+balancer — projects, users, and org endpoints included. That is *worse* availability than
+the monolith had. Degrade the affected routes; keep the rest serving, and report
+downstream reachability on a separate informational endpoint. *(Fixed in Phase 5.)*
+
+**8. Don't co-host unrelated services in one binary.**
+`zerg_tasks` also hosted `VectorServiceServer`, so tasks could not be scaled or deployed
+without vector — negating the only thing the split was supposed to buy.
+*(Fixed in Phase 5: `apps/zerg/vector` is its own crate and binary.)*
+
+**9. Don't ship an unversioned proto package, and never rename one later.**
+The original `tasks` package was generated into `libs/rpc` and later stopped tracing back
+to any proto in the repo, leaving orphaned generated code that still compiled. Start at
+`<name>.v1` and evolve additively — renaming the package changes every gRPC method path
+and forces a lockstep deploy.
+
+**10. Don't grade a split on its resilience infrastructure.**
+The meta-mistake. `tasks` has lazy connect, a pooled client, keep-alive, timeouts, retry
+helpers, and health checks — genuinely good plumbing — and an earlier review concluded
+from that alone it was "done right." Connection management is not a boundary. Grade
+dependency direction, data ownership, and authentication; the plumbing is table stakes.
+
+#### Current state
 
 ```
-Monolith                    Microservices
-├── domain_projects    →    projects-service (port 3001)
-├── domain_users       →    users-service (port 3002)
-└── domain_tasks       →    tasks-service (port 50051) ✓ Already separate!
+Monolith                    Status
+├── domain_projects    →    in-process (no extraction reason yet)
+├── domain_users       →    in-process (no extraction reason yet)
+└── domain_tasks       →    separate service, boundary COMPLETE
 ```
 
-**Extraction Steps**:
-1. Create new app: `apps/services/projects-service`
-2. Move domain code (already isolated)
-3. Add gRPC server implementation
-4. Update API gateway to call via gRPC
-5. Deploy independently
+`tasks` is the worked example. Every checklist item now holds, per
+[`adr-tasks-service-boundary.md`](./adr-tasks-service-boundary.md):
 
-The modular structure ensures minimal refactoring during extraction.
+| Checklist item | Status |
+|---|---|
+| 1. Contract-only dependency | ✅ `libs/contracts/tasks`; `zerg_api` cannot name `domain_tasks` |
+| 2. Handlers live with their caller | ✅ `apps/zerg/api/src/api/tasks.rs` |
+| 3. Exclusive data ownership | ✅ own `tasks` database, `tasks_app` role; `zerg_api` has no grants |
+| 4. Authenticated boundary | ✅ bearer token verified via JWKS in `zerg_tasks`; identity removed from the proto |
+| 5. Independent deployability | ✅ no shared crate, no shared database, no shared schema |
+| 6. Additive-only wire changes | ✅ policy adopted; removed tags `reserved` in the proto |
+| 7. Independent failure | ✅ `/ready` no longer gates on it; only `/api/tasks` degrades |
+
+Read the mistakes above before extracting anything else — the list exists because every
+one of them was made here first. The order that avoids them is
+**contract → data → auth → process**, which is the reverse of the order we took.
 
 ## References
 

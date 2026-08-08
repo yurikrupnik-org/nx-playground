@@ -14,7 +14,6 @@ use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use domain_tasks::TaskScope;
 use domain_users::{PostgresUserRepository, UserService};
 use oidc_auth::AuthIdentity;
 use sea_orm::sea_query::OnConflict;
@@ -130,8 +129,12 @@ pub async fn provision_tenant(
 }
 
 /// Tenant-context middleware: runs after `oidc_auth::auth_required`, resolves the
-/// tenant for the verified identity, and injects [`TenantContext`] + [`TaskScope`]
-/// into request extensions for downstream handlers.
+/// tenant for the verified identity, and injects [`TenantContext`] into request
+/// extensions for downstream handlers.
+///
+/// It deliberately does **not** inject a scope for the tasks service. That service
+/// derives its own tenant from the caller's forwarded access token, so anything this
+/// process resolved locally would be an untrusted duplicate.
 pub async fn tenant_context_mw(
     State(st): State<AppState>,
     mut req: Request,
@@ -146,10 +149,6 @@ pub async fn tenant_context_mw(
         Ok(t) => t,
         Err(e) => return e.into_response(),
     };
-    req.extensions_mut().insert(TaskScope {
-        org_id: tenant.org_id,
-        user_id: tenant.user_id,
-    });
     req.extensions_mut().insert(tenant);
     next.run(req).await
 }
@@ -161,11 +160,17 @@ fn user_service(st: &AppState) -> UserService<PostgresUserRepository> {
 }
 
 /// Derive the tenant's external org id and default role from the token.
+///
+/// The ref itself comes from [`AuthIdentity::tenant_ref`] so this mirror and the
+/// `tasks` service's `org_ref` are guaranteed to agree - they read the same claim
+/// through the same function.
 fn derive_org(identity: &AuthIdentity) -> (String, &'static str) {
-    match &identity.org_id {
-        Some(org) => (org.clone(), "member"),
-        None => (format!("{PERSONAL_PREFIX}{}", identity.subject), "admin"),
-    }
+    let role = if identity.is_personal_tenant() {
+        "admin"
+    } else {
+        "member"
+    };
+    (identity.tenant_ref(), role)
 }
 
 /// Best display name from the token, falling back to email then subject.
