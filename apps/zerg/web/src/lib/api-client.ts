@@ -14,8 +14,8 @@ function checkAuth(response: Response): Response {
 
 // Re-export types for convenience
 export type {
-  Task,
   CreateTask as CreateTaskInput,
+  Task,
   UpdateTask as UpdateTaskInput,
 };
 

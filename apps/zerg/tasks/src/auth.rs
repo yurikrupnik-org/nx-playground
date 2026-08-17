@@ -51,11 +51,7 @@ impl CallerAuth {
     /// Failures are deliberately terse on the wire (the detail is logged): a caller
     /// learns that it is unauthenticated, never why the token was rejected.
     pub async fn scope<T>(&self, request: &Request<T>) -> Result<TaskScope, Status> {
-        let verifier = match &self.mode {
-            Mode::Jwks(v) => v,
-            #[cfg(test)]
-            Mode::Fixed(scope) => return Ok(scope.clone()),
-        };
+        let Mode::Jwks(verifier) = &self.mode;
 
         let token = request
             .metadata()

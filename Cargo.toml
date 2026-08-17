@@ -30,14 +30,14 @@ members = [
     'libs/domains/vector',
     'libs/notifications/email',
     'libs/rpc',
-    'libs/testing/test-utils', "libs/patterns/builder", "libs/patterns/newtype", "libs/patterns/iterator", "libs/patterns/strategy", "libs/patterns/state", "libs/patterns/option_result", "libs/patterns/type_state",
+    'libs/testing/test-utils', "libs/patterns/builder", "libs/patterns/newtype", "libs/patterns/iterator", "libs/patterns/strategy", "libs/patterns/state", "libs/patterns/option_result", "libs/patterns/type_state", "libs/patterns/playing",
 ]
 
 [workspace.dependencies]
 api_resource = { path = 'libs/core/proc_macros/api_resource' }
 async-nats = '0.50.0'
 async-stream = '0.3.6'
-async-trait = '0.1.91'
+async-trait = '0.1.92'
 axum = { version = "0.8.9", features = ['default', 'tracing', 'ws'] }
 axum-extra = { version = "0.12.6", features = ['typed-header'] }
 axum-helpers = { path = 'libs/core/axum-helpers' }
@@ -47,7 +47,7 @@ color-eyre = '0.6.5'
 core_config = { path = 'libs/core/config' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
 core_retry = { path = 'libs/core/retry' }
-darling = '0.23.0'
+darling = '0.24.0'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
 domain_projects = { path = 'libs/domains/projects' }
@@ -56,13 +56,13 @@ domain_tasks = { path = 'libs/domains/tasks' }
 domain_users = { path = 'libs/domains/users' }
 domain_vector = { path = 'libs/domains/vector' }
 email = { path = 'libs/notifications/email' }
-eyre = { version = '0.6.12', features = ['default'] }
+eyre = { version = '0.6.14', features = ['default'] }
 field-selector = { path = 'libs/core/field-selector' }
 #flagsmith = { version = '2.1.0', features = [] }
-futures = "0.3.33"
+futures = "0.3.34"
 grpc-client = { path = 'libs/core/grpc' }
-handlebars = '6.4.3'
-http = { version = '1.4.2' }
+handlebars = '6.4.4'
+http = { version = '1.5.0' }
 jsonwebtoken = { version = '11.0.0', features = ['aws_lc_rs'] }
 #k8s-openapi = { version = '0.26.0', features = ['v1_34'] }
 #kube = { version = '2.0.1', features = ['derive', 'runtime'] }
@@ -85,13 +85,13 @@ prost = '0.14.4'
 qdrant-client = "1.19.0"
 quote = '1.0.47'
 rand = "0.10.2"
-redis = { version = "1.4.1", features = ['aio', 'r2d2', 'tokio-comp', 'connection-manager'] }
+redis = { version = "1.6.0", features = ['aio', 'r2d2', 'tokio-comp', 'connection-manager'] }
 regex = "1.13.1"
 reqwest = { version = "0.13.4", features = ['json', 'rustls'], default-features = false }
 rpc = { path = 'libs/rpc' }
 schemars = "1.2.2"
-sea-orm = { version = "2.0.1", features = ['sqlx-postgres', 'runtime-tokio-rustls', 'macros', 'with-uuid', 'with-chrono', 'mock', 'debug-print', 'with-json'] }
-sea-orm-migration = { version = "2.0.1", features = ['sqlx-postgres', 'runtime-tokio-rustls'] }
+sea-orm = { version = "2.0.2", features = ['sqlx-postgres', 'runtime-tokio-rustls', 'macros', 'with-uuid', 'with-chrono', 'mock', 'debug-print', 'with-json'] }
+sea-orm-migration = { version = "2.0.2", features = ['sqlx-postgres', 'runtime-tokio-rustls'] }
 sea_orm_resource = { path = 'libs/core/proc_macros/sea_orm_resource' }
 selectable_fields = { path = 'libs/core/proc_macros/selectable_fields' }
 serde = { version = '1.0.229', features = ['derive'] }
@@ -99,11 +99,11 @@ serde_json = { version = "1.0.151" }
 sha2 = '0.11.0'
 sqlx = { version = '0.9.0', default-features = false, features = ['postgres', 'macros', 'uuid', 'chrono', 'migrate'] }
 strum = { version = '0.28.0', features = ['derive'] }
-syn = { version = "2.0.118", features = ['full', 'extra-traits', 'visit'] }
+syn = { version = "3.0.3", features = ['full', 'extra-traits', 'visit'] }
 test-utils = { path = 'libs/testing/test-utils' }
 testcontainers = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
-thiserror = '2.0.19'
+thiserror = '2.0.20'
 tokio = { version = "1.53.1", features = ['full'] }
 tokio-stream = { version = '0.1.19', features = ['sync'] }
 tonic = { version = "0.14.6", features = ['zstd'] }
@@ -122,7 +122,7 @@ utoipa-rapidoc = { version = '6.0.0', features = ['axum'] }
 utoipa-redoc = { version = '6.0.0', features = ['axum'] }
 utoipa-scalar = { version = '0.3.0', features = ['axum'] }
 utoipa-swagger-ui = { version = '9.0.2', features = ['axum'] }
-uuid = { version = "1.24.0", features = ['serde', 'v4', 'v7'] }
+uuid = { version = "1.24.1", features = ['serde', 'v4', 'v7'] }
 validator = { version = '0.21.0', features = ['derive'] }
 
 [workspace.package]
@@ -143,6 +143,7 @@ uninlined_format_args = 'warn'
 incremental = true
 codegen-units = 16 # Parallel compilation
 opt-level = 0 # No optimization for speed
+debug = "line-tables-only"
 
 [profile.release]
 opt-level = 'z'

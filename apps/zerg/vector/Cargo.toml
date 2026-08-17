@@ -11,7 +11,7 @@ path = "src/main.rs"
 core_config = { workspace = true }
 domain_vector = { workspace = true }
 eyre = { workspace = true }
-grpc-client = { path = "../../../libs/core/grpc" }
+grpc-client = { path = "../../../libs/core/grpc", features = ["server"] }
 rpc = { path = "../../../libs/rpc" }
 serde_json = { workspace = true }
 uuid = { workspace = true }

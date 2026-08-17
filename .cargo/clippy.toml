@@ -1,0 +1,22 @@
+# Clippy configuration
+#
+# Discovered via CLIPPY_CONF_DIR (set in .cargo/config.toml) — clippy does NOT
+# look inside .cargo/ on its own.
+#
+# This file only tunes *how* lints behave. Lint levels themselves live in
+# [workspace.lints.clippy] in the root Cargo.toml.
+
+# Minimum Rust version — edition 2024 requires 1.85. Lets clippy avoid
+# suggesting APIs that are newer than what we commit to supporting.
+msrv = "1.85"
+#enum_glob_use = "deny"
+# The workspace warns on unwrap_used / dbg_macro; that's about production code.
+# Tests are allowed to be blunt.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-dbg-in-tests = true
+
+# Identifiers clippy::doc_markdown should not flag as needing backticks.
+doc-valid-idents = ["NATS", "OIDC", "OpenTelemetry", "PostgreSQL", "SeaORM", "WorkOS", ".."]
+

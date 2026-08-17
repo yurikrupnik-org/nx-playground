@@ -5,7 +5,7 @@ const API_BASE_URL = '/api/todos';
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 // Re-export the ts-rs DTOs for convenience so callers can import them from here.
-export type { Todo, CreateTodo, UpdateTodo, TodoPriority };
+export type { CreateTodo, Todo, TodoPriority, UpdateTodo };
 
 export const todoApi = {
   list: async (): Promise<Todo[]> => {

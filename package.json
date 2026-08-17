@@ -6,13 +6,13 @@
   "private": true,
   "workspaces": ["apps/**/*", "libs/contracts/*", "libs/domains/*"],
   "dependencies": {
-    "@monodon/rust": "2.3.0"
+    "@monodon/rust": "3.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.4",
-    "@nx-tools/nx-container": "^7.2.1",
-    "@nx/workspace": "22.5.2",
-    "@types/node": "25.3.0",
-    "nx": "22.5.2"
+    "@biomejs/biome": "2.5.8",
+    "@nx-tools/nx-container": "^7.3.0",
+    "@nx/workspace": "23.1.1",
+    "@types/node": "26.2.0",
+    "nx": "23.1.1"
   }
 }

@@ -1,9 +1,21 @@
 # Bacon configuration for multiple apps
+#
+# Job names here are the argument to `bacon <job>` and are referenced by
+# manifests/mprocs/{local,todo,terran}.yaml — rename one and you must update
+# the matching mprocs entry.
 default_job = "check"
 
 [jobs.lint]
 command = ["nx", "run-many", "-t", "lint", "--parallel=16"]
 need_stdout = true
+
+# Native clippy over the whole workspace — same invocation as `just lint`,
+# without the nx layer. Deliberately NOT named `clippy`: that key is a bacon
+# built-in bound to `c` in the TUI, and shadowing it would turn a single-crate
+# keypress into a full workspace build.
+[jobs.clippy-workspace]
+command = ["cargo", "clippy", "--workspace", "--all-targets", "--color", "always"]
+need_stdout = false
 
 [jobs.check]
 command = ["cargo", "check", "--color", "always"]
@@ -50,15 +62,6 @@ allow_warnings = true
 background = false
 on_change_strategy = "kill_then_restart"
 
-[jobs.zerg-email]
-command = ["cargo", "run", "-p", "zerg_tasks", "--color", "always"]
-need_stdout = true
-watch = ["apps/zerg/email", "libs"]
-allow_warnings = true
-background = false
-on_change_strategy = "kill_then_restart"
-env = { PORT = "7777" }
-
 [jobs.terran-api]
 command = ["cargo", "run", "-p", "terran_api", "--color", "always"]
 need_stdout = true
@@ -76,14 +79,13 @@ background = false
 on_change_strategy = "kill_then_restart"
 #env = { DATABASE_URL = "postgres://myuser:mypassword@localhost:5432/mydatabase" }
 
-
-[jobs.zerg-cli]
-command = ["cargo", "run", "-p", "zerg_cli", "--color", "always"]
+[jobs.zerg-vector]
+command = ["cargo", "run", "-p", "zerg_vector", "--color", "always"]
 need_stdout = true
-
-[jobs.zerg-operator]
-command = ["cargo", "run", "-p", "zerg_operator", "--color", "always"]
-need_stdout = true
+watch = ["apps/zerg/vector", "libs"]
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
 
 # Watch all workspace members
 [jobs.check-all]
@@ -94,6 +96,7 @@ need_stdout = false
 command = ["cargo", "test", "--workspace", "--color", "always"]
 need_stdout = true
 
+# Same suite via nextest — parallel, per-test processes. Matches `just test`.
 [jobs.test-all-fast]
-command = ["cargo", "test", "--workspace", "--color", "always"]
+command = ["cargo", "nextest", "run", "--workspace", "--color", "always"]
 need_stdout = true

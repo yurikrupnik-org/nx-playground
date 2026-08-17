@@ -70,7 +70,7 @@ where
             .service
             .create_collection(&tenant, input)
             .await
-            .map_err(|e| Status::internal(format!("Failed to create collection: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to create collection: {e}")))?;
 
         info!(
             collection = %info.name,
@@ -94,7 +94,7 @@ where
             .service
             .delete_collection(&tenant, &req.collection_name)
             .await
-            .map_err(|e| Status::internal(format!("Failed to delete collection: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to delete collection: {e}")))?;
 
         Ok(Response::new(DeleteCollectionResponse { deleted }))
     }
@@ -110,7 +110,7 @@ where
             .service
             .get_collection(&tenant, &req.collection_name)
             .await
-            .map_err(|e| Status::internal(format!("Failed to get collection: {}", e)))?
+            .map_err(|e| Status::internal(format!("Failed to get collection: {e}")))?
             .ok_or_else(|| Status::not_found("Collection not found"))?;
 
         Ok(Response::new(GetCollectionResponse {
@@ -129,7 +129,7 @@ where
             .service
             .list_collections(&tenant)
             .await
-            .map_err(|e| Status::internal(format!("Failed to list collections: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to list collections: {e}")))?;
 
         Ok(Response::new(ListCollectionsResponse {
             collections: collections.into_iter().map(Into::into).collect(),
@@ -151,7 +151,7 @@ where
             .service
             .upsert(&tenant, &req.collection_name, vector, req.wait)
             .await
-            .map_err(|e| Status::internal(format!("Failed to upsert: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to upsert: {e}")))?;
 
         Ok(Response::new(UpsertResponse {
             id: id.as_bytes().to_vec(),
@@ -185,7 +185,7 @@ where
             .service
             .upsert_batch(&tenant, &req.collection_name, vectors, req.wait)
             .await
-            .map_err(|e| Status::internal(format!("Failed to upsert batch: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to upsert batch: {e}")))?;
 
         Ok(Response::new(UpsertBatchResponse {
             ids: ids.into_iter().map(|id| id.as_bytes().to_vec()).collect(),
@@ -232,7 +232,7 @@ where
             .service
             .search(&tenant, &req.collection_name, query)
             .await
-            .map_err(|e| Status::internal(format!("Failed to search: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to search: {e}")))?;
 
         Ok(Response::new(conv::search_results_to_response(results)))
     }
@@ -258,7 +258,7 @@ where
                 req.with_payloads,
             )
             .await
-            .map_err(|e| Status::internal(format!("Failed to get: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to get: {e}")))?;
 
         Ok(Response::new(GetResponse {
             vectors: vectors.into_iter().map(Into::into).collect(),
@@ -283,7 +283,7 @@ where
             .service
             .delete(&tenant, &req.collection_name, ids, req.wait)
             .await
-            .map_err(|e| Status::internal(format!("Failed to delete: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to delete: {e}")))?;
 
         Ok(Response::new(DeleteResponse {
             deleted_count,
@@ -309,7 +309,7 @@ where
             .service
             .embed(model, &req.text)
             .await
-            .map_err(|e| Status::internal(format!("Failed to embed: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to embed: {e}")))?;
 
         Ok(Response::new(EmbedResponse {
             embedding: result.values,
@@ -330,7 +330,7 @@ where
             .service
             .embed_batch(model, &req.texts)
             .await
-            .map_err(|e| Status::internal(format!("Failed to embed batch: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to embed batch: {e}")))?;
 
         let total_tokens: u32 = results.iter().map(|r| r.tokens_used).sum();
 
@@ -382,7 +382,7 @@ where
                 },
             )
             .await
-            .map_err(|e| Status::internal(format!("Failed to upsert with embedding: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to upsert with embedding: {e}")))?;
 
         Ok(Response::new(UpsertResponse {
             id: result_id.as_bytes().to_vec(),
@@ -418,7 +418,7 @@ where
                 },
             )
             .await
-            .map_err(|e| Status::internal(format!("Failed to search with embedding: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to search with embedding: {e}")))?;
 
         Ok(Response::new(conv::search_results_to_response(results)))
     }
@@ -479,7 +479,7 @@ where
             .service
             .recommend(&tenant, &req.collection_name, query)
             .await
-            .map_err(|e| Status::internal(format!("Failed to recommend: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to recommend: {e}")))?;
 
         Ok(Response::new(conv::search_results_to_recommend_response(
             results,
