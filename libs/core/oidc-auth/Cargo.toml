@@ -1,12 +1,15 @@
 [package]
 name = "oidc-auth"
+description = "Provider-agnostic OIDC authentication middleware and token verification for Axum services"
+license.workspace = true
+repository.workspace = true
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 async-trait = { workspace = true }
 axum = { workspace = true }
-base64 = "0.22"
+base64 = "0.23"
 jsonwebtoken = { workspace = true }
 oauth2 = { version = "5.0.0", default-features = false }
 redis = { workspace = true }

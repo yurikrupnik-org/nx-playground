@@ -1,5 +1,8 @@
 [package]
 name = "sea_orm_resource"
+description = "SeaOrmResource derive macro for REST API resources backed by SeaORM entities"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 

@@ -1,5 +1,8 @@
 [package]
 name = "core_config"
+description = "Application configuration helpers: typed env parsing, app info, and tracing/OpenTelemetry initialization"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 

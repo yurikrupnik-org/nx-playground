@@ -1,5 +1,8 @@
 [package]
 name = "field-selector"
+description = "Dynamic field selection with role-based access control, with optional Axum extractor"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 

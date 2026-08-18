@@ -1,5 +1,8 @@
 [package]
 name = "core_proc_macros"
+description = "Facade re-exporting the ApiResource, SeaOrmResource, and SelectableFields derive macros"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 

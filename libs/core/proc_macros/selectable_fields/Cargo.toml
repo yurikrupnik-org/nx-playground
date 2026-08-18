@@ -1,5 +1,8 @@
 [package]
 name = "selectable_fields"
+description = "SelectableFields derive macro for dynamic field selection"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 

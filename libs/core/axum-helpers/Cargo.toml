@@ -1,5 +1,8 @@
 [package]
 name = "axum-helpers"
+description = "Axum service building blocks: server lifecycle with graceful shutdown, health checks, structured errors, validated extractors, security middleware, rate limiting, and Prometheus metrics"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 
@@ -49,6 +52,9 @@ validator.workspace = true
 
 [dev-dependencies]
 temp-env = "0.3"
+# HTTP client for examples/http_service.rs, which exercises the router over a
+# real socket. tests/examples_it.rs runs that example as a process.
+reqwest = { workspace = true }
 test-utils = { workspace = true, features = ["redis"] }
 tokio-test = "0.4"
 tower = { workspace = true, features = ["util"] }
