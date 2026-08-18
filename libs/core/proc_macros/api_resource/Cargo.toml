@@ -1,5 +1,8 @@
 [package]
 name = "api_resource"
+description = "ApiResource derive macro for REST API resource trait implementations"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 

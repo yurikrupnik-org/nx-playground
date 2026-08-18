@@ -34,7 +34,7 @@ members = [
 ]
 
 [workspace.dependencies]
-api_resource = { path = 'libs/core/proc_macros/api_resource' }
+api_resource = { path = 'libs/core/proc_macros/api_resource', version = '0.1.0' }
 async-nats = '0.50.0'
 async-stream = '0.3.6'
 async-trait = '0.1.92'
@@ -44,7 +44,7 @@ axum-helpers = { path = 'libs/core/axum-helpers' }
 chrono = { version = '0.4.45', features = ['serde'] }
 #clap = { version = '4.5.53', features = ['derive'] }
 color-eyre = '0.6.5'
-core_config = { path = 'libs/core/config' }
+core_config = { path = 'libs/core/config', version = '0.1.0' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
 core_retry = { path = 'libs/core/retry' }
 darling = '0.24.0'
@@ -73,7 +73,7 @@ metrics-exporter-prometheus = '0.18.3'
 mockall = '0.15.0'
 #mongodb = '3.4.1'
 oauth2 = '5.0.0'
-oidc-auth = { path = 'libs/core/oidc-auth' }
+oidc-auth = { path = 'libs/core/oidc-auth', version = '0.1.0' }
 opentelemetry = '0.32.0'
 opentelemetry-otlp = { version = '0.32.0', features = ['grpc-tonic', 'trace'], default-features = false }
 opentelemetry-semantic-conventions = '0.32.1'
@@ -92,8 +92,8 @@ rpc = { path = 'libs/rpc' }
 schemars = "1.2.2"
 sea-orm = { version = "2.0.2", features = ['sqlx-postgres', 'runtime-tokio-rustls', 'macros', 'with-uuid', 'with-chrono', 'mock', 'debug-print', 'with-json'] }
 sea-orm-migration = { version = "2.0.2", features = ['sqlx-postgres', 'runtime-tokio-rustls'] }
-sea_orm_resource = { path = 'libs/core/proc_macros/sea_orm_resource' }
-selectable_fields = { path = 'libs/core/proc_macros/selectable_fields' }
+sea_orm_resource = { path = 'libs/core/proc_macros/sea_orm_resource', version = '0.1.0' }
+selectable_fields = { path = 'libs/core/proc_macros/selectable_fields', version = '0.1.0' }
 serde = { version = '1.0.229', features = ['derive'] }
 serde_json = { version = "1.0.151" }
 sha2 = '0.11.0'
@@ -101,6 +101,8 @@ sqlx = { version = '0.9.0', default-features = false, features = ['postgres', 'm
 strum = { version = '0.28.0', features = ['derive'] }
 syn = { version = "3.0.3", features = ['full', 'extra-traits', 'visit'] }
 test-utils = { path = 'libs/testing/test-utils' }
+# Pinned to 0.27 by testcontainers-modules: 0.15.0 is its latest release and it
+# requires testcontainers ^0.27. Bumping this alone makes the workspace unresolvable.
 testcontainers = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
 thiserror = '2.0.20'
@@ -128,6 +130,8 @@ validator = { version = '0.21.0', features = ['derive'] }
 [workspace.package]
 version = '0.1.0'
 edition = '2024'
+license = 'MIT OR Apache-2.0'
+repository = 'https://github.com/yurikrupnik-org/nx-playground'
 
 [workspace.lints.rust]
 unsafe_code = 'warn'
