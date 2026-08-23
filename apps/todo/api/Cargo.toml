@@ -1,5 +1,6 @@
 [package]
 name = "todo_api"
+publish = false
 version = "0.1.0"
 edition = "2021"
 description = "Standalone Todo REST API: SeaORM Postgres + NATS JetStream event publishing"

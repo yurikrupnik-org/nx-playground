@@ -18,7 +18,14 @@ fn cargo() -> String {
 #[test]
 fn http_service_example_exercises_the_documented_surface() {
     let output = Command::new(cargo())
-        .args(["run", "-q", "-p", "axum-helpers", "--example", "http_service"])
+        .args([
+            "run",
+            "-q",
+            "-p",
+            "axum-helpers",
+            "--example",
+            "http_service",
+        ])
         // The exact invocation the example's doc comment tells people to run.
         .env("CORS_ALLOWED_ORIGIN", "http://localhost:3000")
         .output()
@@ -58,7 +65,14 @@ fn http_service_example_exercises_the_documented_surface() {
 #[test]
 fn http_service_example_fails_without_cors_config() {
     let output = Command::new(cargo())
-        .args(["run", "-q", "-p", "axum-helpers", "--example", "http_service"])
+        .args([
+            "run",
+            "-q",
+            "-p",
+            "axum-helpers",
+            "--example",
+            "http_service",
+        ])
         .env_remove("CORS_ALLOWED_ORIGIN")
         .output()
         .expect("failed to spawn cargo run --example http_service");

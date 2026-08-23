@@ -1,5 +1,6 @@
 [package]
 name = "type_state"
+publish = false
 version.workspace = true
 edition.workspace = true
 

@@ -1,5 +1,6 @@
 [package]
 name = "option_result"
+publish = false
 version.workspace = true
 edition.workspace = true
 

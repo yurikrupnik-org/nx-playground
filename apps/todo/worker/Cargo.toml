@@ -1,5 +1,6 @@
 [package]
 name = "todo_worker"
+publish = false
 version = "0.1.0"
 edition = "2021"
 description = "Todo event worker: consumes todos.> from NATS JetStream and processes lifecycle events"

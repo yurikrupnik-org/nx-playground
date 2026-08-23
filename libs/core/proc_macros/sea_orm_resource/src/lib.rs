@@ -242,8 +242,7 @@ mod tests {
 
     #[test]
     fn test_extract_table_name() {
-        let input
-          = quote! {
+        let input = quote! {
             #[sea_orm(table_name = "projects")]
             pub struct Model {
                 id: String,

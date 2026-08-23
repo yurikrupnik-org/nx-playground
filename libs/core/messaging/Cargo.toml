@@ -1,5 +1,6 @@
 [package]
 name = "messaging"
+publish = false
 version = "0.1.0"
 edition = "2021"
 description = "Common messaging abstractions with optional NATS backend"
@@ -27,7 +28,7 @@ async-trait = { workspace = true }
 axum = { workspace = true, optional = true }
 # Poison-message payloads reach the DLQ as opaque bytes; base64 keeps the entry
 # valid JSON. See nats::dlq::DlqPayload::Raw.
-base64 = { version = "0.22", optional = true }
+base64 = { version = "0.23", optional = true }
 chrono = { workspace = true, features = ["serde"] }
 eyre = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }

@@ -1,5 +1,6 @@
 [package]
 name = "domain_users"
+publish = false
 version.workspace = true
 edition.workspace = true
 

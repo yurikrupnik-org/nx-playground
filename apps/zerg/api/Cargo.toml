@@ -1,5 +1,6 @@
 [package]
 name = "zerg_api"
+publish = false
 version = "0.1.2"
 edition = "2024"
 

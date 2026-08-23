@@ -1,0 +1,48 @@
+name: Publish crates
+
+# Publishes the open-source core crates to crates.io. Manual-only: crates.io
+# versions are immutable, so a human decides when a version ships. The crate
+# list lives in the justfile (`published_crates`) — keep them in sync.
+#
+# Requires the CARGO_REGISTRY_TOKEN secret (crates.io API token with
+# publish-new and publish-update scopes).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Package and verify only, do not publish'
+        type: boolean
+        default: true
+
+concurrency:
+  group: publish-crates
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      CRATES: >-
+        -p core_config -p core_retry -p field-selector -p oidc-auth
+        -p api_resource -p sea_orm_resource -p selectable_fields
+        -p core_proc_macros -p axum-helpers
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      # Always verify first: packages each crate and builds dependents against
+      # the packaged versions of their in-workspace deps.
+      - name: Package and verify
+        run: cargo package $CRATES
+
+      - name: Publish to crates.io
+        if: ${{ !inputs.dry_run }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish $CRATES

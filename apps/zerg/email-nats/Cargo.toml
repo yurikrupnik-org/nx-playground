@@ -1,5 +1,6 @@
 [package]
 name = "zerg_email_nats"
+publish = false
 version = "0.1.1"
 edition = "2021"
 description = "Email worker service using NATS JetStream"
@@ -39,7 +40,14 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+# Throwaway NATS container for tests/examples_it.rs, which runs the publisher
+# examples as real processes.
+test-utils = { workspace = true, features = ["nats"] }
 
 [[example]]
 name = "publish_test"
 path = "examples/publish_test.rs"
+
+[[example]]
+name = "publish_bulk"
+path = "examples/publish_bulk.rs"

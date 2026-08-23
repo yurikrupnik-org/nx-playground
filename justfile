@@ -39,6 +39,22 @@ audit:
     cargo audit --ignore RUSTSEC-2023-0071  # RSA timing vulnerability - no fix available
     cargo deny check --config .cargo/deny.toml
 
+# The open-source crates published to crates.io. Dependency-ordered publishing is
+# handled by cargo itself; this list only decides *what* ships. Everything else in
+# the workspace is `publish = false`.
+published_crates := "-p core_config -p core_retry -p field-selector -p oidc-auth -p api_resource -p sea_orm_resource -p selectable_fields -p core_proc_macros -p axum-helpers"
+
+# Dry-run the crates.io release: package + verify every publishable crate,
+# building dependents against the packaged (not path) versions of their deps.
+crates-package:
+    cargo package {{published_crates}} --allow-dirty
+
+# Publish to crates.io in dependency order. Needs `cargo login` (or
+# CARGO_REGISTRY_TOKEN). Re-running after a partial failure is safe only after
+# bumping [workspace.package] version — crates.io versions are immutable.
+crates-publish: crates-package
+    cargo publish {{published_crates}}
+
 # Quick check (no tests, just compile and lint)
 check-quick: fmt-check
     cargo check --workspace

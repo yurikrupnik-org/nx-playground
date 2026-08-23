@@ -1,5 +1,6 @@
 [package]
 name = "domain_todo"
+publish = false
 version = "0.1.0"
 edition = "2021"
 description = "Todo domain: DDD CRUD + NATS JetStream lifecycle events + ts-rs DTOs"
