@@ -43,7 +43,7 @@ impl From<UserError> for AppError {
             UserError::DuplicateEmail(email) => {
                 AppError::Conflict(format!("User with email '{email}' already exists"))
             }
-            UserError::Validation(msg) => AppError::BadRequest(msg),
+            UserError::Validation(errors) => AppError::BadRequest(errors.to_string()),
             UserError::Database(source) => {
                 tracing::error!(source = %source, "Database error");
                 AppError::InternalServerError("An internal error occurred".to_string())

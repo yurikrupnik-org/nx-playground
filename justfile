@@ -36,7 +36,10 @@ test:
 
 # Security and dependency checks
 audit:
-    cargo audit --ignore RUSTSEC-2023-0071  # RSA timing vulnerability - no fix available
+    # RUSTSEC-2023-0071: RSA timing vulnerability - no fix available
+    # RUSTSEC-2026-0235: rkyv 0.7 — lockfile-only optional dep of rust_decimal,
+    #   never compiled (cargo tree -i rkyv: not in graph); no semver-compatible fix
+    cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0235
     cargo deny check --config .cargo/deny.toml
 
 # The open-source crates published to crates.io. Dependency-ordered publishing is
@@ -72,6 +75,19 @@ update:
 upgrade:
     cargo upgrade --workspace --incompatible
     cargo update
+
+
+# Daily deps refresh (cargo+node+uv): OSV scans, npm cooldown, then build/lint/test
+upkg:
+    upkg
+
+# Quick bump, no scans/tests — for branches you'll build/test anyway; follow with `just check`
+upkg-fast:
+    upkg --fast
+
+# Deep audit (safe + cargo-vet + Socket) — before releases; needs one-time `socket login`
+upkg-paranoid:
+    upkg --paranoid
 
 _docker-up:
     devkit dev up -d

@@ -47,7 +47,7 @@ color-eyre = '0.6.5'
 core_config = { path = 'libs/core/config', version = '0.1.0' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
 core_retry = { path = 'libs/core/retry' }
-darling = '0.24.0'
+darling = "0.24.1"
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
 domain_projects = { path = 'libs/domains/projects' }
@@ -99,11 +99,13 @@ serde_json = { version = "1.0.151" }
 sha2 = '0.11.0'
 sqlx = { version = '0.9.0', default-features = false, features = ['postgres', 'macros', 'uuid', 'chrono', 'migrate'] }
 strum = { version = '0.28.0', features = ['derive'] }
-syn = { version = "3.0.3", features = ['full', 'extra-traits', 'visit'] }
+syn = { version = "3.0.4", features = ['full', 'extra-traits', 'visit'] }
 test-utils = { path = 'libs/testing/test-utils' }
 # Pinned to 0.27 by testcontainers-modules: 0.15.0 is its latest release and it
 # requires testcontainers ^0.27. Bumping this alone makes the workspace unresolvable.
-testcontainers = "0.27.3"
+# The `=` pin is what makes `cargo upgrade --incompatible` (run by upkg) skip it —
+# comments alone don't. Re-check when testcontainers-modules releases 0.28 support.
+testcontainers = "=0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
 thiserror = '2.0.20'
 tokio = { version = "1.53.1", features = ['full'] }
@@ -124,7 +126,7 @@ utoipa-rapidoc = { version = '6.0.0', features = ['axum'] }
 utoipa-redoc = { version = '6.0.0', features = ['axum'] }
 utoipa-scalar = { version = '0.3.0', features = ['axum'] }
 utoipa-swagger-ui = { version = '9.0.2', features = ['axum'] }
-uuid = { version = "1.24.1", features = ['serde', 'v4', 'v7'] }
+uuid = { version = "1.25.0", features = ['serde', 'v4', 'v7'] }
 validator = { version = '0.21.0', features = ['derive'] }
 
 [workspace.package]

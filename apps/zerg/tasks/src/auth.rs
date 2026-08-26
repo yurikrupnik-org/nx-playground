@@ -52,7 +52,9 @@ impl CallerAuth {
     /// learns that it is unauthenticated, never why the token was rejected.
     pub async fn scope<T>(&self, request: &Request<T>) -> Result<TaskScope, Status> {
         // In a release build `Mode` has a single variant, so this is a one-arm match;
-        // the bypass arm exists only under `cfg(test)` and cannot ship.
+        // the bypass arm exists only under `cfg(test)` and cannot ship. The lint's
+        // suggested irrefutable `let` would not compile under cfg(test).
+        #[allow(clippy::infallible_destructuring_match)]
         let verifier = match &self.mode {
             Mode::Jwks(verifier) => verifier,
             #[cfg(test)]
