@@ -106,7 +106,8 @@ test-utils = { path = 'libs/testing/test-utils' }
 # The `=` pin is what makes `cargo upgrade --incompatible` (run by upkg) skip it —
 # comments alone don't. Re-check when testcontainers-modules releases 0.28 support.
 testcontainers = "=0.27.3"
-testcontainers-modules = { version = "0.15.0", features = ['postgres', 'mongo', 'redis'] }
+# Features are declared by the consumer (test-utils), not here.
+testcontainers-modules = "0.15.0"
 thiserror = '2.0.20'
 tokio = { version = "1.53.1", features = ['full'] }
 tokio-stream = { version = '0.1.19', features = ['sync'] }

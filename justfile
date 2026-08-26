@@ -9,32 +9,77 @@ set dotenv-load := true
 default:
     just -l
 
+[group('dev')]
 generate-env:
   devkit secrets fetch -o .env.local
 
+[group('scaffold')]
 gen-ci:
   kcl run scripts/kcl/ci/main.k -D config_file=manifests/ci/ci-config.yaml -S githubWorkflow > .github/workflows/generated-ci.yml
+
+# ============================================================================
+# Flows — composite gates built from the recipes below. Layered:
+#   check  = Rust only (fmt + clippy + nextest + audit + deny)
+#   verify = check + proto lint + web + OSV scan     -> run before push
+#   fix    = auto-format everything, then verify     -> run when verify whines
+#   weekly = deep dep update (runs `just check` itself) + cross-major preview
+# ============================================================================
+
+# Full read-only gate: Rust + proto + web + OSV scan — run before push
+[group('flow')]
+verify: check proto-lint web-check scan
+    @echo "verify: all gates passed"
+
+# Auto-fix formatting (rust + proto + web), then run the full gate
+[group('flow')]
+fix: fmt proto-fmt web-fix verify
+
+# Weekly maintenance: paranoid dep update + preview of remaining cross-major bumps
+[group('flow')]
+weekly: upkg-paranoid outdated
+
+# OSV vulnerability scan of every lockfile (honors osv-scanner.toml ignores)
+[group('quality')]
+scan:
+    osv-scanner --recursive .
+
+# Web app gate: biome (read-only) + vite build (the only web type-error catch)
+[group('quality')]
+web-check:
+    cd apps/zerg/web && bunx biome check . && bun run build
+
+# Web app auto-fix via biome
+[group('quality')]
+web-fix:
+    cd apps/zerg/web && bun run lint
+
 # Full quality check for Rust monorepo (read-only, CI-safe)
+[group('quality')]
 check: fmt-check lint test audit
     @echo "All checks passed!"
 
 # Check formatting without modifying files
+[group('quality')]
 fmt-check:
     cargo fmt --all --check
 
 # Format all Rust code
+[group('quality')]
 fmt:
     cargo fmt --all
 
 # Run clippy linter on all packages
+[group('quality')]
 lint:
     cargo clippy --workspace --all-targets -- -D warnings
 
 # Run all tests
+[group('quality')]
 test:
     cargo nextest run --workspace
 
 # Security and dependency checks
+[group('quality')]
 audit:
     # RUSTSEC-2023-0071: RSA timing vulnerability - no fix available
     # RUSTSEC-2026-0235: rkyv 0.7 — lockfile-only optional dep of rust_decimal,
@@ -49,50 +94,53 @@ published_crates := "-p core_config -p core_retry -p field-selector -p oidc-auth
 
 # Dry-run the crates.io release: package + verify every publishable crate,
 # building dependents against the packaged (not path) versions of their deps.
+[group('release')]
 crates-package:
     cargo package {{published_crates}} --allow-dirty
 
 # Publish to crates.io in dependency order. Needs `cargo login` (or
 # CARGO_REGISTRY_TOKEN). Re-running after a partial failure is safe only after
 # bumping [workspace.package] version — crates.io versions are immutable.
+[group('release')]
 crates-publish: crates-package
     cargo publish {{published_crates}}
 
 # Quick check (no tests, just compile and lint)
+[group('quality')]
 check-quick: fmt-check
     cargo check --workspace
     cargo clippy --workspace --all-targets -- -D warnings
 
-# Show outdated dependencies
+# To actually update, use `just upkg` (safe) — the raw `cargo update`/`cargo upgrade`
+# recipes were removed: upkg runs both WITH scans, pin-respect, and post-checks.
+# Preview what a deps refresh would change (read-only): cargo + node
+[group('deps')]
 outdated:
     cargo outdated --workspace
-
-# Update Cargo.lock to latest compatible versions
-update:
-    cargo update
-
-# Upgrade Cargo.toml versions to latest (requires cargo-edit)
-upgrade:
-    cargo upgrade --workspace --incompatible
-    cargo update
+    -ncu --workspaces --target latest
 
 
 # Daily deps refresh (cargo+node+uv): OSV scans, npm cooldown, then build/lint/test
+[group('deps')]
 upkg:
     upkg
 
 # Quick bump, no scans/tests — for branches you'll build/test anyway; follow with `just check`
+[group('deps')]
 upkg-fast:
     upkg --fast
 
 # Deep audit (safe + cargo-vet + Socket) — before releases; needs one-time `socket login`
+[group('deps')]
 upkg-paranoid:
     upkg --paranoid
 
+[group('local-env')]
 _docker-up:
     devkit dev up -d
 
 # Remove local env db
+[group('local-env')]
 docker-down:
     devkit dev down
 
@@ -100,41 +148,50 @@ docker-down:
 # the inherited shell env (DATABASE_URL, REDIS_HOST, ... from direnv). `-i` keeps
 # the parent env; vals injects the secret keys. No plaintext .env needed.
 #   just run zerg-api    just run zerg-tasks
+[group('dev')]
 run *args:
     vals exec -i -f manifests/secrets/.vals.yaml -- bacon {{ args }}
 
 # Run zerg web dev server
+[group('dev')]
 web:
     cd apps/zerg/web && bun run dev
 
+[group('quality')]
 sort-deps:
     just fmt
     cargo sort --workspace
 
 # docker rm $(docker ps -aq) -f
+[group('quality')]
 test-all:
     cargo nextest run --workspace
 
 # Start local dev (bacon apps via mprocs). Wrapped in `vals exec -i` so every
 # proc mprocs spawns inherits the vals-resolved secrets (fetched once) on top of
 # the shell env — same source as `just run`, no plaintext .env needed.
+[group('dev')]
 dev:
   vals exec -i -f manifests/secrets/.vals.yaml -- mprocs -c manifests/mprocs/local.yaml
 
 # Start just the todo group (todo-api + todo-worker + todo-web) via mprocs.
+[group('dev')]
 dev-todo:
   mprocs -c manifests/mprocs/todo.yaml
 
 # Start just the terran group (terran-api + terran-web) via mprocs.
+[group('dev')]
 dev-terran:
   mprocs -c manifests/mprocs/terran.yaml
 
 # Start just the zerg group via mprocs (same set as `just dev`).
+[group('dev')]
 dev-zerg:
   mprocs -c manifests/mprocs/local.yaml
 #vals exec -i -f manifests/secrets/.vals.yaml --
 
 # Start Kind dev (port-forward + tilt)
+[group('dev')]
 dev-kind:
     mprocs -c manifests/mprocs/kind.yaml
 
@@ -145,6 +202,7 @@ dev-kind:
 #   just kind-secret                   # random name, namespace zerg
 #   just kind-secret my-secrets        # explicit name (POSITIONAL, not name=...)
 #   just kind-secret my-secrets apps   # explicit name + namespace
+[group('local-env')]
 kind-secret name=`printf "zerg-secrets-%s" "$(openssl rand -hex 4)"` namespace="zerg":
     @echo "{{ name }}" | grep -Eq '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$' || { echo "✗ invalid Secret name '{{ name }}' — pass it POSITIONALLY (RFC1123: lowercase alphanumeric/-). Use: just kind-secret <name> [namespace]"; exit 1; }
     kubectl create namespace {{ namespace }} --dry-run=client -o yaml | kubectl apply -f -
@@ -153,6 +211,7 @@ kind-secret name=`printf "zerg-secrets-%s" "$(openssl rand -hex 4)"` namespace="
       | kubectl apply -n {{ namespace }} -f -
     @echo "✓ applied Secret '{{ name }}' to namespace '{{ namespace }}' (random name — update refs, then rename)"
 
+[group('local-env')]
 kompose:
     kubectl create ns dbs
     kompose convert --file ~/private/nx-playground/manifests/dockers/compose.yaml --namespace dbs --stdout | kubectl apply -f -
@@ -163,34 +222,42 @@ kompose:
 proto_dir := "manifests/grpc"
 
 # Format proto files
+[group('proto')]
 proto-fmt:
     cd {{ proto_dir }} && buf format -w
 
 # Lint proto files
+[group('proto')]
 proto-lint:
     cd {{ proto_dir }} && buf lint
 
 # Check for breaking changes (against git main branch)
+[group('proto')]
 proto-breaking:
     cd {{ proto_dir }} && buf breaking --against '.git#branch=main'
 
 # Build/validate proto files
+[group('proto')]
 proto-build:
     cd {{ proto_dir }} && buf build
 
 # Generate Rust code from proto files
+[group('proto')]
 proto-gen:
     cd {{ proto_dir }} && buf generate
 
 # Verify generated Rust code compiles
+[group('proto')]
 proto-check:
     cargo check -p rpc
 
 # Full proto workflow: format, lint, build, generate, verify
+[group('proto')]
 proto: proto-fmt proto-lint proto-build proto-gen proto-check
     @echo "Proto workflow complete"
 
 # Alias for backward compatibility
+[group('proto')]
 buf: proto
 
 # Benchmark tasks API endpoints with wrk
@@ -210,12 +277,14 @@ api_url_cluster := "http://localhost:5221/api"
 # pollutes the count.
 #
 # Clear MailHog and purge the EMAILS stream
+[group('email')]
 email-reset:
     @curl -s -X DELETE http://localhost:8025/api/v1/messages > /dev/null
     @nats stream purge EMAILS -f > /dev/null 2>&1 || true
     @echo "MailHog cleared, EMAILS stream purged"
 
 # Publish exactly ONE welcome-email job onto the EMAILS stream
+[group('email')]
 email-publish-one:
     @cargo run -q -p zerg_email_nats --example publish_test
 
@@ -223,6 +292,7 @@ email-publish-one:
 # many worker replicas are running.
 #
 # Count emails delivered to MailHog
+[group('email')]
 email-count:
     @curl -s http://localhost:8025/api/v2/messages | jq '.total'
 
@@ -230,6 +300,7 @@ email-count:
 # replica. One-per-replica means each replica receives every message.
 #
 # List durable consumers on the EMAILS stream
+[group('email')]
 email-consumers:
     @nats consumer ls EMAILS 2>/dev/null || echo "(nats CLI or EMAILS stream unavailable)"
 
@@ -237,6 +308,7 @@ email-consumers:
 # each worker restart today, and stale ones distort the count.
 #
 # Delete all durable consumers on EMAILS
+[group('email')]
 email-consumers-clean:
     #!/usr/bin/env bash
     for c in $(nats consumer ls EMAILS -j 2>/dev/null | jq -r '.[]?'); do
@@ -247,6 +319,7 @@ email-consumers-clean:
 # (8081 = `zerg-email`, 8091/8092 = `email-replica-a`/`-b`, 8093/8094 = ad-hoc).
 # The NATS consumer count CANNOT do this: correctly-behaving replicas share one
 # durable group, so `consumer ls` returns 1 whether one worker runs or five.
+[group('email')]
 email-workers-live:
     #!/usr/bin/env bash
     n=0
@@ -268,6 +341,7 @@ email-workers-live:
 #   3. exactly 1 delivery         - the job was handled once, not once per replica
 #
 # Assert one published job delivers exactly once across replicas
+[group('email')]
 email-replica-check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -310,6 +384,7 @@ email-replica-check:
 # cannot distinguish "1000 delivered" from "500 delivered twice".
 #
 # Assert N published jobs each deliver exactly once (default 2000)
+[group('email')]
 email-scale-check count="2000":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -374,16 +449,19 @@ email-scale-check count="2000":
 # ============================================================================
 
 # Benchmark GET /api/tasks (gRPC endpoint) - Local
+[group('bench')]
 bench-tasks-grpc:
     @echo "=== Benchmarking gRPC Tasks Endpoint (GET) - Local ==="
     wrk -t4 -c50 -d30s --latency -s {{ wrk_dir }}/report.lua {{ api_url_local }}/tasks
 
 # Benchmark POST /api/tasks (gRPC endpoint) - Local
+[group('bench')]
 bench-tasks-grpc-post:
     @echo "=== Benchmarking gRPC Tasks Endpoint (POST) - Local ==="
     wrk -t4 -c50 -d30s --latency -s {{ wrk_dir }}/post-task.lua {{ api_url_local }}/tasks
 
 # Run all local tasks benchmarks (GET + POST)
+[group('bench')]
 bench-tasks-all:
     @echo "======================================"
     @echo "  Tasks API Benchmarks (Local)"
@@ -398,16 +476,19 @@ bench-tasks-all:
 # ============================================================================
 
 # Benchmark GET /api/tasks (gRPC endpoint) - Cluster
+[group('bench')]
 bench-cluster-tasks-grpc:
     @echo "=== Benchmarking gRPC Tasks Endpoint (GET) - Cluster ==="
     wrk -t4 -c50 -d30s --latency -s {{ wrk_dir }}/report.lua {{ api_url_cluster }}/tasks
 
 # Benchmark POST /api/tasks (gRPC endpoint) - Cluster
+[group('bench')]
 bench-cluster-tasks-grpc-post:
     @echo "=== Benchmarking gRPC Tasks Endpoint (POST) - Cluster ==="
     wrk -t4 -c50 -d30s --latency -s {{ wrk_dir }}/post-task.lua {{ api_url_cluster }}/tasks
 
 # Run all cluster tasks benchmarks (GET + POST)
+[group('bench')]
 bench-cluster-all:
     @echo "======================================"
     @echo "  Tasks API Benchmarks (Cluster)"
@@ -418,6 +499,7 @@ bench-cluster-all:
     just bench-cluster-tasks-grpc-post
 
 # Quick cluster benchmark (10s duration, lighter load)
+[group('bench')]
 bench-cluster-quick:
     @echo "=== Quick Benchmark: gRPC GET (Cluster) ==="
     wrk -t2 -c10 -d10s --latency {{ api_url_cluster }}/tasks
@@ -425,41 +507,53 @@ bench-cluster-quick:
     @echo "Benchmark complete!"
 
 # Quick benchmark (10s duration, lighter load) - Local
+[group('bench')]
 bench-tasks-quick:
     @echo "=== Quick Benchmark: gRPC GET (Local) ==="
     wrk -t2 -c10 -d10s --latency {{ api_url_local }}/tasks
 
+[group('backstage')]
 backstage-dev:
     kubectl apply -k manifests/kustomize/backstage/overlays/dev
 
+[group('backstage')]
 backstage-prod:
     kubectl apply -k manifests/kustomize/backstage/overlays/prod
 
+[group('backstage')]
 backstage-logs:
     kubectl logs -n backstage deployment/backstage -f
 
+[group('backstage')]
 backstage-catalog-generate:
     nu scripts/nu/generate-backstage-catalog.nu
 
+[group('k8s-operators')]
 crossplane-functions-install:
     echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-kcl\nspec:\n  package: docker.io/kcllang/function-kcl:latest' | kubectl apply -f -
     echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-cue\nspec:\n  package: docker.io/crossplane-contrib/function-cue:latest' | kubectl apply -f -
 
+[group('backstage')]
 backstage-setup-github:
     nu scripts/nu/backstage-setup-providers.nu github
 
+[group('backstage')]
 backstage-setup-aws:
     nu scripts/nu/backstage-setup-providers.nu aws
 
+[group('backstage')]
 backstage-setup-gcp:
     nu scripts/nu/backstage-setup-providers.nu gcp
 
+[group('backstage')]
 backstage-setup-cloudflare:
     nu scripts/nu/backstage-setup-providers.nu cloudflare
 
+[group('backstage')]
 backstage-setup-all:
     nu scripts/nu/backstage-setup-providers.nu all
 
+[group('backstage')]
 backstage-restart:
     kubectl rollout restart deployment/backstage -n backstage
     kubectl rollout status deployment/backstage -n backstage
@@ -469,19 +563,23 @@ backstage-restart:
 # ============================================================================
 
 # Start full local dev environment (Kind + DBs + Secrets + Tilt)
+[group('local-env')]
 local-up *args:
     nu scripts/nu/mod.nu up {{args}}
 
 # Tear down local dev environment
+[group('local-env')]
 local-down *args:
     nu scripts/nu/mod.nu down {{args}}
 
 # Quick restart (keep cluster, redeploy apps)
+[group('local-env')]
 local-restart:
     nu scripts/nu/mod.nu down --keep-cluster
     tilt up
 
 # Show environment status
+[group('local-env')]
 local-status:
     nu scripts/nu/mod.nu status
 
@@ -490,17 +588,20 @@ local-status:
 # ============================================================================
 
 # Install CNPG operator (using server-side apply for large CRDs)
+[group('k8s-operators')]
 cnpg-install:
     kubectl apply --server-side -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.0.yaml
     @echo "CNPG operator installed. Waiting for it to be ready..."
     kubectl wait --for=condition=available --timeout=120s deployment/cnpg-controller-manager -n cnpg-system
 
 # Install Atlas Kubernetes operator
+[group('k8s-operators')]
 atlas-operator-install:
     helm install atlas-operator oci://ghcr.io/ariga/charts/atlas-operator --namespace atlas-operator --create-namespace
     @echo "Atlas operator installed"
 
 # Install both operators (CNPG + Atlas) - run this first on a new cluster
+[group('k8s-operators')]
 operators-install:
     @echo "=== Installing Kubernetes Operators ==="
     @echo ""
@@ -513,6 +614,7 @@ operators-install:
     @echo "=== Operators Ready ==="
 
 # Just how to create a nx repo template
+[group('scaffold')]
 create-nx-project:
   npx create-nx-workspace@latest --e2eTestRunner playwright --unitTestRunner vitest ---aiAgents claude --workspaceType package-based --packageManager bun --ci github --preset @monodon/rust
   bun nx generate @monodon/rust:library --name=rpc --no-interactive
