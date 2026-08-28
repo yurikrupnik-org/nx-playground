@@ -45,6 +45,8 @@ _db-url db env="local":
       tasks-cluster)   echo "postgres://tasks:tasks@localhost:5433/tasks?sslmode=disable" ;;
       terran-local)    echo "postgres://myuser:mypassword@localhost:5432/terran?sslmode=disable" ;;
       terran-cluster)  echo "postgres://terran:terran@localhost:5433/terran?sslmode=disable" ;;
+      todo-local)      echo "postgres://myuser:mypassword@localhost:5432/todo?sslmode=disable" ;;
+      todo-cluster)    echo "postgres://todo:todo@localhost:5433/todo?sslmode=disable" ;;
       *)
         echo "unknown db/env: {{ db }}/{{ env }} — add it to _db-url in manifests/db/db.just" >&2
         exit 1

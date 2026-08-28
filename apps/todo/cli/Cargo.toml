@@ -1,0 +1,30 @@
+[package]
+name = "todo_cli"
+publish = false
+version = "0.1.0"
+edition = "2021"
+description = "Todo CLI: manages todos in a NATS JetStream KV bucket and publishes todos.> lifecycle events"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "todo_cli"
+path = "src/main.rs"
+
+[dependencies]
+async-nats = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+core_config = { workspace = true }
+domain_todo = { path = "../../../libs/domains/todo" }
+eyre = { workspace = true }
+futures = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+uuid = { workspace = true }
+
+[dev-dependencies]
+test-utils = { workspace = true, features = ["nats"] }

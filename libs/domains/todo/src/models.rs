@@ -68,7 +68,7 @@ pub struct Todo {
 }
 
 /// DTO for creating a todo.
-#[derive(Debug, Clone, Deserialize, Validate, ToSchema, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema, TS)]
 #[ts(export)]
 pub struct CreateTodo {
     #[validate(length(min = 1, max = 255))]
@@ -80,7 +80,7 @@ pub struct CreateTodo {
 }
 
 /// DTO for updating a todo. All fields optional (PATCH semantics).
-#[derive(Debug, Clone, Default, Deserialize, Validate, ToSchema, TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Validate, ToSchema, TS)]
 #[ts(export)]
 pub struct UpdateTodo {
     #[validate(length(min = 1, max = 255))]

@@ -5,7 +5,7 @@ name: nx-playground
 main_branch: main
 monorepo_tool: nx
 package_manager: bun
-languages: [typescript, rust]
+languages: [typescript, rust, python, node, bun, uv, java]
 nx_cloud: true
 use_affected: true
 use_mise: false

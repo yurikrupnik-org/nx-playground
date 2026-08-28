@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-worker
+  labels:
+    app: todo-worker
+    app.kubernetes.io/name: todo-worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: todo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-worker
+  template:
+    metadata:
+      labels:
+        app: todo-worker
+        app.kubernetes.io/name: todo-worker
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: todo
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: todo-worker
+          image: yurikrupnik/todo-worker:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            # messaging::nats::HealthServer — /healthz, /readyz, /metrics
+            - containerPort: 8091
+              name: health
+          env:
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: APP_ENV
+              value: development
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      terminationGracePeriodSeconds: 15

@@ -17,6 +17,7 @@ import { UserMenu } from './components/user-menu';
 import { AuthProvider } from './lib/auth-context';
 import { LoginPage } from './pages/login';
 import { RegisterPage } from './pages/register';
+import { RegistriesPage } from './pages/registries';
 import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';
 import { TasksListPage } from './pages/tasks-list';
@@ -43,6 +44,12 @@ function Layout() {
                 class="text-sm text-gray-600 hover:text-gray-900"
               >
                 Settings
+              </Link>
+              <Link
+                to="/registries"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Registries
               </Link>
             </div>
             <div class="flex items-center">
@@ -83,6 +90,13 @@ const registerRoute = createRoute({
   component: RegisterPage,
 });
 
+// Reference screen — static catalog, no auth required
+const registriesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/registries',
+  component: () => <RegistriesPage />,
+});
+
 // Protected routes
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -119,6 +133,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   registerRoute,
+  registriesRoute,
   tasksRoute,
   taskDetailRoute,
   settingsRoute,

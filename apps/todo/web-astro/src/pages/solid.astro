@@ -1,0 +1,10 @@
+---
+// Solid island variant: nothing rendered on the server for the app itself;
+// the island boots, fetches JSON, and owns the DOM from there.
+import { SolidTodoApp } from '../components/SolidTodoApp';
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Todos — Solid island">
+  <SolidTodoApp client:only="solid-js" />
+</Layout>

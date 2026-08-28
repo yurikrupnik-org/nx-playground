@@ -14,10 +14,10 @@ all = ["postgres", "redis", "config"]
 [dependencies]
 # Core dependencies (always available)
 async-trait = { workspace = true }
-core_retry = { workspace = true }
 
 # Configuration support (optional)
 core_config = { workspace = true, optional = true }
+core_retry = { workspace = true }
 
 # Redis dependencies (optional)
 redis = { workspace = true, optional = true }

@@ -1,6 +1,6 @@
 import './index.css';
+import { render } from '@solidjs/web';
 import { QueryClient, QueryClientProvider } from '@tanstack/solid-query';
-import { render } from 'solid-js/web';
 
 import { TodoApp } from './todo-app';
 

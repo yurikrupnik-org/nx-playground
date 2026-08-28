@@ -29,6 +29,6 @@ core_config = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
-utoipa = { workspace = true }
 tower = { workspace = true }
+utoipa = { workspace = true }
 uuid = { workspace = true }

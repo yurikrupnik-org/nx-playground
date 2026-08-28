@@ -1,0 +1,22 @@
+[package]
+name = "butler"
+publish = false
+version = "0.1.0"
+edition = "2021"
+description = "Monorepo task compiler: reads nx-compatible config, builds the project/task graph itself, and executes plans with hashing, caching, and cargo batching."
+
+[[bin]]
+name = "butler"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+eyre = { workspace = true }
+globset = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+
+[lints]
+workspace = true

@@ -6,6 +6,7 @@ import {
 } from '@tanstack/solid-query';
 import { createSignal, For, Show } from 'solid-js';
 
+import { EventFeed } from './event-feed';
 import { todoApi } from './lib/todo-api';
 
 const TODOS_KEY = ['todos'] as const;
@@ -106,10 +107,10 @@ export function TodoApp() {
                 onChange={() => toggleMutation.mutate(todo)}
               />
               <span
-                classList={{
-                  'todo-item__title': true,
-                  'todo-item__title--done': todo.completed,
-                }}
+                class={[
+                  'todo-item__title',
+                  { 'todo-item__title--done': todo.completed },
+                ]}
               >
                 {todo.title}
               </span>
@@ -128,6 +129,8 @@ export function TodoApp() {
           )}
         </For>
       </ul>
+
+      <EventFeed />
     </main>
   );
 }

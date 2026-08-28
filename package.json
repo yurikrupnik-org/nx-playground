@@ -4,11 +4,7 @@
   "license": "MIT",
   "scripts": {},
   "private": true,
-  "workspaces": [
-    "apps/**/*",
-    "libs/contracts/*",
-    "libs/domains/*"
-  ],
+  "workspaces": ["apps/**/*", "libs/contracts/*", "libs/domains/*"],
   "dependencies": {
     "@monodon/rust": "3.0.0"
   },

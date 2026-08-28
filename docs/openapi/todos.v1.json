@@ -1,0 +1,332 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Todos API",
+    "description": "Todo CRUD + lifecycle REST API (served by todo-api under /api/todos)",
+    "license": {
+      "name": ""
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/todos",
+      "description": "todo-api mount path"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "operationId": "list_todos",
+        "parameters": [
+          {
+            "name": "completed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/TodoPriority"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List todos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Todo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "operationId": "create_todo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTodo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{id}": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "operationId": "get_todo",
+        "responses": {
+          "200": {
+            "description": "Get a todo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "todos"
+        ],
+        "operationId": "update_todo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTodo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "todos"
+        ],
+        "operationId": "delete_todo",
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/{id}/complete": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "operationId": "complete_todo",
+        "responses": {
+          "200": {
+            "description": "Marked complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{id}/uncomplete": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "operationId": "uncomplete_todo",
+        "responses": {
+          "200": {
+            "description": "Marked incomplete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateTodo": {
+        "type": "object",
+        "description": "DTO for creating a todo.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TodoPriority"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "Todo": {
+        "type": "object",
+        "description": "A todo item.",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "completed",
+          "priority",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "completed": {
+            "type": "boolean",
+            "description": "Whether the todo is completed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation timestamp (RFC3339)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional longer description"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TodoPriority",
+            "description": "Priority"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update timestamp (RFC3339)"
+          }
+        }
+      },
+      "TodoPriority": {
+        "type": "string",
+        "description": "Todo priority levels (maps to the Postgres `todo_priority` enum).",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "UpdateTodo": {
+        "type": "object",
+        "description": "DTO for updating a todo. All fields optional (PATCH semantics).",
+        "properties": {
+          "completed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TodoPriority"
+              }
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "todos",
+      "description": "Todo CRUD + lifecycle operations"
+    }
+  ]
+}

@@ -44,6 +44,8 @@ pub enum CloudProvider {
     Gcp,
     #[sea_orm(string_value = "azure")]
     Azure,
+    #[sea_orm(string_value = "local")]
+    Local,
 }
 
 /// Project deployment status

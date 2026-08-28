@@ -6,9 +6,6 @@ repository.workspace = true
 version.workspace = true
 edition.workspace = true
 
-[lints]
-workspace = true
-
 [features]
 default = []
 selectable_fields = ["dep:selectable_fields"]
@@ -19,4 +16,7 @@ sea_orm_resource = ["dep:sea_orm_resource"]
 api_resource = { workspace = true, optional = true }
 sea_orm_resource = { workspace = true, optional = true }
 selectable_fields = { workspace = true, optional = true }
+
+[lints]
+workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

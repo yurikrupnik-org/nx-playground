@@ -6,13 +6,11 @@ repository.workspace = true
 version.workspace = true
 edition.workspace = true
 
-[lints]
-workspace = true
-
 [lib]
 proc-macro = true
 
 [dependencies]
+core_strings = { workspace = true }
 darling = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
@@ -23,3 +21,6 @@ core_proc_macros = { workspace = true, features = ["sea_orm_resource"] }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 trybuild = { workspace = true }
+
+[lints]
+workspace = true

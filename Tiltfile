@@ -13,7 +13,7 @@ local_resource(
         exec=exec_action(['sh', '-c', 'nc -z localhost 5432'])
     )
 )
-
+#diagrid-dev-dashboard
 
 
 local_resource(

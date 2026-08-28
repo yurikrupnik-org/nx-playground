@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+secretGenerator:
+  # Local kind dev only — in-cluster postgres from manifests/kustomize/todo.
+  - name: todo-api-env
+    literals:
+      - database_url=postgres://todo:todo@postgres:5432/todo
+generatorOptions:
+  disableNameSuffixHash: true

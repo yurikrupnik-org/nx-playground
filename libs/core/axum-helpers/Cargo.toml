@@ -6,9 +6,6 @@ repository.workspace = true
 version.workspace = true
 edition.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
@@ -20,12 +17,12 @@ core_config = { workspace = true }
 eyre.workspace = true
 futures.workspace = true
 
-# Auth identity for user-keyed rate limiting (inserted by oidc_auth::auth_required)
-oidc-auth = { workspace = true }
-
 # Prometheus metrics (RED middleware + /metrics endpoint)
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
+
+# Auth identity for user-keyed rate limiting (inserted by oidc_auth::auth_required)
+oidc-auth = { workspace = true }
 
 # Redis - no longer optional, required for auth
 redis = { workspace = true }
@@ -49,12 +46,16 @@ utoipa-scalar.workspace = true
 utoipa-swagger-ui.workspace = true
 uuid.workspace = true
 validator.workspace = true
+anyhow = "1.0.104"
 
 [dev-dependencies]
-temp-env = "0.3"
 # HTTP client for examples/http_service.rs, which exercises the router over a
 # real socket. tests/examples_it.rs runs that example as a process.
 reqwest = { workspace = true }
+temp-env = "0.3"
 test-utils = { workspace = true, features = ["redis"] }
 tokio-test = "0.4"
 tower = { workspace = true, features = ["util"] }
+
+[lints]
+workspace = true

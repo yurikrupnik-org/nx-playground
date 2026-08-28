@@ -21,6 +21,12 @@ pub use direct::{
 /// OpenAPI documentation for the Todo REST API.
 #[derive(OpenApi)]
 #[openapi(
+    info(
+        title = "Todos API",
+        version = "1.0.0",
+        description = "Todo CRUD + lifecycle REST API (served by todo-api under /api/todos)"
+    ),
+    servers((url = "/api/todos", description = "todo-api mount path")),
     paths(
         direct::list_todos,
         direct::get_todo,
@@ -50,4 +56,23 @@ pub fn router<R: TodoRepository + 'static>(service: TodoService<R>) -> Router {
         .route("/{id}/complete", post(complete_todo::<R>))
         .route("/{id}/uncomplete", post(uncomplete_todo::<R>))
         .with_state(shared)
+}
+
+#[cfg(test)]
+mod tests {
+    use utoipa::OpenApi;
+
+    /// Regenerates the committed OpenAPI v1 document. Same convention as the
+    /// ts-rs `export_bindings_*` tests: running the suite keeps
+    /// `docs/openapi/todos.v1.json` in sync with the handler annotations.
+    #[test]
+    fn export_openapi_todos_v1() {
+        let json = super::TodoApiDoc::openapi()
+            .to_pretty_json()
+            .expect("serialize todos openapi doc");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../docs/openapi/todos.v1.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, json + "\n").unwrap();
+    }
 }

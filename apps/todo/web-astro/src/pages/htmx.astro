@@ -1,0 +1,56 @@
+---
+// Pure HTML + htmx variant. The initial list is server-rendered; htmx swaps
+// the #todo-list fragment after every mutation. Only client JS: htmx itself.
+import Layout from '../layouts/Layout.astro';
+import { todoApi } from '../lib/api';
+import { PRIORITIES, renderTodoList } from '../lib/fragments';
+
+let listHtml = '';
+let loadError = false;
+try {
+  listHtml = renderTodoList(await todoApi.list());
+} catch {
+  loadError = true;
+}
+---
+
+<Layout title="Todos — HTML + htmx">
+  <main class="todo-app">
+    <header class="todo-app__header">
+      <h1 class="todo-app__title">Todos</h1>
+      <span class="todo-app__subtitle">HTML + htmx</span>
+    </header>
+
+    <form
+      class="todo-form"
+      hx-post="/partials/todos"
+      hx-target="#todo-list"
+      hx-swap="outerHTML"
+      hx-on::after-request="if (event.detail.successful) this.reset()"
+    >
+      <input
+        class="todo-input"
+        type="text"
+        name="title"
+        placeholder="new todo title"
+        aria-label="new todo title"
+        required
+      />
+      <select class="todo-select" name="priority" aria-label="priority">
+        {PRIORITIES.map((value) => (
+          <option value={value} selected={value === 'medium'}>{value}</option>
+        ))}
+      </select>
+      <button class="btn btn--primary" type="submit">Add</button>
+    </form>
+
+    {loadError && (
+      <p class="todo-error" role="alert">Failed to load todos.</p>
+    )}
+    <Fragment set:html={listHtml} />
+  </main>
+</Layout>
+
+<script>
+  import 'htmx.org';
+</script>

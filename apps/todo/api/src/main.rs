@@ -4,6 +4,8 @@
 //! - Serves the `domain_todo` router under `/api/todos`.
 //! - Publishes lifecycle events to NATS JetStream (`todos.>`) when reachable;
 //!   degrades to a no-op publisher otherwise (events must not block the API).
+//! - Fans the same events out to browsers over SSE (`/api/events/sse`) and
+//!   WebSocket (`/api/events/ws`) via an in-process broadcast channel.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,6 +23,8 @@ use tower_http::trace::TraceLayer;
 use tracing::{info, warn};
 
 mod config;
+mod events;
+mod stacks;
 
 /// Embedded schema applied on startup (idempotent).
 // const SCHEMA: &str = include_str!("../../../../manifests/db/todo/migrations/20240101000000_init.sql");
@@ -79,12 +83,19 @@ async fn main() -> Result<()> {
         None => None,
     };
 
-    let repository = CachedTodoRepository::with_kv(PgTodoRepository::new(db), cache_kv);
+    let repository = CachedTodoRepository::with_kv(PgTodoRepository::new(db.clone()), cache_kv);
+
+    // Tee events into the in-process bus feeding the SSE/WS routes.
+    let event_tx = events::channel();
+    let publisher: Arc<dyn TodoEventPublisher> =
+        Arc::new(events::BroadcastTodoPublisher::new(publisher, event_tx.clone()));
     let service = TodoService::new(repository, publisher);
 
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .nest("/api/todos", domain_todo::router(service))
+        .nest("/api/stacks", stacks::router(db))
+        .nest("/api/events", events::router(event_tx))
         .layer(create_permissive_cors_layer())
         .layer(TraceLayer::new_for_http());
 

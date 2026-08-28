@@ -31,5 +31,5 @@ uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
 opentelemetry_sdk = { workspace = true }
-tokio-test = "0.4"
 temp-env = "0.3"
+tokio-test = "0.4"

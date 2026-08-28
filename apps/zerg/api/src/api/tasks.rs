@@ -47,6 +47,12 @@ fn authed<T>(token: &AccessToken, message: T) -> tonic::Request<T> {
 /// OpenAPI documentation for the tasks routes.
 #[derive(OpenApi)]
 #[openapi(
+    info(
+        title = "Tasks API",
+        version = "1.0.0",
+        description = "REST facade over the tasks gRPC service (rpc tasks.v1)"
+    ),
+    servers((url = "/api/tasks", description = "zerg-api mount path")),
     paths(list_tasks, get_task, create_task, update_task, delete_task,),
     components(schemas(Task, CreateTask, UpdateTask)),
     tags((name = "tasks", description = "Task operations (backed by the tasks gRPC service)"))
@@ -213,4 +219,23 @@ pub async fn delete_task(
         .await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use utoipa::OpenApi;
+
+    /// Regenerates the committed OpenAPI v1 document. Same convention as the
+    /// ts-rs `export_bindings_*` tests: running the suite keeps
+    /// `docs/openapi/tasks.v1.json` in sync with the handler annotations.
+    #[test]
+    fn export_openapi_tasks_v1() {
+        let json = super::TasksApiDoc::openapi()
+            .to_pretty_json()
+            .expect("serialize tasks openapi doc");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../docs/openapi/tasks.v1.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, json + "\n").unwrap();
+    }
 }

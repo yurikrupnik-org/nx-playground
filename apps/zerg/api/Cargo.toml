@@ -13,11 +13,11 @@ axum = { workspace = true }
 axum-helpers = { workspace = true }
 chrono = { workspace = true }
 color-eyre = { workspace = true }
+contract_tasks = { workspace = true }
 core_config = { workspace = true }
 database = { workspace = true, features = ["all"] }
 domain_cloud_resources = { workspace = true }
 domain_projects = { workspace = true }
-contract_tasks = { workspace = true }
 domain_users = { workspace = true }
 domain_vector = { workspace = true }
 email = { workspace = true }

@@ -110,7 +110,7 @@ Based on typical results:
 Ensure all services are running:
 ```bash
 # Start database
-just _docker-up
+just docker-up
 
 # Start tasks gRPC service
 cargo run -p zerg_tasks

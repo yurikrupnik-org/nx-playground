@@ -10,7 +10,7 @@
 
 [toolchain]
 channel = "1.97.1"
-profile = "minimal"
+profile = "default"
 
 # clippy + rustfmt back `just lint` and `just fmt-check`.
 # rust-src is what rust-analyzer needs to resolve std.

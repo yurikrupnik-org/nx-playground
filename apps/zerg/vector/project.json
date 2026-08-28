@@ -50,27 +50,19 @@
       "options": {
         "file": "manifests/dockers/rust.Dockerfile",
         "context": ".",
-        "build-args": [
-          "APP_NAME=zerg_vector"
-        ],
-        "tags": [
-          "$REGISTRY/zerg-vector:latest"
-        ],
+        "build-args": ["APP_NAME=zerg_vector"],
+        "tags": ["$REGISTRY/zerg-vector:latest"],
         "push": false
       },
       "configurations": {
         "ci": {
           "push": true,
-          "cache-from": [
-            "type=registry,ref=$BUILDCACHE/zerg-vector"
-          ],
+          "cache-from": ["type=registry,ref=$BUILDCACHE/zerg-vector"],
           "cache-to": [
             "type=registry,ref=$BUILDCACHE/zerg-vector,mode=max,image-manifest=true,oci-mediatypes=true"
           ],
           "metadata": {
-            "images": [
-              "$REGISTRY/zerg-vector"
-            ],
+            "images": ["$REGISTRY/zerg-vector"],
             "tags": [
               "type=sha",
               "type=ref,event=branch",
@@ -83,9 +75,7 @@
     },
     "scan": {
       "executor": "nx:run-commands",
-      "dependsOn": [
-        "container"
-      ],
+      "dependsOn": ["container"],
       "options": {
         "command": "trivy image --cache-backend memory $REGISTRY/zerg-vector:latest --severity CRITICAL,HIGH --exit-code 0",
         "cwd": "{workspaceRoot}"
@@ -100,9 +90,7 @@
   "metadata": {
     "tilt": {
       "portForwards": "50051:50051",
-      "resourceDeps": [
-        "zerg-shared-config"
-      ]
+      "resourceDeps": ["zerg-shared-config"]
     }
   },
   "tags": []

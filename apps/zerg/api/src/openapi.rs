@@ -51,3 +51,18 @@ impl Modify for SecurityAddon {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use utoipa::OpenApi;
+
+    /// Nested docs (tasks v1 etc.) carry their own `info`/`servers`; nesting
+    /// must merge only paths/schemas/tags, never the root document's metadata.
+    #[test]
+    fn nested_v1_docs_do_not_override_root_metadata() {
+        let doc = serde_json::to_value(super::ApiDoc::openapi()).unwrap();
+        assert_eq!(doc["info"]["title"], "Zerg API");
+        assert_eq!(doc["servers"][0]["url"], "/api");
+        assert!(doc["paths"].get("/tasks").is_some(), "tasks routes nested");
+    }
+}

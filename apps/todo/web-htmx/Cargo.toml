@@ -1,0 +1,24 @@
+[package]
+name = "todo_web_htmx"
+publish = false
+version = "0.1.0"
+edition = "2021"
+description = "Todo hypermedia frontend: axum renders the HTML + htmx fragments itself, over todo-api JSON"
+
+[[bin]]
+name = "todo_web_htmx"
+path = "src/main.rs"
+
+[dependencies]
+axum = { workspace = true }
+axum-helpers = { workspace = true }
+core_config = { workspace = true }
+eyre = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true, features = ["full", "signal"] }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

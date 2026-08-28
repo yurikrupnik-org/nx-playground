@@ -6,9 +6,6 @@ repository.workspace = true
 version.workspace = true
 edition.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
 color-eyre = { workspace = true }
 opentelemetry = { workspace = true }
@@ -23,3 +20,6 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [dev-dependencies]
 temp-env = "0.3"
+
+[lints]
+workspace = true

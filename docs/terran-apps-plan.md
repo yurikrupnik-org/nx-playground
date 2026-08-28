@@ -58,7 +58,7 @@ one ownership-scoped sample resource, then grow the domain as we go.
 
 ## Supporting services
 
-Added to `manifests/dockers/compose.yaml` (started via `just _docker-up`); all share the existing
+Added to `manifests/dockers/compose.yaml` (started via `just docker-up`); all share the existing
 Postgres (extra DBs created by `manifests/dockers/config/postgres-init/01-create-databases.sql`):
 
 - **Keycloak** (`:8088`) — identity provider; realm imported from
