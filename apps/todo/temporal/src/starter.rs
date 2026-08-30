@@ -5,10 +5,10 @@
 
 use domain_todo::{CreateTodo, TodoPriority, UpdateTodo};
 use temporalio_client::{
-    envconfig::LoadClientConfigProfileOptions, Client, ClientOptions, Connection,
-    WorkflowGetResultOptions, WorkflowQueryOptions, WorkflowSignalOptions, WorkflowStartOptions,
+    Client, ClientOptions, Connection, WorkflowGetResultOptions, WorkflowQueryOptions,
+    WorkflowSignalOptions, WorkflowStartOptions, envconfig::LoadClientConfigProfileOptions,
 };
-use todo_temporal::{TodoWorkflow, TASK_QUEUE, WORKFLOW_ID_PREFIX};
+use todo_temporal::{TASK_QUEUE, TodoWorkflow, WORKFLOW_ID_PREFIX};
 use uuid::Uuid;
 
 #[tokio::main]

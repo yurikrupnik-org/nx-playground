@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use eyre::{bail, Result, WrapErr};
+use eyre::{Result, WrapErr, bail};
 
 fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
     let out = Command::new("git")

@@ -14,8 +14,12 @@ permissions:
   security-events: write
   packages: write        # Push/pull buildx layer cache to GHCR
 
+# CI runs the same `just` recipes developers run (see justfile "Flows"), so a green
+# local `just verify` means a green CI. Rust goes through cargo's own workspace
+# orchestration, never nx — see the benchmark note in the root justfile header.
 jobs:
-  lint:
+  # cargo workspace gates: `just fmt-check lint-rust test-rust audit`
+  rust:
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
@@ -25,28 +29,12 @@ jobs:
       SCCACHE_GCS_KEY_PREFIX: sccache
       SCCACHE_LOG: error          # Only show errors
     steps:
-      # Free up disk space FIRST - remove unused software
-#      - name: Free Disk Space
-#        uses: jlumbroso/free-disk-space@main
-#        with:
-#          tool-cache: false
-#          android: true
-#          dotnet: true
-#          haskell: true
-#          large-packages: true
-#          docker-images: true
-#          swap-storage: true
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-#          filter: tree:0
-
-      - name: Derive appropriate SHAs for base and head for `nx affected` commands
-        uses: nrwl/nx-set-shas@v5
 
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal
+        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
 
       # Authenticate to GCP using a service account key
       - name: Authenticate to Google Cloud
@@ -58,99 +46,24 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: extractions/setup-just@v3
+
+      # Binaries the recipes below invoke: test-rust -> nextest, audit -> audit + deny
+      - uses: taiki-e/install-action@v2
         with:
-          bun-version: latest
+          tool: cargo-nextest,cargo-audit,cargo-deny
 
-      - run: bun install --frozen-lockfile
+      - run: just fmt-check
 
-#      - name: Install KCL CLI
-#        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+      - run: just lint-rust
 
-#      # Free up disk space before linting
-#      - name: Clean up disk space
-#        run: |
-#          df -h
-#          rm -rf dist/target
-#          docker system prune -af || true
-#          df -h
+      # testcontainers-backed tests need docker, which ubuntu-latest provides
+      - run: just test-rust
 
-      # Run lint
-      - run: bun nx affected -t lint
+      - run: just audit
 
       # Clean up build artifacts to free space
-#      - name: Clean up after lint
-#        if: always()
-#        run: |
-#          df -h
-#          du -sh dist/target 2>/dev/null || true
-#          rm -rf dist/target
-#          df -h
-
-  test:
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
-      RUSTC_WRAPPER: sccache      # Explicitly set wrapper
-      SCCACHE_GCS_BUCKET: ${{ vars.SCCACHE_GCS_BUCKET }}
-      SCCACHE_GCS_RW_MODE: READ_WRITE
-      SCCACHE_GCS_KEY_PREFIX: sccache
-      SCCACHE_LOG: error          # Only show errors
-    steps:
-      # Free up disk space FIRST - remove unused software
-#      - name: Free Disk Space
-#        uses: jlumbroso/free-disk-space@main
-#        with:
-#          tool-cache: false
-#          android: true
-#          dotnet: true
-#          haskell: true
-#          large-packages: true
-#          docker-images: true
-#          swap-storage: true
-
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Derive appropriate SHAs for base and head for `nx affected` commands
-        uses: nrwl/nx-set-shas@v5
-
-      - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal
-
-      # Authenticate to GCP using a service account key
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      # Setup sccache for compiled artifacts (stored in GCS)
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.10
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - run: bun install --no-cache
-
-#      - name: Install KCL CLI
-#        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
-
-#       Free up disk space before testing
-#      - name: Clean up disk space
-#        run: |
-#          df -h
-#          rm -rf dist/target
-#          docker system prune -af || true
-#          df -h
-
-      # Run tests
-      - run: bun nx affected -t test
-
-      # Clean up build artifacts to free space
-      - name: Clean up after test
+      - name: Clean up after Rust gates
         if: always()
         run: |
           df -h
@@ -158,28 +71,11 @@ jobs:
           rm -rf dist/target
           df -h
 
-  build:
+  # web gates: read-only biome (app `lint` scripts are mutating, so they are not a
+  # gate — see AGENTS.md) + nx build/test/typecheck via `just test-web`
+  web:
     runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
-      RUSTC_WRAPPER: sccache      # Explicitly set wrapper
-      SCCACHE_GCS_BUCKET: ${{ vars.SCCACHE_GCS_BUCKET }}
-      SCCACHE_GCS_RW_MODE: READ_WRITE
-      SCCACHE_GCS_KEY_PREFIX: sccache
-      SCCACHE_LOG: error          # Only show errors
     steps:
-      # Free up disk space FIRST - remove unused software
-#      - name: Free Disk Space
-#        uses: jlumbroso/free-disk-space@main
-#        with:
-#          tool-cache: false
-#          android: true
-#          dotnet: true
-#          haskell: true
-#          large-packages: true
-#          docker-images: true
-#          swap-storage: true
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -187,51 +83,48 @@ jobs:
       - name: Derive appropriate SHAs for base and head for `nx affected` commands
         uses: nrwl/nx-set-shas@v5
 
-      - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal
-
-      # Authenticate to GCP using a service account key
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      # Setup sccache for compiled artifacts (stored in GCS)
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.10
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - run: bun install --no-cache
+      - run: bun install --frozen-lockfile
 
-#      - name: Install KCL CLI
-#        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+      - uses: extractions/setup-just@v3
 
-      # Free up disk space before building
-#      - name: Clean up disk space
-#        run: |
-#          df -h
-#          rm -rf dist/target
-#          docker system prune -af || true
-#          df -h
+      # Read-only lint: `biome ci` never writes, so a violation fails the job
+      - run: bunx biome ci .
 
-      # Run build
-      - run: bun nx affected -t build
+      - run: just test-web
 
-      # Clean up build artifacts to free space
-#      - name: Clean up after build
-#        if: always()
-#        run: |
-#          df -h
-#          du -sh dist/target 2>/dev/null || true
-#          rm -rf dist/target
-#          df -h
+      # N-API addons are the one Rust-through-nx exception (see AGENTS.md): the
+      # deliverable is a JS package, so cargo runs via napi-cli under nx.
+      - run: just test-napi
 
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: bun nx fix-ci
         if: always()
+
+  # supply-chain gates: `just scan` (OSV) + `just proto-lint` (buf)
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: extractions/setup-just@v3
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: osv-scanner
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: just scan
+
+      - run: just proto-lint
 
   affected:
     if: github.event_name == 'pull_request'
@@ -250,7 +143,7 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install --no-cache
+      - run: bun install --frozen-lockfile
 
       - name: Compute affected projects with a scan target
         id: affected
@@ -281,7 +174,7 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install --no-cache
+      - run: bun install --frozen-lockfile
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -310,9 +203,9 @@ jobs:
       - name: Compute GHCR cache prefix
         run: echo "BUILDCACHE=ghcr.io/${GITHUB_REPOSITORY,,}/buildcache" >> "$GITHUB_ENV"
 
+      # Blocking: a broken image build/push or a scan failure fails the PR
       - name: Build, push and scan container image
         run: bun nx run ${{ matrix.project }}:scan --configuration=ci
-        continue-on-error: true
         env:
           INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_ARTIFACT_PROJECT }}/docker
@@ -320,6 +213,7 @@ jobs:
 
       - name: Collect SARIF files
         id: collect-sarif
+        if: always()
         run: |
           mkdir -p sarif-results
           find . -name "trivy-*.sarif" -exec cp {} sarif-results/ \; 2>/dev/null || true
@@ -333,7 +227,7 @@ jobs:
           fi
 
       - name: Upload Trivy scan results to GitHub Security
-        if: steps.collect-sarif.outputs.found == 'true'
+        if: always() && steps.collect-sarif.outputs.found == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

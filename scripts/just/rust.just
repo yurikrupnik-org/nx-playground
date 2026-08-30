@@ -31,10 +31,9 @@ sort-deps: fmt
 # Security and dependency checks
 [group('quality')]
 audit:
-    # RUSTSEC-2023-0071: RSA timing vulnerability - no fix available
     # RUSTSEC-2026-0235: rkyv 0.7 — lockfile-only optional dep of rust_decimal,
     #   never compiled (cargo tree -i rkyv: not in graph); no semver-compatible fix
-    cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0235
+    cargo audit --ignore RUSTSEC-2026-0235
     cargo deny check --config .cargo/deny.toml
 
 # Show crates behind their latest versions (read-only preview)

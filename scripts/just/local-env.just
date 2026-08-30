@@ -26,28 +26,23 @@ kind-secret name=`printf "zerg-secrets-%s" "$(openssl rand -hex 4)"` namespace="
       | kubectl apply -n {{ namespace }} -f -
     @echo "✓ applied Secret '{{ name }}' to namespace '{{ namespace }}' (random name — update refs, then rename)"
 
-[group('local-env')]
-kompose:
-    kubectl create ns dbs
-    kompose convert --file ~/private/nx-playground/manifests/dockers/compose.yaml --namespace dbs --stdout | kubectl apply -f -
-
 # Start full local dev environment (Kind + DBs + Secrets + Tilt)
 [group('local-env')]
 local-up *args:
-    nu scripts/nu/mod.nu up {{args}}
+    devkit up {{ args }}
 
 # Tear down local dev environment
 [group('local-env')]
 local-down *args:
-    nu scripts/nu/mod.nu down {{args}}
+    devkit down {{ args }}
 
 # Quick restart (keep cluster, redeploy apps)
 [group('local-env')]
 local-restart:
-    nu scripts/nu/mod.nu down --keep-cluster
+    devkit down --keep-cluster
     tilt up
 
 # Show environment status
 [group('local-env')]
 local-status:
-    nu scripts/nu/mod.nu status
+    devkit status

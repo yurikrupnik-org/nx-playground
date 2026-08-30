@@ -16,33 +16,11 @@ use domain_todo::{CreateTodo, Todo, TodoEvent, TodoEventKind, TodoEventPublisher
 use serde::{Deserialize, Serialize};
 use temporalio_macros::{activities, workflow, workflow_methods};
 use temporalio_sdk::{
-    activities::{ActivityContext, ActivityError},
     ActivityOptions, SyncWorkflowContext, WorkflowContext, WorkflowContextView, WorkflowResult,
+    activities::{ActivityContext, ActivityError},
 };
 use uuid::Uuid;
 
-struct Email(String);
-struct UserId(String);
-
-
-fn send_email(user_id: UserId, email: Email) {
-  // let email = Email(email.0);
-  // println!("send_email: {email:?}");
-  // ...
-  todo!()
-}
-
-fn dp() {
-  // let st = "alice@example.com".into();
-  // let email = "alice@example.com".into();
-  // let email = Email(st);
-  // let email = Email(st);
-  send_email(
-    UserId("123".into()),
-    // email,
-    Email("alice@example.com".into()),
-  );
-}
 /// Task queue shared by the worker and the starter.
 pub const TASK_QUEUE: &str = "todo-lifecycle";
 

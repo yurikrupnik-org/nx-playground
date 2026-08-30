@@ -1,0 +1,232 @@
+# Root config for the `butler` CLI — everything repo-wide, and nothing app-local.
+#
+# THREE consumers read these files, so every fact lives in exactly one of them:
+#   butler            renders Tiltfiles and, with the `app` KCL package, the
+#                     k8s manifests under manifests/k8s/apps/
+#   tools/nx/*.ts     infers each app's nx `container`/`scan` target
+#   the KCL package   validates the workload payload against its typed schema
+#
+# Two levels, one fact per place:
+#   butler.toml              this file: registry, environment, infra resources,
+#                            image conventions, per-Dockerfile defaults, and the
+#                            per-kind workload shape every app inherits
+#   <app>/butler.toml        one per app: its `[workload]` (what differs from the
+#                            kind default), its dev-loop facts (`[tilt]`), and an
+#                            `[image]` only when it departs from the convention
+#
+# `just container-check` and `just k8s-check` fail if a generated artifact stops
+# matching these files.
+#
+# A single-app repo uses this file alone: add an `[app]` section describing the
+# app that lives at the repo root (see docs/tilt-generators.md).
+
+# Image-name prefix. Substituted for `$REGISTRY` in any image reference,
+# including the inferred `container` target `tags` that CI builds.
+registry = "yurikrupnik"
+
+# Deployment environment: kustomize overlay directory and KCL `-D env=` value.
+env = "dev"
+
+# The KCL package that turns a `[workload]` payload into Kubernetes objects.
+# Pinned: an unpinned OCI reference makes every render depend on whatever was
+# published last. Source: ~/gitorgs/kcl-packages/packages/app.
+# `imageTag` is the tag butler writes into the rendered manifests per env; an env
+# not listed here uses its own name (so `dev` renders `:dev`).
+[k8s]
+package = "oci://docker.io/yurikrupnik/app"
+tag = "0.1.2"
+
+# Where the rendered manifests and their aggregate land. `{env}` expands to `env`
+# above, so a repo that renders several environments keeps them apart with one
+# line (`outDir = "manifests/gitops/{env}/apps"`). Both butler and
+# tools/nx/k8s-targets.ts read this key — nx caches on declared outputs, so they
+# must agree on the path.
+outDir = "manifests/k8s/apps"
+
+# Appended verbatim to the generated aggregate kustomization, and resolved
+# RELATIVE TO outDir — change one and check the other. Environment fixtures only:
+# objects that are not workload shape and that the package does not render (it
+# emits ExternalSecrets, not literal Secrets).
+extraResources = ["../dev"]
+
+[k8s.imageTag]
+dev = "dev"
+prod = "main"
+
+# Apps that ship an image but no workload of their own: nothing in this repo
+# deploys them, but CI still builds and scans the image. Every other app earns
+# its nx `container`/`scan` targets by declaring a `[workload]` (see
+# tools/nx/container-targets.ts).
+[container]
+extra = ["apps/zerg/vector"]
+
+# Build stage for an image that pins none itself. NOT Tilt-only: the stage
+# reaches CI too, through the `target` option of the inferred nx `container`
+# target, because a wrong stage is a silent production defect —
+# manifests/dockers/Dockerfile ends on static-web-server, which serves the SPA
+# but drops the `/api` reverse proxy every web Deployment configures through its
+# proxy-envs ConfigMap. Only the nginx stage honours those env vars.
+[dockerfileTarget]
+"manifests/dockers/rust.Dockerfile" = "rust"
+"manifests/dockers/Dockerfile" = "nginx"
+"manifests/dockers/node.Dockerfile" = "runtime"
+
+# How to build an app that declares nothing — this repo's convention, stated
+# once, and the source of both its Tiltfile `docker_build` and its nx
+# `container` target. An app needing something else declares `[image]` in its
+# own butler.toml. buildArg names the single per-app argument: the crate name
+# for a service, `<app>/dist` for a web app.
+[imageDefaults.service]
+dockerfile = "manifests/dockers/rust.Dockerfile"
+target = "rust"
+buildArg = "APP_NAME"
+
+[imageDefaults.web]
+dockerfile = "manifests/dockers/Dockerfile"
+target = "nginx"
+buildArg = "DIST_PATH"
+
+# Astro SSR: a Node process, not a static file server. buildArg is the app dir
+# itself because the image installs and builds the app internally — its N-API
+# addon (`@native/field-selector`) must be compiled for the image's platform, so
+# a locally built `dist/` cannot be copied in.
+[imageDefaults.node]
+dockerfile = "manifests/dockers/node.Dockerfile"
+target = "runtime"
+buildArg = "APP_DIR"
+
+# The workload shape every app of a kind inherits — stated once here so an app's
+# own `[workload]` carries only what DIFFERS. These tables are pass-through: the
+# keys are the `app` package's `Workload` schema, butler serialises them to the
+# values file unchanged, and KCL is what validates them. Merge order, deep and
+# right-wins: workloadDefaults.<kind> < <app> [workload] < [env.<env>.workload].
+#
+# `replicas` is pinned because the package defaults it to 0 (a zero-replica
+# Deployment); `partOf`/`namespace`/`name`/`image` are never written here or in
+# an app file — butler injects them from the app path and the image facts above,
+# which is what keeps the image reference single-homed.
+# runAsUser/runAsGroup 65532 is the rust image's own `USER`, not a preference:
+# rust.Dockerfile's runtime stage carried three stacked USER lines (65534, 10001,
+# 65532) of which only the last applied, so the 65534 the old manifests pinned
+# matched a dead line. `prometheus = false` because no service in this repo
+# serves /metrics yet — an app that grows one opts in with `prometheus = true`
+# rather than every other app carrying a scrape annotation pointing at a 404.
+[workloadDefaults.service]
+component = "api-server"
+replicas = 1
+port = 8080
+runAsUser = 65532
+runAsGroup = 65532
+prometheus = false
+terminationGracePeriodSeconds = 30
+
+[workloadDefaults.service.resources]
+requests = { memory = "128Mi", cpu = "250m" }
+limits = { memory = "512Mi" }
+
+# Static SPA behind nginx: no metrics endpoint, unprivileged nginx uid, and the
+# writable dirs nginx needs on a read-only root filesystem.
+[workloadDefaults.web]
+component = "frontend"
+replicas = 1
+port = 8080
+runAsUser = 101
+runAsGroup = 101
+prometheus = false
+terminationGracePeriodSeconds = 10
+
+[workloadDefaults.web.resources]
+requests = { memory = "32Mi", cpu = "50m" }
+limits = { memory = "64Mi", cpu = "100m" }
+
+# nginx on a read-only root filesystem needs these four writable dirs. They are
+# a property of the image, identical for every SPA, so no app repeats them.
+[[workloadDefaults.web.volumeMounts]]
+name = "nginx-conf-d"
+mountPath = "/etc/nginx/conf.d"
+
+[[workloadDefaults.web.volumeMounts]]
+name = "nginx-cache"
+mountPath = "/var/cache/nginx"
+
+[[workloadDefaults.web.volumeMounts]]
+name = "nginx-run"
+mountPath = "/var/run"
+
+[[workloadDefaults.web.volumeMounts]]
+name = "tmp"
+mountPath = "/tmp"
+
+[[workloadDefaults.web.volumes]]
+name = "nginx-conf-d"
+emptyDir = {}
+
+[[workloadDefaults.web.volumes]]
+name = "nginx-cache"
+emptyDir = {}
+
+[[workloadDefaults.web.volumes]]
+name = "nginx-run"
+emptyDir = {}
+
+[[workloadDefaults.web.volumes]]
+name = "tmp"
+emptyDir = {}
+
+# Node SSR: heavier than a file server (V8 heap), runs as the node base image's
+# `node` user, and needs only /tmp writable.
+[workloadDefaults.node]
+component = "frontend"
+replicas = 1
+port = 8080
+runAsUser = 1000
+runAsGroup = 1000
+prometheus = false
+terminationGracePeriodSeconds = 30
+
+[workloadDefaults.node.resources]
+requests = { memory = "192Mi", cpu = "100m" }
+limits = { memory = "512Mi", cpu = "1000m" }
+
+[tilt]
+# Churn that must never enter a rust or node image context. The `only=` allow
+# list is derived per app from the project graph, so this list only has to cover
+# files that live *inside* whitelisted directories.
+contextIgnore = [
+    "target/",
+    "**/*.md",
+    "**/.git/",
+    "**/k8s/",
+    "**/Tiltfile",
+    "apps/**/node_modules/",
+    "**/dist/",
+]
+
+# Context paths a Dockerfile COPYs that belong to no app. Tilt-only: `only=` is
+# a per-app allow list, which buildx cannot express (CI narrows its context with
+# the repo-wide .dockerignore instead).
+[tilt.dockerfileOnly]
+"manifests/dockers/Dockerfile" = ["manifests/dockers/default.conf.template"]
+
+# Infra services reached through kubectl port-forward.
+[[tilt.portForward]]
+name = "postgres"
+command = "kubectl port-forward -n dbs deployment/postgres 5432:5432"
+probePort = 5432
+
+[[tilt.portForward]]
+name = "redis"
+command = "kubectl port-forward -n dbs deployment/redis 6379:6379"
+probePort = 6379
+
+[[tilt.portForward]]
+name = "mailhog"
+command = "kubectl port-forward -n dbs deployment/mailhog 8025:8025"
+probePort = 8025
+
+# Cluster resources owned by no single app; apps reference them by name in their
+# own butler.toml `resourceDeps`.
+[[tilt.sharedResource]]
+name = "zerg-shared-config"
+kustomize = "apps/zerg/shared/k8s/kustomize/overlays/dev"
+objects = ["zerg-shared-config:configmap", "zerg-shared-secrets:secret"]

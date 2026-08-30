@@ -13,7 +13,7 @@ use std::time::Instant;
 
 use email::EmailJob;
 use email::EmailNatsStream;
-use messaging::nats::{stream_config_for, StreamConfig};
+use messaging::nats::{StreamConfig, stream_config_for};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

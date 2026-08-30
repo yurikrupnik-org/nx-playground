@@ -339,13 +339,15 @@ invocation in [`TESTING_GUIDE.md`](./TESTING_GUIDE.md).
 
 ---
 
-### 1.5 Fix stale `nx.json` `sharedGlobals` · S
+### 1.5 Fix stale `nx.json` `sharedGlobals` · S · ✅ FIXED 2026-08-28
 
-**Problem.** `nx.json:18` references `{workspaceRoot}/.github/workflows/ci.yml`, which
-does not exist — the workflow is `ci-optimized.yml`. Cache invalidation on CI changes is
+**Problem.** `nx.json:18` referenced `{workspaceRoot}/.github/workflows/ci.yml`, which
+does not exist — the workflow is `ci-optimized.yml`. Cache invalidation on CI changes was
 silently not happening.
 
-**Acceptance.** Path points at a file that exists.
+**Fix.** Path now points at `ci-optimized.yml`.
+
+**Acceptance.** Path points at a file that exists. ✅
 
 ---
 
@@ -381,12 +383,26 @@ Phase 3 had just dropped the `tasks` table. Every RPC would fail with
 API key it has no business holding.
 
 **Fixed.** `zerg-api-secrets` is gone from the tasks deployment and `zerg-tasks-secrets`
-is generated in the dev overlay with the tasks `DATABASE_URL` + `WORKOS_CLIENT_ID` only.
-The `optional: true` was dropped deliberately: a missing credential must fail the pod,
-not fall through to whatever another service happened to mount.
+carries the tasks `DATABASE_URL` + `WORKOS_CLIENT_ID` only. The `optional: true` was
+dropped deliberately: a missing credential must fail the pod, not fall through to
+whatever another service happened to mount.
 
-**Verified.** `kubectl kustomize apps/zerg/tasks/k8s/kustomize/overlays/dev` contains no
-`zerg-api-secrets` reference and decodes `DATABASE_URL` to `…/tasks`.
+**Where both halves live now.** The kustomize tree named above is gone — an app's k8s
+surface is its `butler.toml`. The mount is `apps/zerg/tasks/butler.toml`:
+
+```toml
+[[workload.envFrom]]
+kind = "secret"
+name = "zerg-tasks-secrets"
+optional = false
+```
+
+and the dev-only literals are one file for every zerg app,
+`manifests/k8s/dev/app-secrets.yaml`, pulled into the generated aggregate through the
+root `butler.toml` `[k8s] extraResources`.
+
+**Verified.** `kubectl kustomize manifests/k8s/apps` renders the `zerg-tasks` Deployment
+with no `zerg-api-secrets` reference and decodes `DATABASE_URL` to `…/tasks`.
 
 ### 2.2 Give `zerg_tasks` `WORKOS_CLIENT_ID` · S · ✅ FIXED 2026-07-26
 
@@ -402,13 +418,16 @@ and `kubectl kustomize manifests/db/tasks/k8s/overlays/dev` renders a complete
 ConfigMap + Secret + AtlasSchema. **Still open:** CNPG must actually create the `tasks`
 database in-cluster — the compose fix in 2.0 covers local only.
 
-**Also open — prod secrets.** Both new secrets are generated in the **dev** overlays
-only. `apps/zerg/tasks/k8s/kustomize/overlays/prod` and
-`manifests/db/tasks/k8s/overlays/prod` need the `ExternalSecret` treatment that
-`apps/zerg/shared/k8s/kustomize/overlays/prod/external-secret.yaml` gives
-`zerg-shared-secrets`. Note the 2.1 fix made `zerg-tasks-secrets` **non-optional**, so a
-prod deploy now fails the pod outright instead of silently inheriting the zerg database
-URL. That is the intended failure mode, but it is a hard blocker on the next prod apply.
+**Also open — prod secrets.** Both new secrets exist for **dev** only.
+`apps/zerg/tasks/butler.toml` needs an `[env.prod.externalSecret]` table — the treatment
+`apps/zerg/api/butler.toml` already gives `zerg-api-secrets`, which the `app` package
+renders as an `ExternalSecret` against `gcp-secret-manager` — and
+`manifests/db/tasks/k8s/overlays/prod` needs the equivalent of
+`apps/zerg/shared/k8s/kustomize/overlays/prod/external-secret.yaml` (that one is still
+hand-written kustomize: it belongs to no app, so butler does not own it). Note the 2.1
+fix made `zerg-tasks-secrets` **non-optional**, so a prod deploy now fails the pod
+outright instead of silently inheriting the zerg database URL. That is the intended
+failure mode, but it is a hard blocker on the next prod apply.
 **Acceptance:** Atlas reconciles `tasks-schema` against a live cluster database.
 
 ### 2.4 Enforce database isolation with grants, not connection strings · M

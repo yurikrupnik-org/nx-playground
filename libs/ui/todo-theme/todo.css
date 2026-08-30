@@ -5,12 +5,13 @@
 }
 
 /*
- * Shared Todo UI theme — consumed by BOTH frontends.
- *  - SolidJS app imports it via Vite (apps/todo/web-solid).
- *  - Leptos/WASM app links it via Trunk (apps/todo/web-rust).
- * Self-contained plain CSS (no preprocessor) so both build pipelines use it
- * verbatim. Both apps render the same DOM with the same class names, so the
- * two UIs look identical.
+ * Shared Todo UI theme — consumed by all three todo frontends:
+ *  - apps/todo/web        SolidJS/Vite, `@import` from src/index.css.
+ *  - apps/todo/web-astro  Astro, `import` from src/layouts/Layout.astro.
+ *  - apps/todo/web-htmx   axum, `include_str!` served at /assets/todo.css.
+ * Self-contained plain CSS (no preprocessor) so every build pipeline uses it
+ * verbatim. All three render the same DOM with the same class names, so the
+ * UIs look identical and any visual diff is a bug.
  */
 
 :root {

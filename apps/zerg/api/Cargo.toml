@@ -1,8 +1,10 @@
 [package]
 name = "zerg_api"
 publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.2"
-edition = "2024"
+edition.workspace = true
 
 [[bin]]
 name = "zerg_api"
@@ -24,10 +26,8 @@ email = { workspace = true }
 eyre = { workspace = true }
 grpc-client = { workspace = true }
 messaging = { workspace = true, features = ["nats"] }
-# migration crate removed - using Atlas for migrations
 oidc-auth = { workspace = true }
 redis = { workspace = true }
-#reqwest = { workspace = true }
 rpc = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
@@ -35,9 +35,13 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
-tower = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+
+[lints]
+workspace = true

@@ -3,14 +3,26 @@
  *
  * Provisions and inspects Crossplane DevEnvironment claims which spin up
  * postgres + redis + nats in a dedicated namespace.
+ *
+ * MUST run under node, not bun: see the runtime guard below.
  */
 import {
-  KubeConfig,
-  CustomObjectsApi,
   CoreV1Api,
+  CustomObjectsApi,
+  KubeConfig,
   PatchStrategy,
   setHeaderOptions,
 } from '@kubernetes/client-node';
+
+// Fail loudly at module load instead of with an opaque TLS error on the first
+// request. Placed after the imports because ESM hoists them regardless of where
+// this check is written.
+if (typeof Bun !== 'undefined') {
+  throw new Error(
+    '@platform/devenv must run under node, not bun: @kubernetes/client-node ' +
+      'uses a TLS agent bun does not implement (see platform/README.md).',
+  );
+}
 
 const GROUP = 'platform.playground.io';
 const VERSION = 'v1alpha1';
@@ -32,28 +44,50 @@ function api() {
   return apis;
 }
 
-function claimBody(name, postgres, redis, nats) {
+/**
+ * Render the claim. Optional parameters are omitted when undefined so the XRD's
+ * own defaults apply (see platform/dev-env/xrd.yaml).
+ */
+function claimBody(name, postgres, redis, nats, options = {}) {
+  const { instances, storageGB, jetstream } = options;
+
+  const pg = { enabled: Boolean(postgres) };
+  if (postgres) {
+    if (instances !== undefined) pg.instances = Number(instances);
+    if (storageGB !== undefined) pg.storageGB = Number(storageGB);
+  }
+
+  const natsParams = { enabled: Boolean(nats) };
+  if (nats && jetstream !== undefined)
+    natsParams.jetstream = Boolean(jetstream);
+
   return {
     apiVersion: `${GROUP}/${VERSION}`,
     kind: KIND,
     metadata: { name },
     spec: {
       parameters: {
-        postgres: { enabled: Boolean(postgres) },
+        postgres: pg,
         redis: { enabled: Boolean(redis) },
-        nats: { enabled: Boolean(nats) },
+        nats: natsParams,
       },
     },
   };
 }
 
-/** Server-side apply the DevEnvironment claim. Idempotent. */
+/**
+ * Server-side apply the DevEnvironment claim. Idempotent.
+ *
+ * `options.instances` (1-3) and `options.storageGB` (1-20) size postgres;
+ * `options.jetstream` toggles NATS JetStream. Omit them to take the XRD defaults.
+ */
 export async function create(
   name,
   namespace = 'default',
   postgres = true,
   redis = true,
   nats = true,
+  options = {},
 ) {
   const { custom } = api();
   return custom.patchNamespacedCustomObject(
@@ -63,7 +97,7 @@ export async function create(
       namespace,
       plural: PLURAL,
       name,
-      body: claimBody(name, postgres, redis, nats),
+      body: claimBody(name, postgres, redis, nats, options),
       fieldManager: FIELD_MANAGER,
       force: true,
     },

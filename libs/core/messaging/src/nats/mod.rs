@@ -64,13 +64,13 @@ mod producer;
 mod worker;
 
 pub use config::{StreamConfig, StreamKind, WorkerConfig};
-pub use connection::{connect, connect_with_retry, jetstream, jetstream_with_retry, RetryConfig};
+pub use connection::{RetryConfig, connect, connect_with_retry, jetstream, jetstream_with_retry};
 pub use consumer::{
-    retention_for, stream_config_for, Fetched, NatsConsumer, NatsMessage, PoisonMessage, StreamInfo,
+    Fetched, NatsConsumer, NatsMessage, PoisonMessage, StreamInfo, retention_for, stream_config_for,
 };
 pub use dlq::{DlqEntry, DlqManager, DlqPayload, DlqStats, Redriven};
 pub use error::NatsError;
 pub use health::{HealthServer, HealthState, HealthStatus};
-pub use metrics::{init_metrics, NatsMetrics};
+pub use metrics::{NatsMetrics, init_metrics};
 pub use producer::NatsProducer;
 pub use worker::NatsWorker;

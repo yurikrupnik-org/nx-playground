@@ -6,7 +6,7 @@ use domain_todo::{
     CreateTodo, NatsTodoPublisher, TodoEvent, TodoEventKind, TodoEventPublisher, TodoPriority,
 };
 use test_utils::TestNats;
-use todo_cli::{status, TodoStore};
+use todo_cli::{TodoStore, status};
 
 fn create(title: &str, priority: TodoPriority) -> CreateTodo {
     CreateTodo {

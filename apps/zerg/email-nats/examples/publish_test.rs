@@ -3,14 +3,14 @@
 //! Run with: cargo run -p zerg_email_nats --example publish_test
 
 use email::{EmailJob, EmailNatsStream};
-use messaging::nats::{stream_config_for, StreamConfig};
+use messaging::nats::{StreamConfig, stream_config_for};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nats_url =
         std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
-    println!("Connecting to NATS at {}...", nats_url);
+    println!("Connecting to NATS at {nats_url}...");
     let jetstream = messaging::nats::jetstream(&nats_url).await?;
 
     // Same builder the worker uses. Hardcoding a config here (this example used to
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await
     {
         Ok(_) => println!("Stream EMAILS ready"),
-        Err(e) => println!("Stream warning: {}", e),
+        Err(e) => println!("Stream warning: {e}"),
     }
 
     // Create test email job using the actual EmailJob type

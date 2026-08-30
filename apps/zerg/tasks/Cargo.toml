@@ -1,8 +1,10 @@
 [package]
 name = "zerg_tasks"
 publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.1"
-edition = "2024"
+edition.workspace = true
 
 [[bin]]
 name = "zerg_tasks"
@@ -13,9 +15,9 @@ chrono = { workspace = true }
 contract_tasks = { workspace = true }
 core_config = { workspace = true }
 database = { workspace = true, features = ["config"] }
-domain_tasks = { path = "../../../libs/domains/tasks" }
+domain_tasks = { workspace = true }
 eyre = { workspace = true }
-grpc-client = { path = "../../../libs/core/grpc", features = ["server"] }
+grpc-client = { workspace = true, features = ["server"] }
 oidc-auth = { workspace = true }
 rpc = { workspace = true }
 serde_json = { workspace = true }
@@ -28,3 +30,6 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 parking_lot = { workspace = true }
+
+[lints]
+workspace = true

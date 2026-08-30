@@ -1,8 +1,8 @@
 [package]
 name = "devenv-sdk"
 publish = false
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
 k8s-openapi = { workspace = true }
@@ -13,3 +13,6 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,8 +1,8 @@
 [package]
 name = "database"
 publish = false
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [features]
 default = ["postgres", "redis"]
@@ -31,4 +31,7 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
-temp-env = "0.3"
+temp-env = { workspace = true }
+
+[lints]
+workspace = true

@@ -16,10 +16,10 @@ pre-commit:
       glob: "*.rs"
       run: cargo fmt -- --check
 
-    # Rust linting
+    # Rust linting (--all-targets so tests/benches are linted too, as `just lint-rust` does)
     clippy:
       glob: "*.rs"
-      run: cargo clippy --workspace -- -D warnings
+      run: cargo clippy --workspace --all-targets -- -D warnings
 
     # Schema diagram generation (only when entities change)
     schema-gen:
@@ -30,20 +30,18 @@ pre-commit:
 pre-push:
   parallel: true
   commands:
-    # Rust tests
+    # Rust tests (nextest, matching `just test-rust`)
     cargo-test:
-      run: cargo test --workspace
+      run: cargo nextest run --workspace
 
-    # Nx affected checks
-    nx-affected-lint:
-      run: bun nx affected --target=lint --base=origin/main
+    # Web lint: read-only, like CI. The per-app `lint` scripts are `biome check
+    # --write` (mutating), so they must never run as a gate.
+    biome-ci:
+      run: bunx biome ci .
 
-    nx-affected-build:
-      run: bun nx affected --target=build --base=origin/main
-
-    # Security audit
+    # Security audit — must load the workspace policy (ignores + license allowlist)
     cargo-deny:
-      run: cargo deny check
+      run: cargo deny check --config .cargo/deny.toml
 
 # Post-checkout: Sync after switching branches
 post-checkout:

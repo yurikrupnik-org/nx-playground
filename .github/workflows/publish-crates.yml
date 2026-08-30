@@ -26,8 +26,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
+      # Keep in sync with `published_crates` in scripts/just/rust.just
       CRATES: >-
-        -p core_config -p core_retry -p field-selector -p oidc-auth
+        -p core_config -p core_retry -p core_strings -p field-selector -p oidc-auth
         -p api_resource -p sea_orm_resource -p selectable_fields
         -p core_proc_macros -p axum-helpers
     steps:

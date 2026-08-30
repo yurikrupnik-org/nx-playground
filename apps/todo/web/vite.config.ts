@@ -2,7 +2,10 @@ import path from 'node:path';
 import solidPlugin from '@solidjs/vite-plugin';
 import { defineConfig } from 'vitest/config';
 
-export default defineConfig({
+// `command` gates the `development` export condition: solid-js resolves
+// `browser.development` to `dist/dev.js` (reactivity warnings, debug hooks), so
+// applying it unconditionally shipped that dev runtime in production builds.
+export default defineConfig(({ command }) => ({
   plugins: [solidPlugin()],
   server: {
     port: 3100,
@@ -22,10 +25,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ['./vitest.setup.ts'],
     watch: false,
   },
   resolve: {
-    conditions: ['development', 'browser'],
+    conditions: command === 'serve' ? ['development', 'browser'] : ['browser'],
     alias: {
       '@domain/todo': path.resolve(
         import.meta.dirname,
@@ -33,4 +37,4 @@ export default defineConfig({
       ),
     },
   },
-});
+}));

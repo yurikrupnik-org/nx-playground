@@ -1,8 +1,10 @@
 [package]
 name = "terran_api"
 publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 
 [dependencies]
 axum = { workspace = true }
@@ -10,11 +12,17 @@ axum-helpers = { workspace = true }
 chrono = { workspace = true }
 color-eyre = { workspace = true }
 core_config = { workspace = true }
+# Not `workspace = true`: terran needs redis only (it talks to Postgres through
+# sqlx directly), and cargo forbids an inherited dep from turning off the
+# workspace entry's default features.
 database = { path = "../../../libs/database", default-features = false, features = ["redis"] }
+# `k8s`: the read-only, cluster-observed cloud inventory (`/api/cloud-resources`).
+domain_cloud_resources = { workspace = true, features = ["k8s"] }
 eyre = { workspace = true }
 oidc-auth = { workspace = true }
 redis = { workspace = true }
 #rig = { version = "0.38.2", features = ["gemini-grpc", "bedrock","neo4j", "mongodb", "postgres", "rayon", "qdrant", "vertexai"]}
+rustls = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls"] }
@@ -32,3 +40,6 @@ tokio = { workspace = true }
 tower = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true }
+
+[lints]
+workspace = true

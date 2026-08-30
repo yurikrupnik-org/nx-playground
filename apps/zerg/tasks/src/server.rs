@@ -87,12 +87,14 @@ pub async fn run() -> Result<()> {
     // Build and start server
     let addr = server_config.socket_addr();
 
-    Server::builder()
-        .add_service(health_service)
-        .add_service(tasks_grpc)
-        .serve(addr)
-        .await
-        .wrap_err("gRPC server failed")?;
+    GrpcServer::serve_with_shutdown(
+        addr,
+        Server::builder()
+            .add_service(health_service)
+            .add_service(tasks_grpc),
+    )
+    .await
+    .wrap_err("gRPC server failed")?;
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 //! Job trait for background job processing.
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 /// A job that can be processed by a worker.

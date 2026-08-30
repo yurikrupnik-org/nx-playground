@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use eyre::{bail, eyre, Result};
+use eyre::{Result, bail, eyre};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Default)]
@@ -237,11 +237,7 @@ pub fn resolve_placeholders(pattern: &str, project_root: &str) -> String {
         .replace("{workspaceRoot}/", "")
         .replace("{workspaceRoot}", ".")
         .replace("{projectRoot}", project_root);
-    if s.is_empty() {
-        ".".into()
-    } else {
-        s
-    }
+    if s.is_empty() { ".".into() } else { s }
 }
 
 #[cfg(test)]

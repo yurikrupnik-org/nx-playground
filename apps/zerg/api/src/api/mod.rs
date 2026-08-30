@@ -137,6 +137,7 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         router.nest(
             "/vector",
             vector_router
+                .layer(tenant_mw())
                 .layer(rl_layer())
                 .layer(Extension(vector_tier))
                 .layer(auth_mw())

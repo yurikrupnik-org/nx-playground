@@ -12,7 +12,8 @@
       "!**/libs/**/types",
       "!docs/openapi",
       "!manifests",
-      "!.claude"
+      "!.claude",
+      "!**/web-htmx/assets"
     ]
   },
   "formatter": {

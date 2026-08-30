@@ -3,7 +3,7 @@
 
 use async_nats::jetstream::Context;
 use async_trait::async_trait;
-use messaging::nats::{stream_config_for, NatsProducer, StreamConfig, StreamKind};
+use messaging::nats::{NatsProducer, StreamConfig, StreamKind, stream_config_for};
 
 use crate::error::{TodoError, TodoResult};
 use crate::events::{TodoEvent, TodoEventPublisher};

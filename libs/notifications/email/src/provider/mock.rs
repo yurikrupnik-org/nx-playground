@@ -3,8 +3,8 @@
 use super::{EmailProvider, ProviderError, SendResult};
 use crate::models::Email;
 use async_trait::async_trait;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Mock email provider that captures sent emails
 #[derive(Default)]
@@ -113,10 +113,12 @@ mod tests {
         let email = Email::new("test@example.com", "Test Subject").with_text("Test body");
 
         let result = provider.send(&email).await;
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Simulated failure"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Simulated failure")
+        );
     }
 
     #[tokio::test]

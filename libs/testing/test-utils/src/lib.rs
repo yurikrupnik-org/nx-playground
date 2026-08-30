@@ -174,14 +174,13 @@ pub mod assertions {
     pub fn assert_uuid_eq(actual: Uuid, expected: Uuid, context: &str) {
         assert_eq!(
             actual, expected,
-            "{}: expected UUID {}, got {}",
-            context, expected, actual
+            "{context}: expected UUID {expected}, got {actual}"
         );
     }
 
     /// Assert that an optional value is Some
     pub fn assert_some<T>(value: Option<T>, context: &str) -> T {
-        value.unwrap_or_else(|| panic!("{}: expected Some, got None", context))
+        value.unwrap_or_else(|| panic!("{context}: expected Some, got None"))
     }
 }
 

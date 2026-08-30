@@ -1,13 +1,13 @@
 //! NATS JetStream consumer for receiving jobs.
 
+use crate::Job;
 use crate::nats::config::{StreamKind, WorkerConfig};
 use crate::nats::error::NatsError;
-use crate::Job;
-use async_nats::jetstream::consumer::pull::Config as ConsumerConfig;
+use async_nats::jetstream::Context;
 use async_nats::jetstream::consumer::AckPolicy;
+use async_nats::jetstream::consumer::pull::Config as ConsumerConfig;
 use async_nats::jetstream::stream::Config as StreamConfig;
 use async_nats::jetstream::stream::RetentionPolicy;
-use async_nats::jetstream::Context;
 use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Duration;

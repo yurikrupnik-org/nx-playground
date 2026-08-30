@@ -1,14 +1,14 @@
 //! Dead Letter Queue management for NATS.
 
+use crate::Job;
 use crate::nats::consumer::StreamInfo;
 use crate::nats::error::NatsError;
-use crate::Job;
-use async_nats::jetstream::consumer::pull::Config as PullConsumerConfig;
-use async_nats::jetstream::consumer::DeliverPolicy;
-use async_nats::jetstream::stream::{Config as StreamConfig, RetentionPolicy};
 use async_nats::jetstream::Context;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use async_nats::jetstream::consumer::DeliverPolicy;
+use async_nats::jetstream::consumer::pull::Config as PullConsumerConfig;
+use async_nats::jetstream::stream::{Config as StreamConfig, RetentionPolicy};
 use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::Utc;
 use futures::StreamExt as _;
 use serde::{Deserialize, Serialize};

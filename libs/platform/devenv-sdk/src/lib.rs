@@ -65,6 +65,72 @@ pub struct Connection {
     pub nats_url: Option<String>,
 }
 
+/// Postgres parameters. Omitted fields fall back to the XRD defaults
+/// (`instances: 1`, `storageGB: 1`) rather than being sent as null.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PostgresSpec {
+    /// 1..=3 per the XRD; `None` leaves the default.
+    pub instances: Option<u8>,
+    /// 1..=20 GB per the XRD; `None` leaves the default.
+    pub storage_gb: Option<u8>,
+}
+
+/// NATS parameters.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NatsSpec {
+    /// `None` leaves the XRD default (enabled).
+    pub jetstream: Option<bool>,
+}
+
+/// What to ask the platform for. `None` disables a component; `Some(spec)` enables
+/// it with those parameters.
+#[derive(Debug, Clone, Copy)]
+pub struct DevEnvSpec {
+    pub postgres: Option<PostgresSpec>,
+    pub redis: bool,
+    pub nats: Option<NatsSpec>,
+}
+
+impl Default for DevEnvSpec {
+    /// Everything on, all parameters at their XRD defaults.
+    fn default() -> Self {
+        Self {
+            postgres: Some(PostgresSpec::default()),
+            redis: true,
+            nats: Some(NatsSpec::default()),
+        }
+    }
+}
+
+impl DevEnvSpec {
+    /// Render `spec.parameters`. Only fields the caller set are emitted, so a
+    /// default spec produces exactly the boolean-only body used before.
+    fn parameters(&self) -> Value {
+        let mut postgres = json!({ "enabled": self.postgres.is_some() });
+        if let Some(pg) = self.postgres {
+            if let Some(instances) = pg.instances {
+                postgres["instances"] = json!(instances);
+            }
+            if let Some(storage_gb) = pg.storage_gb {
+                postgres["storageGB"] = json!(storage_gb);
+            }
+        }
+
+        let mut nats = json!({ "enabled": self.nats.is_some() });
+        if let Some(spec) = self.nats
+            && let Some(jetstream) = spec.jetstream
+        {
+            nats["jetstream"] = json!(jetstream);
+        }
+
+        json!({
+            "postgres": postgres,
+            "redis": { "enabled": self.redis },
+            "nats": nats,
+        })
+    }
+}
+
 pub struct DevEnvClient {
     client: Client,
 }
@@ -92,25 +158,25 @@ impl DevEnvClient {
         Api::namespaced_with(self.client.clone(), namespace, &ar)
     }
 
+    /// Build the claim body for `spec`. Split out so tests can assert the wire
+    /// shape without a cluster.
+    fn claim_body(name: &str, namespace: &str, spec: &DevEnvSpec) -> Value {
+        json!({
+            "apiVersion": format!("{GROUP}/{VERSION}"),
+            "kind": KIND,
+            "metadata": { "name": name, "namespace": namespace },
+            "spec": { "parameters": spec.parameters() }
+        })
+    }
+
     /// Idempotently create/update a claim (server-side apply).
     pub async fn create(
         &self,
         name: &str,
         namespace: &str,
-        postgres: bool,
-        redis: bool,
-        nats: bool,
+        spec: &DevEnvSpec,
     ) -> Result<(), Error> {
-        let claim = json!({
-            "apiVersion": format!("{GROUP}/{VERSION}"),
-            "kind": KIND,
-            "metadata": { "name": name, "namespace": namespace },
-            "spec": { "parameters": {
-                "postgres": { "enabled": postgres },
-                "redis": { "enabled": redis },
-                "nats": { "enabled": nats },
-            }}
-        });
+        let claim = Self::claim_body(name, namespace, spec);
         self.api(namespace)
             .patch(
                 name,
@@ -210,5 +276,64 @@ fn rename_keys(v: Value) -> Value {
                 .collect(),
         ),
         other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Wire-shape tests: the claim must match the XRD (`platform/dev-env/xrd.yaml`)
+    //! and must not send nulls for parameters the caller left unset.
+
+    use super::*;
+
+    #[test]
+    fn default_spec_sends_only_enabled_flags() {
+        let body = DevEnvClient::claim_body("dev", "team-a", &DevEnvSpec::default());
+
+        assert_eq!(
+            body["spec"]["parameters"],
+            json!({
+                "postgres": { "enabled": true },
+                "redis": { "enabled": true },
+                "nats": { "enabled": true },
+            }),
+            "a default spec must stay byte-identical to the pre-parameters claim"
+        );
+        assert_eq!(body["metadata"]["namespace"], "team-a");
+    }
+
+    #[test]
+    fn postgres_and_jetstream_parameters_reach_the_claim() {
+        let spec = DevEnvSpec {
+            postgres: Some(PostgresSpec {
+                instances: Some(2),
+                storage_gb: Some(5),
+            }),
+            redis: true,
+            nats: Some(NatsSpec {
+                jetstream: Some(false),
+            }),
+        };
+
+        let params = DevEnvClient::claim_body("dev", "team-a", &spec)["spec"]["parameters"].clone();
+
+        assert_eq!(params["postgres"]["instances"], 2);
+        assert_eq!(params["postgres"]["storageGB"], 5);
+        assert_eq!(params["nats"]["jetstream"], false);
+    }
+
+    #[test]
+    fn disabled_components_are_reported_as_disabled_without_parameters() {
+        let spec = DevEnvSpec {
+            postgres: None,
+            redis: false,
+            nats: None,
+        };
+
+        let params = DevEnvClient::claim_body("dev", "team-a", &spec)["spec"]["parameters"].clone();
+
+        assert_eq!(params["postgres"], json!({ "enabled": false }));
+        assert_eq!(params["redis"], json!({ "enabled": false }));
+        assert_eq!(params["nats"], json!({ "enabled": false }));
     }
 }

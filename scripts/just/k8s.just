@@ -1,9 +1,10 @@
 # Kubernetes operator installs (CNPG, Atlas, Crossplane) — imported by the root justfile.
 
+# Composition functions (shared by all XRDs) — see platform/functions.yaml
 [group('k8s-operators')]
 crossplane-functions-install:
-    echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-kcl\nspec:\n  package: docker.io/kcllang/function-kcl:latest' | kubectl apply -f -
-    echo 'apiVersion: pkg.crossplane.io/v1beta1\nkind: Function\nmetadata:\n  name: function-cue\nspec:\n  package: docker.io/crossplane-contrib/function-cue:latest' | kubectl apply -f -
+    kubectl apply -f platform/functions.yaml
+    kubectl wait --for=condition=Healthy --timeout=300s function.pkg.crossplane.io/function-kcl function.pkg.crossplane.io/function-auto-ready
 
 # Install CNPG operator (using server-side apply for large CRDs)
 [group('k8s-operators')]

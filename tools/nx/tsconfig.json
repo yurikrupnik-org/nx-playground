@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "butler-config.ts",
+    "plugin.ts",
+    "tilt-targets.ts",
+    "rust-targets.ts",
+    "container-targets.ts",
+    "k8s-targets.ts"
+  ]
+}

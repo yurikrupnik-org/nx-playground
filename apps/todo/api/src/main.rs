@@ -1,26 +1,29 @@
 //! Standalone Todo REST API.
 //!
-//! - Owns a Postgres connection (SeaORM) and bootstraps the `todos` schema.
+//! - Owns a Postgres connection (SeaORM) over the `todos` schema (migrations are
+//!   applied out of band: `just migrate todo`, or the Atlas operator in-cluster).
 //! - Serves the `domain_todo` router under `/api/todos`.
 //! - Publishes lifecycle events to NATS JetStream (`todos.>`) when reachable;
 //!   degrades to a no-op publisher otherwise (events must not block the API).
-//! - Fans the same events out to browsers over SSE (`/api/events/sse`) and
-//!   WebSocket (`/api/events/ws`) via an in-process broadcast channel.
+//! - Streams **database-sourced** changes to browsers over SSE
+//!   (`/api/events/sse`) and WebSocket (`/api/events/ws`): a Postgres trigger
+//!   NOTIFYs on every committed write and `domain_todo::db_events` fans it out,
+//!   so UIs stay correct regardless of which process made the change.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use axum_helpers::{create_app, create_permissive_cors_layer};
 use config::AppConfig;
-use core_config::{app_info, FromEnv};
+use core_config::{FromEnv, app_info};
 use domain_todo::{
-    open_cache_bucket, CachedTodoRepository, NatsTodoPublisher, NoopTodoPublisher,
-    PgTodoRepository, TodoEventPublisher, TodoService,
+    CachedTodoRepository, NatsTodoPublisher, NoopTodoPublisher, PgTodoRepository,
+    TodoEventPublisher, TodoService, open_cache_bucket,
 };
 use eyre::{Result, WrapErr};
 use tower_http::trace::TraceLayer;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 mod config;
 mod events;
@@ -83,12 +86,28 @@ async fn main() -> Result<()> {
         None => None,
     };
 
+    // Two decorators over the same pool and KV store: one for the request path,
+    // one for the change listener. They hold only shared handles, so this is a
+    // cheap way to give the listener its own reference without an API change.
+    let listener_repository =
+        CachedTodoRepository::with_kv(PgTodoRepository::new(db.clone()), cache_kv.clone());
     let repository = CachedTodoRepository::with_kv(PgTodoRepository::new(db.clone()), cache_kv);
 
-    // Tee events into the in-process bus feeding the SSE/WS routes.
+    // Realtime bus. The producer is the DATABASE: `db_events::listen` turns the
+    // `todos_notify` trigger's NOTIFY into TodoEvents, so writes from any process
+    // (or a plain psql session) reach every connected browser. The service keeps
+    // publishing to NATS for todo-worker; it no longer feeds the browser bus.
     let event_tx = events::channel();
-    let publisher: Arc<dyn TodoEventPublisher> =
-        Arc::new(events::BroadcastTodoPublisher::new(publisher, event_tx.clone()));
+    let listener_pool = db.get_postgres_connection_pool().clone();
+    let listener_tx = event_tx.clone();
+    tokio::spawn(async move {
+        if let Err(e) =
+            domain_todo::db_events::listen(&listener_pool, &listener_repository, listener_tx).await
+        {
+            error!(error = %e, "todo database change listener stopped; realtime UI is stale");
+        }
+    });
+
     let service = TodoService::new(repository, publisher);
 
     let app = Router::new()

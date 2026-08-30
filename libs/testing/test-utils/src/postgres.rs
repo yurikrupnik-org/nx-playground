@@ -54,10 +54,8 @@ impl TestDatabase {
             .await
             .expect("Failed to get host port");
 
-        let connection_string = format!(
-            "postgres://postgres:postgres@127.0.0.1:{}/postgres",
-            host_port
-        );
+        let connection_string =
+            format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
 
         // Connect to database
         let connection = Database::connect(&connection_string)
@@ -145,7 +143,7 @@ impl TestDatabase {
         // Execute each migration
         for path in migrations {
             let sql = std::fs::read_to_string(&path)
-                .unwrap_or_else(|_| panic!("Failed to read SQL source: {:?}", path));
+                .unwrap_or_else(|_| panic!("Failed to read SQL source: {path:?}"));
 
             tracing::debug!("Running migration: {:?}", path.file_name());
 
@@ -313,8 +311,7 @@ impl TestDatabase {
     /// references to the users table.
     pub async fn create_test_user(&self, user_id: uuid::Uuid) -> uuid::Uuid {
         let query = format!(
-            "INSERT INTO users (id, email, name) VALUES ('{}', 'test-{}@example.com', 'Test User {}') ON CONFLICT (id) DO NOTHING",
-            user_id, user_id, user_id
+            "INSERT INTO users (id, email, name) VALUES ('{user_id}', 'test-{user_id}@example.com', 'Test User {user_id}') ON CONFLICT (id) DO NOTHING"
         );
         self.connection
             .execute_unprepared(&query)

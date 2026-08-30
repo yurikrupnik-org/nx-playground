@@ -1,13 +1,8 @@
-import type { TodoEvent, TodoEventKind } from '@domain/todo';
+import type { TodoEvent } from '@domain/todo';
 import { createSignal, For, onCleanup, Show } from 'solid-js';
 
-const EVENT_KINDS: TodoEventKind[] = [
-  'created',
-  'updated',
-  'completed',
-  'uncompleted',
-  'deleted',
-];
+import { subscribeToTodoEvents, todoEventsWebSocketUrl } from './lib/realtime';
+
 const MAX_ITEMS = 20;
 
 type Transport = 'sse' | 'ws';
@@ -50,23 +45,18 @@ export function EventFeed() {
 
   // Connections live for the component's lifetime (body runs once in Solid;
   // `onMount` was removed in 2.0 and no DOM access is needed here).
-  // --- SSE: one listener per named event kind ---
-  const source = new EventSource('/api/events/sse');
-  source.onopen = () => setSseStatus('open');
-  source.onerror = () => setSseStatus('closed');
-  for (const kind of EVENT_KINDS) {
-    source.addEventListener(kind, (event) => {
-      const data = JSON.parse(event.data) as TodoEvent;
-      push('sse', `${data.kind}: ${data.todo?.title ?? data.todo_id}`);
-    });
-  }
-  source.addEventListener('lagged', (event) => {
-    push('sse', `lagged: dropped ${event.data} events`);
-  });
+  // --- SSE: the page-wide subscription, shared with the list view ---
+  const unsubscribe = subscribeToTodoEvents(
+    (event) =>
+      push('sse', `${event.kind}: ${event.todo?.title ?? event.todo_id}`),
+    {
+      onOpen: () => setSseStatus('open'),
+      onError: () => setSseStatus('closed'),
+    },
+  );
 
   // --- WebSocket: todo events + echo replies as text frames ---
-  const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const socket = new WebSocket(`${wsProtocol}//${location.host}/api/events/ws`);
+  const socket = new WebSocket(todoEventsWebSocketUrl());
   socket.onopen = () => setWsStatus('open');
   socket.onclose = () => setWsStatus('closed');
   socket.onmessage = (event) => {
@@ -80,7 +70,7 @@ export function EventFeed() {
   };
 
   onCleanup(() => {
-    source.close();
+    unsubscribe();
     socket.close();
   });
 

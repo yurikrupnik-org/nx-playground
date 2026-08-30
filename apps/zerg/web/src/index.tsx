@@ -10,11 +10,9 @@ import {
   RouterProvider,
 } from '@tanstack/solid-router';
 import { render } from 'solid-js/web';
-import 'solid-devtools';
 
-import { ProtectedRoute } from './components/protected-route';
 import { UserMenu } from './components/user-menu';
-import { AuthProvider } from './lib/auth-context';
+import { AuthProvider, ProtectedRoute } from './lib/auth';
 import { LoginPage } from './pages/login';
 import { RegisterPage } from './pages/register';
 import { RegistriesPage } from './pages/registries';

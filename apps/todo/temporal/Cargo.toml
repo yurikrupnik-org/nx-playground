@@ -1,8 +1,10 @@
 [package]
 name = "todo_temporal"
 publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 description = "Todo lifecycle on Temporal: workflow-as-entity worker + starter, publishing todos.> events to NATS JetStream"
 
 [lib]
@@ -19,7 +21,7 @@ path = "src/starter.rs"
 [dependencies]
 chrono = { workspace = true }
 core_config = { workspace = true }
-domain_todo = { path = "../../../libs/domains/todo" }
+domain_todo = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
 messaging = { workspace = true, features = ["nats"] }
@@ -32,3 +34,6 @@ temporalio-workflow = { workspace = true }
 tokio = { workspace = true, features = ["full", "signal"] }
 tracing = { workspace = true }
 uuid = { workspace = true }
+
+[lints]
+workspace = true

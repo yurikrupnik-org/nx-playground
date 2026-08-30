@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/solid-query';
 import { createSignal, createUniqueId, For, Show } from 'solid-js';
 import { orgApi } from '../lib/api-client';
-import { useAuth } from '../lib/auth-context';
+import { useAuth } from '../lib/auth';
 
 export function SettingsPage() {
   const auth = useAuth();

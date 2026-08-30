@@ -19,14 +19,14 @@
 
 #![cfg(feature = "nats")]
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use async_nats::jetstream::consumer::pull::Config as PullConfig;
 use futures::StreamExt;
 use messaging::nats::{
-    stream_config_for, DlqEntry, DlqPayload, NatsWorker, StreamKind, WorkerConfig,
+    DlqEntry, DlqPayload, NatsWorker, StreamKind, WorkerConfig, stream_config_for,
 };
 use messaging::{Job, ProcessingError, Processor};
 use serde::{Deserialize, Serialize};
@@ -113,10 +113,9 @@ async fn run_worker(
 
 /// Read every entry currently in the DLQ stream.
 async fn dlq_entries(js: &async_nats::jetstream::Context) -> Vec<DlqEntry> {
-    let stream = match js.get_stream(DLQ).await {
-        Ok(stream) => stream,
-        // No DLQ stream at all is the pre-fix failure mode, reported as "0 entries".
-        Err(_) => return Vec::new(),
+    // No DLQ stream at all is the pre-fix failure mode, reported as "0 entries".
+    let Ok(stream) = js.get_stream(DLQ).await else {
+        return Vec::new();
     };
 
     let consumer = stream
@@ -280,8 +279,8 @@ async fn poison_message_is_captured_not_dropped() {
 
     match &entry.payload {
         DlqPayload::Raw { base64 } => {
-            use base64::engine::general_purpose::STANDARD;
             use base64::Engine as _;
+            use base64::engine::general_purpose::STANDARD;
             let decoded = STANDARD.decode(base64).expect("valid base64");
             assert_eq!(
                 decoded, garbage,

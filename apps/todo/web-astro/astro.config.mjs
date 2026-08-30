@@ -13,4 +13,12 @@ export default defineConfig({
   adapter: node({ mode: 'standalone' }),
   integrations: [solid()],
   server: { port: 3200 },
+  vite: {
+    ssr: {
+      // N-API addon: rollup cannot inline a `.node` binary, and it must stay a
+      // runtime `require` resolved from node_modules. Server-only by nature —
+      // nothing here reaches the browser bundle.
+      external: ['@native/field-selector'],
+    },
+  },
 });

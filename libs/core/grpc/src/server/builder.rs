@@ -113,6 +113,56 @@ impl GrpcServer {
 
         info!(services = ?service_names, "Services marked as serving");
     }
+
+    /// Serve until SIGTERM/SIGINT, then stop accepting and let in-flight RPCs finish.
+    ///
+    /// Without this a `serve()` future only ends on error, so a pod deletion (SIGTERM)
+    /// kills the process mid-RPC. Mirrors what `axum_helpers::server` does for the
+    /// HTTP services.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// GrpcServer::serve_with_shutdown(
+    ///     config.socket_addr(),
+    ///     Server::builder().add_service(health_service).add_service(my_service),
+    /// )
+    /// .await?;
+    /// ```
+    pub async fn serve_with_shutdown(
+        addr: std::net::SocketAddr,
+        router: tonic::transport::server::Router,
+    ) -> Result<(), tonic::transport::Error> {
+        router.serve_with_shutdown(addr, shutdown_signal()).await
+    }
+}
+
+/// Resolves on the first SIGTERM (orchestrator stop) or SIGINT (Ctrl-C).
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(e) => {
+                tracing::error!("failed to install SIGTERM handler: {e}");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => info!("SIGINT received, shutting down gRPC server"),
+        () = terminate => info!("SIGTERM received, shutting down gRPC server"),
+    }
 }
 
 // Re-export health_reporter for convenience

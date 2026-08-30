@@ -4,8 +4,8 @@ use email::models::{Email, EmailPriority};
 use email::provider::{EmailProvider, MockSmtpProvider};
 use email::templates::{EmailTemplate, InMemoryTemplateStore, TemplateStore};
 use email::{EmailJob, EmailNatsStream, EmailProcessor, EmailType, TemplateEngine};
-use messaging::nats::StreamConfig;
 use messaging::Processor;
+use messaging::nats::StreamConfig;
 use serde_json::json;
 
 mod template_tests {

@@ -4,7 +4,7 @@ import { Link } from '@tanstack/solid-router';
 import { createSignal, createUniqueId, For, Show } from 'solid-js';
 import type { CreateTaskInput } from '../lib/api-client';
 import { tasksApi } from '../lib/api-client';
-import { useAuth } from '../lib/auth-context';
+import { useAuth } from '../lib/auth';
 
 export function TasksListPage() {
   const queryClient = useQueryClient();

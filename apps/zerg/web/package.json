@@ -1,13 +1,14 @@
 {
-  "name": "vite-template-solid",
+  "name": "zerg-web",
   "version": "0.0.1",
-  "description": "",
+  "description": "SolidJS SPA for the zerg vertical (BFF against zerg-api).",
   "type": "module",
   "scripts": {
-    "start": "vite",
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
     "lint": "biome check --write ."
   },
   "license": "MIT",

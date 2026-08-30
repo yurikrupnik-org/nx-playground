@@ -1,13 +1,14 @@
 {
   "name": "terran-web",
   "version": "0.0.1",
-  "description": "terran web — enterprise observability platform UI",
+  "description": "terran web \u2014 enterprise observability platform UI",
   "type": "module",
   "scripts": {
-    "start": "vite",
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
     "lint": "biome check --write ."
   },
   "license": "MIT",
@@ -26,9 +27,6 @@
   "dependencies": {
     "@tanstack/solid-query": "^5.101.4",
     "@tanstack/solid-router": "^1.170.27",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "solid-js": "^1.9.14",
-    "tailwind-merge": "^3.6.0"
+    "solid-js": "^1.9.14"
   }
 }

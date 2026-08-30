@@ -46,15 +46,14 @@ utoipa-scalar.workspace = true
 utoipa-swagger-ui.workspace = true
 uuid.workspace = true
 validator.workspace = true
-anyhow = "1.0.104"
 
 [dev-dependencies]
 # HTTP client for examples/http_service.rs, which exercises the router over a
 # real socket. tests/examples_it.rs runs that example as a process.
 reqwest = { workspace = true }
-temp-env = "0.3"
+temp-env = { workspace = true }
 test-utils = { workspace = true, features = ["redis"] }
-tokio-test = "0.4"
+tokio-test = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 
 [lints]

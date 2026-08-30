@@ -3,19 +3,32 @@
   "targetDefaults": {
     "build": {
       "cache": true,
-      "outputs": ["{projectRoot}/dist"]
+      "outputs": ["{projectRoot}/dist"],
+      "inputs": ["production", "^production"]
     },
     "lint": {
       "cache": true
     },
     "test": {
       "cache": true
+    },
+    "typecheck": {
+      "cache": true
     }
   },
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
-    "production": ["default"],
-    "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
+    "default": [
+      "{projectRoot}/**/*",
+      "!{projectRoot}/dist/**/*",
+      "!{projectRoot}/node_modules/**/*",
+      "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.{test,spec}.{ts,tsx}",
+      "!{projectRoot}/vitest.setup.ts"
+    ],
+    "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci-optimized.yml"]
   },
   "nxCloudId": "6928516e8756394e71566e68",
   "plugins": [
@@ -26,7 +39,8 @@
         "defaultEngine": "docker",
         "defaultRegistry": "docker.io"
       }
-    }
+    },
+    "./tools/nx/plugin.ts"
   ],
   "analytics": true
 }

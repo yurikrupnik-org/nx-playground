@@ -29,23 +29,49 @@ def _api():
     return client.CustomObjectsApi(), client.CoreV1Api()
 
 
-def _claim_body(name, postgres, redis, nats):
+def _claim_body(name, postgres, redis, nats, instances, storage_gb, jetstream):
+    """Render the claim. Optional parameters are omitted when None so the XRD's
+    own defaults apply (see platform/dev-env/xrd.yaml)."""
+    pg = {"enabled": bool(postgres)}
+    if postgres:
+        if instances is not None:
+            pg["instances"] = int(instances)
+        if storage_gb is not None:
+            pg["storageGB"] = int(storage_gb)
+
+    nats_params = {"enabled": bool(nats)}
+    if nats and jetstream is not None:
+        nats_params["jetstream"] = bool(jetstream)
+
     return {
         "apiVersion": f"{GROUP}/{VERSION}",
         "kind": KIND,
         "metadata": {"name": name},
         "spec": {
             "parameters": {
-                "postgres": {"enabled": bool(postgres)},
+                "postgres": pg,
                 "redis": {"enabled": bool(redis)},
-                "nats": {"enabled": bool(nats)},
+                "nats": nats_params,
             }
         },
     }
 
 
-def create(name, namespace="default", postgres=True, redis=True, nats=True):
-    """Server-side apply the DevEnvironment claim. Idempotent."""
+def create(
+    name,
+    namespace="default",
+    postgres=True,
+    redis=True,
+    nats=True,
+    instances=None,
+    storage_gb=None,
+    jetstream=None,
+):
+    """Server-side apply the DevEnvironment claim. Idempotent.
+
+    `instances` (1-3) and `storage_gb` (1-20) size postgres; `jetstream` toggles
+    NATS JetStream. Leave them None to take the XRD defaults.
+    """
     custom, _ = _api()
     return custom.patch_namespaced_custom_object(
         GROUP,
@@ -53,7 +79,7 @@ def create(name, namespace="default", postgres=True, redis=True, nats=True):
         namespace,
         PLURAL,
         name,
-        _claim_body(name, postgres, redis, nats),
+        _claim_body(name, postgres, redis, nats, instances, storage_gb, jetstream),
         field_manager=FIELD_MANAGER,
         force=True,
         _content_type="application/apply-patch+yaml",

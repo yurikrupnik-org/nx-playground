@@ -4,7 +4,7 @@
 //! workspace `AppConfig: FromEnv` pattern: load once in `run`, thread the struct
 //! through, and never read the environment anywhere else.
 
-use core_config::{env_or_default, ConfigError, Environment, FromEnv};
+use core_config::{ConfigError, Environment, FromEnv, env_or_default};
 
 /// Default health-probe port (overridable via `TODO_WORKER_HEALTH_PORT`, then `HEALTH_PORT`).
 const DEFAULT_HEALTH_PORT: u16 = 8091;

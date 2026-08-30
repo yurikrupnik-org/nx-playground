@@ -1,8 +1,16 @@
 [package]
 name = "domain_cloud_resources"
 publish = false
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+
+[features]
+# Cluster-observed inventory (`observed` module). Off by default: the postgres
+# CRUD consumers (zerg api) pull no kube dependency.
+# `k8s-openapi` carries no code we use — it is kube's transitive dependency and
+# needs a `v1_*` version feature enabled by a non-library crate (workspace dep
+# pins v1_33, same as libs/platform/devenv-sdk).
+k8s = ["dep:k8s-openapi", "dep:kube"]
 
 [dependencies]
 async-trait = { workspace = true }
@@ -12,6 +20,8 @@ chrono = { workspace = true }
 core_proc_macros = { workspace = true, features = ["sea_orm_resource"] }
 database = { workspace = true }
 domain_projects = { workspace = true }
+k8s-openapi = { workspace = true, optional = true }
+kube = { workspace = true, optional = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -8,9 +8,18 @@ use crate::models::{CreateProject, Project, ProjectFilter, ProjectStatus, Update
 use crate::repository::ProjectRepository;
 
 /// Service layer for Project business logic
-#[derive(Clone)]
 pub struct ProjectService<R: ProjectRepository> {
     repository: Arc<R>,
+}
+
+/// Hand-written so cloning only bumps the `Arc`; `derive(Clone)` would demand
+/// `R: Clone`, which repositories (DB handles) have no reason to be.
+impl<R: ProjectRepository> Clone for ProjectService<R> {
+    fn clone(&self) -> Self {
+        Self {
+            repository: Arc::clone(&self.repository),
+        }
+    }
 }
 
 impl<R: ProjectRepository> ProjectService<R> {

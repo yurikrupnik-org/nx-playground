@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use eyre::{bail, eyre, Result};
+use eyre::{Result, bail, eyre};
 
 use crate::config::{ResolvedTarget, TargetConfig};
 
@@ -17,6 +17,8 @@ pub struct Project {
     pub targets: BTreeMap<String, TargetConfig>,
     /// Names of workspace projects this project depends on.
     pub deps: BTreeSet<String>,
+    /// `deps` minus dev-dependencies: what actually feeds a shipped artifact.
+    pub build_deps: BTreeSet<String>,
 }
 
 #[derive(Debug, Default)]
@@ -57,6 +59,25 @@ impl ProjectGraph {
             }
         }
         out
+    }
+
+    /// Transitive non-dev dependency closure of `name`, excluding `name` itself.
+    /// This is what makes a generated `docker_build(only=...)` tight: only the
+    /// crates that actually feed the binary enter the build context.
+    pub fn transitive_build_deps(&self, name: &str) -> Result<BTreeSet<String>> {
+        let mut out: BTreeSet<String> = BTreeSet::new();
+        let mut queue: VecDeque<String> = self.get(name)?.build_deps.iter().cloned().collect();
+        while let Some(dep) = queue.pop_front() {
+            if !out.insert(dep.clone()) {
+                continue;
+            }
+            // A dep may be an external/undiscovered name; skip rather than fail.
+            if let Some(p) = self.projects.get(&dep) {
+                queue.extend(p.build_deps.iter().cloned());
+            }
+        }
+        out.remove(name);
+        Ok(out)
     }
 
     /// Map a changed file to the owning project (longest matching root).
@@ -226,6 +247,7 @@ mod tests {
             tags: vec![],
             targets: map,
             deps: deps.iter().map(|d| (*d).to_string()).collect(),
+            build_deps: deps.iter().map(|d| (*d).to_string()).collect(),
         }
     }
 

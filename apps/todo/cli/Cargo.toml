@@ -1,8 +1,10 @@
 [package]
 name = "todo_cli"
 publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 description = "Todo CLI: manages todos in a NATS JetStream KV bucket and publishes todos.> lifecycle events"
 
 [lib]
@@ -17,7 +19,7 @@ async-nats = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 core_config = { workspace = true }
-domain_todo = { path = "../../../libs/domains/todo" }
+domain_todo = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
 messaging = { workspace = true, features = ["nats"] }
@@ -28,3 +30,6 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 test-utils = { workspace = true, features = ["nats"] }
+
+[lints]
+workspace = true

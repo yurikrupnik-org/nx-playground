@@ -1,8 +1,10 @@
 [package]
 name = "butler"
 publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 description = "Monorepo task compiler: reads nx-compatible config, builds the project/task graph itself, and executes plans with hashing, caching, and cargo batching."
 
 [[bin]]
@@ -15,8 +17,10 @@ eyre = { workspace = true }
 globset = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+toml = { workspace = true }
 
 [lints]
 workspace = true

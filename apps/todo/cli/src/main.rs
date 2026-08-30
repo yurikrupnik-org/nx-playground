@@ -12,8 +12,8 @@ use domain_todo::{
     CreateTodo, NatsTodoPublisher, Todo, TodoEvent, TodoEventKind, TodoEventPublisher,
     TodoPriority, UpdateTodo,
 };
-use eyre::{bail, Result, WrapErr};
-use todo_cli::{dlq_entries, purge_events, recent_events, redrive_dlq, status, TodoStore, BUCKET};
+use eyre::{Result, WrapErr, bail};
+use todo_cli::{BUCKET, TodoStore, dlq_entries, purge_events, recent_events, redrive_dlq, status};
 
 #[derive(Parser)]
 #[command(

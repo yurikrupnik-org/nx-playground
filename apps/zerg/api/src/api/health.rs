@@ -27,7 +27,7 @@ pub async fn ready_handler(State(state): State<AppState>) -> Response {
                     .db
                     .ping()
                     .await
-                    .map_err(|e| format!("Database ping failed: {}", e))
+                    .map_err(|e| format!("Database ping failed: {e}"))
             }),
         ),
         (
@@ -38,7 +38,7 @@ pub async fn ready_handler(State(state): State<AppState>) -> Response {
                     .query_async::<String>(&mut redis)
                     .await
                     .map(|_| ())
-                    .map_err(|e| format!("Redis ping failed: {}", e))
+                    .map_err(|e| format!("Redis ping failed: {e}"))
             }),
         ),
     ];

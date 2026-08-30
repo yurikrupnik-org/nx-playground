@@ -4,10 +4,13 @@
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import devtools from 'solid-devtools/vite';
-import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
+import { defineConfig } from 'vitest/config';
 
-export default defineConfig({
+// `command` gates the `development` export condition: solid-js resolves
+// `browser.development` to `dist/dev.js` (reactivity warnings, debug hooks), so
+// applying it unconditionally shipped that dev runtime in production builds.
+export default defineConfig(({ command }) => ({
   plugins: [devtools(), solidPlugin(), tailwindcss()],
   // base: '/web/',
   server: {
@@ -26,24 +29,24 @@ export default defineConfig({
   build: {
     target: 'esnext',
   },
-  // test: {
-  //   watch: false,
-  //   globals: true,
-  //   environment: 'jsdom',
-  //   include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-  //   reporters: ['default'],
-  //   coverage: {
-  //     reportsDirectory: '../../../coverage/apps/playground/my-solid-app',
-  //     provider: 'v8',
-  //   },
-  // },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ['./vitest.setup.ts'],
+    watch: false,
+  },
   resolve: {
-    conditions: ['development', 'browser'],
+    conditions: command === 'serve' ? ['development', 'browser'] : ['browser'],
     alias: {
       '@contract/tasks': path.resolve(
-        __dirname,
+        import.meta.dirname,
         '../../../libs/contracts/tasks/types/index.ts',
+      ),
+      '@ui/web-auth': path.resolve(
+        import.meta.dirname,
+        '../../../libs/ui/web-auth/src/index.ts',
       ),
     },
   },
-});
+}));

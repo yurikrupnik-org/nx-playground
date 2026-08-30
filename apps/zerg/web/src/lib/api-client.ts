@@ -1,5 +1,5 @@
 import type { CreateTask, Task, UpdateTask } from '@contract/tasks';
-import { csrfHeaders } from './csrf';
+import { csrfHeaders } from './auth';
 
 const API_BASE_URL = '/api';
 

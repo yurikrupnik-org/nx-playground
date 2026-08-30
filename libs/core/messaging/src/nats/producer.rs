@@ -1,8 +1,8 @@
 //! NATS JetStream producer for publishing jobs.
 
+use crate::Job;
 use crate::nats::config::StreamConfig;
 use crate::nats::error::NatsError;
-use crate::Job;
 use async_nats::jetstream::Context;
 use std::sync::Arc;
 use tracing::debug;

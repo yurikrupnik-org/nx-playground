@@ -26,7 +26,7 @@
 //! - Health check endpoints for Kubernetes probes
 //! - Prometheus metrics
 
-use core_config::{app_info, Environment};
+use core_config::{Environment, app_info};
 use email::{
     EmailJob, EmailNatsStream, EmailProcessor, SendGridProvider, SmtpProvider, TemplateEngine,
 };

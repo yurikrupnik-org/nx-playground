@@ -150,7 +150,7 @@ impl WorkerConfig {
     /// Create a new worker configuration with the given stream name.
     pub fn new(stream_name: impl Into<String>) -> Self {
         let stream_name = stream_name.into();
-        let dlq_stream = format!("{}_DLQ", stream_name);
+        let dlq_stream = format!("{stream_name}_DLQ");
         Self {
             stream_name,
             dlq_stream,

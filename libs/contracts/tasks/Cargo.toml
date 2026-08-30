@@ -1,8 +1,8 @@
 [package]
 name = "contract_tasks"
 publish = false
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 
 [features]
 # Server-only: adds the SeaORM `ActiveEnum` derives to `TaskPriority`/`TaskStatus`
@@ -12,8 +12,8 @@ orm = ["dep:sea-orm"]
 
 [dependencies]
 chrono = { workspace = true }
-grpc-client = { path = "../../core/grpc" }
-rpc = { path = "../../rpc" }
+grpc-client = { workspace = true }
+rpc = { workspace = true }
 sea-orm = { workspace = true, optional = true }
 serde = { workspace = true }
 strum = { workspace = true }

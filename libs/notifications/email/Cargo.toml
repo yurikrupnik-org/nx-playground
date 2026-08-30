@@ -1,9 +1,9 @@
 [package]
 name = "email"
 publish = false
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [lib]
 path = "src/lib.rs"
@@ -20,10 +20,10 @@ async-nats = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
 eyre = { workspace = true }
-handlebars = "6"
+handlebars = { workspace = true }
 
 # Provider dependencies (optional)
-lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "builder", "smtp-transport", "hostname"], optional = true }
+lettre = { workspace = true, optional = true }
 messaging = { workspace = true, features = ["nats"] }
 rand = { workspace = true }
 reqwest = { workspace = true, features = ["json"], optional = true }
@@ -36,5 +36,8 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 async-nats = { workspace = true }
-test-utils = { path = "../../testing/test-utils", features = ["nats"] }
+test-utils = { workspace = true, features = ["nats"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
+
+[lints]
+workspace = true

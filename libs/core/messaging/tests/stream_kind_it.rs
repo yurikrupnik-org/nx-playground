@@ -24,7 +24,7 @@ use std::time::Duration;
 
 use async_nats::jetstream::consumer::pull::Config as PullConfig;
 use futures::StreamExt;
-use messaging::nats::{stream_config_for, StreamKind};
+use messaging::nats::{StreamKind, stream_config_for};
 use test_utils::TestNats;
 
 /// Create a durable pull consumer representing one consumer group.

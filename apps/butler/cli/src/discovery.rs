@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use eyre::{bail, eyre, Result, WrapErr};
+use eyre::{Result, WrapErr, bail, eyre};
 use globset::{Glob, GlobSetBuilder};
 use serde::Deserialize;
 
@@ -19,14 +19,22 @@ use crate::graph::{Project, ProjectGraph};
 /// Directories never traversed while scanning for project files.
 const PRUNED: &[&str] = &["node_modules", ".git", "dist", "target", ".nx", ".venv"];
 
+/// Markers that define the workspace root, nearest-first from the cwd.
+/// `butler.toml` comes first so the CLI works in a repo that has never seen nx;
+/// `nx.json` keeps working for one that has not adopted the config file yet.
+const ROOT_MARKERS: &[&str] = &[crate::settings::FILE, "nx.json"];
+
 pub fn find_workspace_root() -> Result<PathBuf> {
     let mut dir = std::env::current_dir()?;
     loop {
-        if dir.join("nx.json").exists() {
+        if ROOT_MARKERS.iter().any(|m| dir.join(m).exists()) {
             return Ok(dir);
         }
         if !dir.pop() {
-            bail!("no nx.json found in the current directory or any parent");
+            bail!(
+                "no {} found in the current directory or any parent",
+                ROOT_MARKERS.join(" or ")
+            );
         }
     }
 }
@@ -101,6 +109,8 @@ struct CargoTarget {
 struct CargoDependency {
     name: String,
     path: Option<PathBuf>,
+    /// `dev`, `build`, or absent for a normal dependency.
+    kind: Option<String>,
 }
 
 fn discover_cargo(root: &Path, by_root: &mut BTreeMap<String, Project>) -> Result<()> {
@@ -135,11 +145,17 @@ fn discover_cargo(root: &Path, by_root: &mut BTreeMap<String, Project>) -> Resul
             .any(|t| t.kind.iter().any(|k| k == "bin"));
 
         let mut deps = BTreeSet::new();
+        let mut build_deps = BTreeSet::new();
         for dep in &pkg.dependencies {
             let Some(path) = &dep.path else { continue };
             let rel = pathdiff_rel(root, path)?;
             if let Some(name) = root_to_name.get(&rel) {
                 deps.insert(name.clone());
+                // dev-dependencies feed tests, never the shipped binary, so they
+                // stay out of the image build context.
+                if dep.kind.as_deref() != Some("dev") {
+                    build_deps.insert(name.clone());
+                }
             } else {
                 // Path dep outside the workspace member set; keep by name if it
                 // happens to be a member under a renamed key.
@@ -171,6 +187,7 @@ fn discover_cargo(root: &Path, by_root: &mut BTreeMap<String, Project>) -> Resul
                 tags: vec![],
                 targets,
                 deps,
+                build_deps,
             },
         );
     }
@@ -285,6 +302,7 @@ fn discover_node(
                         tags: vec![],
                         targets,
                         deps: BTreeSet::new(),
+                        build_deps: BTreeSet::new(),
                     },
                 );
             }
@@ -315,6 +333,7 @@ fn overlay_project_json(root: &Path, by_root: &mut BTreeMap<String, Project>) ->
             tags: vec![],
             targets: BTreeMap::new(),
             deps: BTreeSet::new(),
+            build_deps: BTreeSet::new(),
         });
         if let Some(name) = pj.name {
             project.name = name;

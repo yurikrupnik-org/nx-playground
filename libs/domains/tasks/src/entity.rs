@@ -1,7 +1,7 @@
 use crate::models::{TaskPriority, TaskStatus};
 use core_proc_macros::SeaOrmResource;
-use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// Sea-ORM Entity for Tasks table

@@ -5,8 +5,8 @@ mod direct;
 use std::sync::Arc;
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 use utoipa::OpenApi;
 

@@ -7,16 +7,20 @@
 
 mod cache;
 mod config;
+mod container;
 mod discovery;
 mod git;
 mod graph;
 mod hash;
+mod k8s;
 mod runner;
+mod settings;
+mod tilt;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use clap::{Parser, Subcommand};
-use eyre::{bail, Result};
+use eyre::{Result, bail};
 
 use crate::graph::TaskId;
 
@@ -79,6 +83,81 @@ enum Cmd {
         /// Print the compiled plan without executing.
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Generate Tiltfiles from butler.toml + the project graph.
+    Tilt {
+        #[command(subcommand)]
+        command: TiltCmd,
+    },
+    /// Generate the k8s values files and rendered manifests from butler.toml.
+    K8s {
+        #[command(subcommand)]
+        command: K8sCmd,
+    },
+    /// Verify the nx-inferred container/scan targets against butler.toml.
+    Container {
+        #[command(subcommand)]
+        command: ContainerCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum TiltCmd {
+    /// Write the root Tiltfile and one Tiltfile per app.
+    Gen {
+        /// Write into this directory instead of the workspace root.
+        #[arg(long)]
+        out_dir: Option<std::path::PathBuf>,
+        /// Fail instead of writing when the on-disk Tiltfiles have drifted.
+        #[arg(long)]
+        check: bool,
+        /// Write only this app's Tiltfile (workspace-relative directory).
+        /// This is what the nx plugin's per-project `tilt-gen` target runs.
+        #[arg(long, value_name = "DIR", conflicts_with = "root")]
+        app: Option<String>,
+        /// Write only the root Tiltfile.
+        #[arg(long)]
+        root: bool,
+        /// Authoritative app list (comma-separated workspace-relative dirs),
+        /// overriding butler's own discovery. The nx plugin passes the set nx
+        /// inferred, so the root Tiltfile's includes cannot disagree with nx.
+        #[arg(long, value_delimiter = ',', value_name = "DIRS")]
+        apps: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum K8sCmd {
+    /// Write each app's `k8s/values*.yaml`, its rendered manifest under
+    /// `manifests/k8s/apps/`, and the aggregate kustomization.
+    Gen {
+        /// Fail instead of writing when the on-disk artifacts have drifted.
+        #[arg(long)]
+        check: bool,
+        /// Generate only this app (workspace-relative directory). This is what
+        /// the nx plugin's per-project target runs.
+        #[arg(long, value_name = "DIR", conflicts_with = "root")]
+        app: Option<String>,
+        /// Generate only the aggregate kustomization.
+        #[arg(long)]
+        root: bool,
+        /// Authoritative app list (comma-separated workspace-relative dirs),
+        /// overriding butler's own discovery. The nx plugin passes the set nx
+        /// inferred, so the kustomization cannot disagree with nx.
+        #[arg(long, value_delimiter = ',', value_name = "DIRS")]
+        apps: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ContainerCmd {
+    /// Diff an `nx graph --file` dump against butler's own image resolution:
+    /// the inferred `container`/`scan` targets must say exactly what
+    /// butler.toml does, or the Tiltfile and CI build different images.
+    Verify {
+        /// JSON dump produced by `nx graph --file <path>`.
+        #[arg(long, value_name = "FILE")]
+        graph: std::path::PathBuf,
     },
 }
 
@@ -229,6 +308,86 @@ fn main() -> Result<()> {
             if failed > 0 {
                 std::process::exit(1);
             }
+        }
+        Cmd::Tilt {
+            command:
+                TiltCmd::Gen {
+                    out_dir,
+                    check,
+                    app,
+                    root: root_only,
+                    apps,
+                },
+        } => {
+            let settings = settings::Root::load(&root)?;
+            let overrides = settings::load_app_overrides(&root, &settings)?;
+            let selection = tilt::Selection {
+                app: app.as_deref(),
+                root_only,
+                apps: &apps,
+            };
+            let files = tilt::generate(&root, &graph, &settings, &overrides, &selection)?;
+            let out = out_dir.unwrap_or_else(|| root.clone());
+            if check {
+                let drifted = tilt::check_files(&out, &files);
+                if !drifted.is_empty() {
+                    for d in &drifted {
+                        println!("drift: {d}");
+                    }
+                    bail!(
+                        "{} of {} Tiltfiles are stale; run `butler tilt gen`",
+                        drifted.len(),
+                        files.len()
+                    );
+                }
+                println!("{} Tiltfiles up to date", files.len());
+            } else {
+                tilt::write_files(&out, &files)?;
+            }
+        }
+        Cmd::K8s {
+            command:
+                K8sCmd::Gen {
+                    check,
+                    app,
+                    root: root_only,
+                    apps,
+                },
+        } => {
+            let settings = settings::Root::load(&root)?;
+            let overrides = settings::load_app_overrides(&root, &settings)?;
+            let selection = k8s::Selection {
+                app: app.as_deref(),
+                root_only,
+                apps: &apps,
+            };
+            let files = k8s::generate(&root, &graph, &settings, &overrides, &selection)?;
+            if check {
+                // Same drift gate as the Tiltfiles: the generated artifacts are
+                // committed, so a stale one is a review-time failure, not a
+                // surprise at deploy time.
+                let drifted = tilt::check_files(&root, &files);
+                if !drifted.is_empty() {
+                    for d in &drifted {
+                        println!("drift: {d}");
+                    }
+                    bail!(
+                        "{} of {} k8s artifacts are stale; run `butler k8s gen`",
+                        drifted.len(),
+                        files.len()
+                    );
+                }
+                println!("{} k8s artifacts up to date", files.len());
+            } else {
+                tilt::write_files(&root, &files)?;
+            }
+        }
+        Cmd::Container {
+            command: ContainerCmd::Verify { graph: graph_file },
+        } => {
+            let settings = settings::Root::load(&root)?;
+            let overrides = settings::load_app_overrides(&root, &settings)?;
+            container::verify(&root, &graph, &settings, &overrides, &graph_file)?;
         }
     }
     Ok(())

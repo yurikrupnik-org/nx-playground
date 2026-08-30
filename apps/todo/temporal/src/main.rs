@@ -6,14 +6,14 @@
 
 use std::sync::Arc;
 
-use core_config::{app_info, env_or_default, Environment};
+use core_config::{Environment, app_info, env_or_default};
 use domain_todo::{NatsTodoPublisher, NoopTodoPublisher, TodoEventPublisher};
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use temporalio_client::{
-    envconfig::LoadClientConfigProfileOptions, Client, ClientOptions, Connection,
+    Client, ClientOptions, Connection, envconfig::LoadClientConfigProfileOptions,
 };
 use temporalio_sdk::{Runtime, Worker, WorkerOptions};
-use todo_temporal::{TodoActivities, TodoWorkflow, TASK_QUEUE};
+use todo_temporal::{TASK_QUEUE, TodoActivities, TodoWorkflow};
 use tracing::{info, warn};
 
 #[tokio::main]

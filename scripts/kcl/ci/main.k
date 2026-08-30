@@ -48,7 +48,6 @@ githubWorkflow = github.generate_monorepo(config)
 
 # Tekton resources (tasks + pipeline)
 tektonResources = tekton.generate_monorepo(config)
-
 # --- Per-repo version overrides (optional) -----------------------------------
 # Tool versions (node/bun/go/rust/python) are set on the preset config, e.g.
 #   config = nx_preset.nx_playground | {bun_version = "1.2.5", rust_channel = "1.83"}

@@ -8,7 +8,10 @@ todo_kind_cluster := env("KIND_CLUSTER", "kcl-e2e")
 
 todo_images := "yurikrupnik/todo-web:dev yurikrupnik/todo-api:dev yurikrupnik/todo-worker:dev"
 
-# Build the three todo images (web dist via nx, rust via cargo-chef Dockerfile)
+# Build the three todo images (web dist via nx, rust via cargo-chef Dockerfile).
+# Hand-written on purpose: unlike the zerg/terran apps, the todo projects have no
+# nx `container` target, and these fixed local `:dev` tags are what `todo-load`
+# pushes into kind. If todo ever gains container targets, collapse this onto them.
 [group('todo')]
 todo-build:
     bun nx run todo-web:build
@@ -21,13 +24,14 @@ todo-build:
 todo-load:
     kind load docker-image --name {{ todo_kind_cluster }} {{ todo_images }}
 
-# Apply infra (namespace/postgres/nats) + the three app overlays, wait for rollout
+# Apply infra (namespace/postgres/nats) + the generated app manifests, wait for
+# rollout. The apps come from manifests/k8s/apps (one rendered file per app,
+# regenerate with `just k8s-gen`), so this recipe applies exactly what CI and
+# Tilt build — it no longer names per-app overlays that no longer exist.
 [group('todo')]
 todo-apply:
     kubectl apply -k manifests/kustomize/todo
-    kubectl apply -k apps/todo/api/k8s/kustomize/overlays/dev
-    kubectl apply -k apps/todo/worker/k8s/kustomize/overlays/dev
-    kubectl apply -k apps/todo/web/k8s/kustomize/overlays/dev
+    kubectl apply -k manifests/k8s/apps
     for d in postgres nats todo-api todo-worker todo-web; do \
         kubectl -n todo rollout status deployment/$d --timeout=180s || exit 1; \
     done

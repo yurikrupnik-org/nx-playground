@@ -10,13 +10,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_nats::jetstream::consumer::pull::Config as PullConfig;
-use async_nats::jetstream::consumer::AckPolicy;
-use async_nats::jetstream::kv::{Config, Store};
 use async_nats::jetstream::Context;
+use async_nats::jetstream::consumer::AckPolicy;
+use async_nats::jetstream::consumer::pull::Config as PullConfig;
+use async_nats::jetstream::kv::{Config, Store};
 use chrono::Utc;
 use domain_todo::{CreateTodo, Todo, TodoEvent, TodoEventKind, TodoNatsStream, TodoPriority};
-use eyre::{bail, eyre, Result};
+use eyre::{Result, bail, eyre};
 use futures::{StreamExt, TryStreamExt};
 use messaging::nats::{DlqEntry, DlqManager, Redriven, StreamConfig};
 use std::collections::VecDeque;

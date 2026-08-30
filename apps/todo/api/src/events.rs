@@ -1,9 +1,11 @@
-//! Realtime todo event fan-out: SSE and WebSocket examples.
+//! Realtime todo event fan-out: SSE and WebSocket transports.
 //!
-//! [`BroadcastTodoPublisher`] tees every [`TodoEvent`] the service emits into
-//! an in-process `tokio::sync::broadcast` channel (after forwarding to the
-//! wrapped publisher, i.e. NATS or no-op). Two transports stream the same
-//! events to browsers:
+//! The bus is fed by [`domain_todo::db_events`], which listens for Postgres
+//! `NOTIFY` from the `todos_notify` trigger. Every committed change reaches every
+//! connected browser no matter which process wrote it — another API replica, the
+//! todo-worker, the CLI, or a hand-run `psql` UPDATE.
+//!
+//! Two transports stream the same events:
 //!
 //! - `GET /api/events/sse` — Server-Sent Events. Each todo event becomes a
 //!   named SSE event (`created`, `updated`, `completed`, `uncompleted`,
@@ -14,19 +16,17 @@
 //!   demonstrate the bidirectional channel.
 //!
 //! Slow consumers that fall behind the channel capacity receive a `lagged`
-//! notice with the number of dropped events instead of blocking publishers.
+//! notice with the number of dropped events instead of blocking the listener.
 
 use std::convert::Infallible;
-use std::sync::Arc;
 
-use async_trait::async_trait;
 use axum::Router;
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::get;
-use domain_todo::{TodoEvent, TodoEventPublisher, TodoResult};
+use domain_todo::TodoEvent;
 use futures::stream::Stream;
 use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
@@ -37,33 +37,10 @@ use tracing::{debug, warn};
 /// Events buffered per subscriber before a slow consumer starts lagging.
 const CHANNEL_CAPACITY: usize = 256;
 
-/// Create the shared event bus. The returned sender is cloned into
-/// [`BroadcastTodoPublisher`] and moved into [`router`].
+/// Create the shared event bus. The returned sender is moved into the database
+/// listener (producer) and into [`router`] (fan-out).
 pub fn channel() -> broadcast::Sender<TodoEvent> {
     broadcast::channel(CHANNEL_CAPACITY).0
-}
-
-/// Tees published events into the broadcast channel so live SSE/WS
-/// subscribers see them, after forwarding to the wrapped publisher.
-pub struct BroadcastTodoPublisher {
-    inner: Arc<dyn TodoEventPublisher>,
-    tx: broadcast::Sender<TodoEvent>,
-}
-
-impl BroadcastTodoPublisher {
-    pub fn new(inner: Arc<dyn TodoEventPublisher>, tx: broadcast::Sender<TodoEvent>) -> Self {
-        Self { inner, tx }
-    }
-}
-
-#[async_trait]
-impl TodoEventPublisher for BroadcastTodoPublisher {
-    async fn publish(&self, event: TodoEvent) -> TodoResult<()> {
-        self.inner.publish(event.clone()).await?;
-        // A send error only means no live subscribers — not a failure.
-        let _ = self.tx.send(event);
-        Ok(())
-    }
 }
 
 /// `/sse` + `/ws` routes over the shared event bus.
@@ -95,9 +72,9 @@ async fn sse_handler(
                     None
                 }
             },
-            Err(BroadcastStreamRecvError::Lagged(skipped)) => {
-                Some(Ok(Event::default().event("lagged").data(skipped.to_string())))
-            }
+            Err(BroadcastStreamRecvError::Lagged(skipped)) => Some(Ok(Event::default()
+                .event("lagged")
+                .data(skipped.to_string()))),
         }
     });
     Sse::new(connected.chain(events)).keep_alive(KeepAlive::default())
@@ -156,7 +133,6 @@ async fn handle_socket(socket: WebSocket, mut rx: broadcast::Receiver<TodoEvent>
 mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode, header};
-    use domain_todo::NoopTodoPublisher;
     use tower::ServiceExt;
     use uuid::Uuid;
 
@@ -164,31 +140,6 @@ mod tests {
 
     fn deleted_event() -> TodoEvent {
         TodoEvent::deleted(Uuid::now_v7())
-    }
-
-    #[tokio::test]
-    async fn broadcast_publisher_tees_events_to_subscribers() {
-        let tx = channel();
-        let mut rx = tx.subscribe();
-        let publisher = BroadcastTodoPublisher::new(Arc::new(NoopTodoPublisher), tx);
-
-        let event = deleted_event();
-        publisher
-            .publish(event.clone())
-            .await
-            .expect("publish should succeed");
-
-        let received = rx.recv().await.expect("subscriber should receive event");
-        assert_eq!(received, event);
-    }
-
-    #[tokio::test]
-    async fn publish_succeeds_without_subscribers() {
-        let publisher = BroadcastTodoPublisher::new(Arc::new(NoopTodoPublisher), channel());
-        publisher
-            .publish(deleted_event())
-            .await
-            .expect("publish must not fail when nobody listens");
     }
 
     #[tokio::test]

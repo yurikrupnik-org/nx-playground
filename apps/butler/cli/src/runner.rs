@@ -12,7 +12,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use tokio::process::Command;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;

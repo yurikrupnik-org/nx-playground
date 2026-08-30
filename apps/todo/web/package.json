@@ -8,14 +8,18 @@
     "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "biome check --write ."
   },
   "license": "MIT",
   "dependencies": {
     "@domain/todo": "workspace:*",
-    "@solidjs/web": "2.0.0-rc.3",
+    "@solidjs/router": "2.0.0-next.19",
+    "@solidjs/web": "2.0.0-rc.4",
     "@tanstack/solid-query": "6.0.0-rc.0",
-    "solid-js": "2.0.0-rc.3"
+    "effect": "^3.22.1",
+    "solid-js": "2.0.0-rc.4",
+    "xstate": "^5.32.6"
   },
   "devDependencies": {
     "@solidjs/testing-library": "1.0.0-beta.2",

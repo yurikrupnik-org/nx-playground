@@ -1,54 +1,58 @@
 ---
 // Pure HTML + htmx variant. The initial list is server-rendered; htmx swaps
 // the #todo-list fragment after every mutation. Only client JS: htmx itself.
+//
+// Flags come from todo-api (GET /api/flags) per identity: `todo_app_astro`
+// off ⇒ 503 + disabled panel; `todo_write` off ⇒ read-only list and no add
+// form, matching the 403 the fragment endpoints return.
 import Layout from '../layouts/Layout.astro';
-import { todoApi } from '../lib/api';
-import { PRIORITIES, renderTodoList } from '../lib/fragments';
+import { flagContext, todoApi } from '../lib/api';
+import {
+  renderAddForm,
+  renderDisabledPanel,
+  renderTodoList,
+} from '../lib/fragments';
+
+const { identity, flags, appEnabled, canWrite } = await flagContext(
+  Astro.cookies,
+);
+if (!appEnabled) Astro.response.status = 503;
 
 let listHtml = '';
 let loadError = false;
-try {
-  listHtml = renderTodoList(await todoApi.list());
-} catch {
-  loadError = true;
+if (appEnabled) {
+  try {
+    listHtml = renderTodoList(await todoApi.list(identity), { canWrite });
+  } catch {
+    loadError = true;
+  }
 }
 ---
 
-<Layout title="Todos — HTML + htmx">
-  <main class="todo-app">
-    <header class="todo-app__header">
-      <h1 class="todo-app__title">Todos</h1>
-      <span class="todo-app__subtitle">HTML + htmx</span>
-    </header>
+<Layout title="Todos — HTML + htmx" identity={identity} flags={flags}>
+  {appEnabled ? (
+    <main class="todo-app">
+      <header class="todo-app__header">
+        <h1 class="todo-app__title">Todos</h1>
+        <span class="todo-app__subtitle">HTML + htmx</span>
+      </header>
 
-    <form
-      class="todo-form"
-      hx-post="/partials/todos"
-      hx-target="#todo-list"
-      hx-swap="outerHTML"
-      hx-on::after-request="if (event.detail.successful) this.reset()"
-    >
-      <input
-        class="todo-input"
-        type="text"
-        name="title"
-        placeholder="new todo title"
-        aria-label="new todo title"
-        required
-      />
-      <select class="todo-select" name="priority" aria-label="priority">
-        {PRIORITIES.map((value) => (
-          <option value={value} selected={value === 'medium'}>{value}</option>
-        ))}
-      </select>
-      <button class="btn btn--primary" type="submit">Add</button>
-    </form>
+      {canWrite ? (
+        <Fragment set:html={renderAddForm()} />
+      ) : (
+        <p class="todo-status">
+          Read-only: writes are disabled by feature flag <code>todo_write</code>.
+        </p>
+      )}
 
-    {loadError && (
-      <p class="todo-error" role="alert">Failed to load todos.</p>
-    )}
-    <Fragment set:html={listHtml} />
-  </main>
+      {loadError && (
+        <p class="todo-error" role="alert">Failed to load todos.</p>
+      )}
+      <Fragment set:html={listHtml} />
+    </main>
+  ) : (
+    <Fragment set:html={renderDisabledPanel(identity)} />
+  )}
 </Layout>
 
 <script>

@@ -29,10 +29,12 @@ async fn browse_filter_limit_and_purge() {
     let js = nats.jetstream();
 
     // Nothing published yet: absent streams read as empty, not errors.
-    assert!(recent_events(&js, None, 10)
-        .await
-        .expect("empty")
-        .is_empty());
+    assert!(
+        recent_events(&js, None, 10)
+            .await
+            .expect("empty")
+            .is_empty()
+    );
     assert!(dlq_entries(&js, 10).await.expect("no dlq").is_empty());
     assert_eq!(purge_events(&js).await.expect("purge absent"), 0);
 
@@ -84,8 +86,10 @@ async fn browse_filter_limit_and_purge() {
 
     // Purge empties the stream; browsing after purge sees nothing.
     assert_eq!(purge_events(&js).await.expect("purge"), 4);
-    assert!(recent_events(&js, None, 10)
-        .await
-        .expect("after purge")
-        .is_empty());
+    assert!(
+        recent_events(&js, None, 10)
+            .await
+            .expect("after purge")
+            .is_empty()
+    );
 }

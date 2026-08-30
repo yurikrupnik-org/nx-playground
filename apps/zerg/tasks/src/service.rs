@@ -413,7 +413,7 @@ mod tests {
 
         let response = service.create(request).await;
         if let Err(ref e) = response {
-            eprintln!("Create failed with error: {:?}", e);
+            eprintln!("Create failed with error: {e:?}");
         }
         assert!(response.is_ok(), "Create task should succeed");
 

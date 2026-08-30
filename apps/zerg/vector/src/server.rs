@@ -44,12 +44,14 @@ pub async fn run() -> Result<()> {
     GrpcServer::setup_health_multiple(&health_reporter, &services).await;
     GrpcServer::log_startup_multiple(&server_config, &services);
 
-    Server::builder()
-        .add_service(health_service)
-        .add_service(vector_grpc)
-        .serve(server_config.socket_addr())
-        .await
-        .wrap_err("gRPC server failed")?;
+    GrpcServer::serve_with_shutdown(
+        server_config.socket_addr(),
+        Server::builder()
+            .add_service(health_service)
+            .add_service(vector_grpc),
+    )
+    .await
+    .wrap_err("gRPC server failed")?;
 
     Ok(())
 }

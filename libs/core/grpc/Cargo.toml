@@ -1,8 +1,8 @@
 [package]
 name = "grpc-client"
 publish = false
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [features]
 default = []
@@ -31,5 +31,8 @@ uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
 opentelemetry_sdk = { workspace = true }
-temp-env = "0.3"
-tokio-test = "0.4"
+temp-env = { workspace = true }
+tokio-test = { workspace = true }
+
+[lints]
+workspace = true

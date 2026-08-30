@@ -1,17 +1,26 @@
 ---
 // Landing: DB-driven verdict (which language is the default / cheapest,
 // from Postgres via todo-api) plus the qualitative comparison.
+//
+// Gated on `todo_app_astro`: off ⇒ 503 + the disabled panel (the identity
+// form in the layout stays usable so a demo can switch user).
 import Layout from '../layouts/Layout.astro';
-import { listStacks, type StackProfile } from '../lib/api';
+import { flagContext, listStacks, type StackProfile } from '../lib/api';
+import { renderDisabledPanel } from '../lib/fragments';
+
+const { identity, flags, appEnabled } = await flagContext(Astro.cookies);
+if (!appEnabled) Astro.response.status = 503;
 
 // Reference data lives in the cluster Postgres (stack_profiles); the page
 // degrades to the qualitative table alone when todo-api is unreachable.
 let stacks: StackProfile[] = [];
 let stacksError = false;
-try {
-  stacks = await listStacks(); // cheapest first
-} catch {
-  stacksError = true;
+if (appEnabled) {
+  try {
+    stacks = await listStacks(identity); // cheapest first
+  } catch {
+    stacksError = true;
+  }
 }
 const cheapest = stacks[0];
 const defaultStack = stacks.find((s) => s.is_default);
@@ -60,7 +69,9 @@ const rows = [
 ] as const;
 ---
 
-<Layout title="Todos — Solid vs HTML + htmx">
+<Layout title="Todos — Solid vs HTML + htmx" identity={identity} flags={flags}>
+  {!appEnabled && <Fragment set:html={renderDisabledPanel(identity)} />}
+  {appEnabled && (
   <main class="todo-app compare">
     <header class="todo-app__header">
       <h1 class="todo-app__title">Solid vs HTML + htmx</h1>
@@ -131,6 +142,7 @@ const rows = [
       </tbody>
     </table>
   </main>
+  )}
 </Layout>
 
 <style>

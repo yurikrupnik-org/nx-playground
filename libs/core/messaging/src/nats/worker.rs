@@ -13,7 +13,7 @@ use crate::{ErrorCategory, Job, ProcessingError, Processor};
 use async_nats::jetstream::Context;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{watch, Semaphore};
+use tokio::sync::{Semaphore, watch};
 use tracing::{debug, error, info, warn};
 
 /// NATS JetStream worker for processing jobs.
@@ -174,8 +174,13 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
                 );
             }
 
-            // Clone Arcs for the spawned task
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            // Clone Arcs for the spawned task. `acquire_owned` only fails on a closed
+            // semaphore, and this one lives as long as the worker loop below it.
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("concurrency semaphore is never closed while the worker runs");
             let processor = self.processor.clone();
             let dlq = self.dlq.clone();
             let metrics = self.metrics.clone();

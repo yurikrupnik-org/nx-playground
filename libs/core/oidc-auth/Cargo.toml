@@ -3,15 +3,15 @@ name = "oidc-auth"
 description = "Provider-agnostic OIDC authentication middleware and token verification for Axum services"
 license.workspace = true
 repository.workspace = true
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
 axum = { workspace = true }
-base64 = "0.23"
+base64 = { workspace = true }
 jsonwebtoken = { workspace = true }
-oauth2 = { version = "5.0.0", default-features = false }
+oauth2 = { workspace = true }
 redis = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
@@ -25,3 +25,6 @@ uuid = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
+
+[lints]
+workspace = true
