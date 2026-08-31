@@ -72,6 +72,7 @@ a `JobQueue` or an `EventLog`, and stream creation sets retention from it.
 |---|---|---|---|
 | `EMAILS` | `JobQueue` | `WorkQueue` | sending is a job; must happen exactly once |
 | `TODOS` | `EventLog` | `Limits` | domain facts; a second consumer group may be added later |
+| `PROJECTS` | `EventLog` | `Limits` | domain facts (added by 0.3); `tasks-project-refs` is its first group |
 
 `JobQueue` makes the bug **structurally impossible**, not merely fixed — NATS rejects a
 second overlapping consumer:
@@ -162,18 +163,61 @@ delivery. Then re-run the churn test: kill a replica mid-flight during
 
 ---
 
-### 0.3 Dangling `project_id` after project deletion · S
+### 0.3 Dangling `project_id` after project deletion · S · ✅ FIXED 2026-08-31
 
 **Problem.** Phase 3 removed `tasks.project_id`'s FK
-(`REFERENCES projects(id) ON DELETE SET NULL`). Deleting a project now leaves tasks
-pointing at a project that no longer exists. Unlike the user/org orphans the ADR
+(`REFERENCES projects(id) ON DELETE SET NULL`). Deleting a project left tasks
+pointing at a project that no longer existed. Unlike the user/org orphans the ADR
 consciously accepted, **project deletion is implemented today**.
 
-**Fix.** Cheapest: treat an unresolvable `project_id` as "no project" on read. Better:
-publish `ProjectDeleted`; the tasks service consumes it and nulls its refs.
+**Fixed with the event, not the read-side patch.** `ProjectService::delete_project`
+publishes `ProjectDeleted`; `zerg_tasks` consumes it and nulls its refs. An ID
+reference plus an event is what replaces a cross-context FK.
 
-**Acceptance.** Create a task in a project, delete the project, load the task — no error,
-no phantom project rendered.
+**The contract crate was forced by the gate from 1.3, which is the point.** Defining
+the event in `domain_projects` and consuming it from `zerg_tasks` is the shared-kernel
+coupling Phase 2 removed — and `just boundaries` now **rejects** it
+(`scope:tasks` → `scope:zerg`). So the payload plus the stream identity live in a new
+`libs/contracts/projects` (`scope:shared`), which is exactly 5.1's rule of thumb: a
+serialization boundary between independently deployed processes. The consumer group
+name is deliberately **not** in the contract — `CONSUMER_NAME = "tasks-project-refs"`
+is declared by the service that reads it, so a second reader (search, audit) adds its
+own group and gets its own copy.
+
+| Piece | Where |
+|---|---|
+| `ProjectDeleted` + stream identity | `libs/contracts/projects` |
+| `ProjectEventPublisher` / `NatsProjectPublisher` | `libs/domains/projects/{events,nats}.rs` |
+| `clear_project_refs` | `libs/domains/tasks` (repository + service) |
+| `ProjectRefsStream` / `ProjectRefsProcessor` | `apps/zerg/tasks/src/project_events.rs` |
+
+**Four properties that are load-bearing:**
+
+- **Publish is best-effort**, matching the `establish_session` welcome-email dual write:
+  the row is already gone, so failing the request would report an error for committed
+  work and invite a retry of an unrepeatable delete. A lost event therefore leaves a
+  stale id, which is why the read side must still tolerate one — the two halves of this
+  item. Upgrade to an outbox (5.2) only if a consumer needs exactly-once.
+- **Idempotent by construction.** The work is "null the refs to this id", so a
+  redelivery clears 0 rows. At-least-once needs no dedupe here, unlike 0.2 where the
+  side effect is an email.
+- **Not a boot dependency.** The consumer is spawned but never gates gRPC startup, the
+  same reasoning that ungated `/ready` in Phase 5. NATS down = corrections delayed, not
+  tasks unavailable. `PROJECTS` is an `EventLog` with a server-side cursor, so a service
+  that was down when a project was deleted still applies the correction on restart.
+- **`clear_project_refs` is cross-tenant on purpose**, unlike every other method on
+  `TaskRepository`: the event carries no org, project ids are globally unique, and
+  org-scoping it would leave every other org's rows dangling.
+
+**Acceptance — verified red/green 2026-08-31.**
+`apps/zerg/tasks/tests/project_refs_it.rs` creates tasks in a doomed project and one in
+a surviving project, publishes `ProjectDeleted` through real JetStream using **only the
+contract** (never `domain_projects` — a dev-dependency is a real cargo edge the gate
+sees), runs the real `NatsWorker` + processor against real Postgres, then asserts the
+tasks still load with `project_id: None` while the other project's task is untouched.
+Stubbing `clear_project_refs` to `Ok(0)` fails it on the timeout; reverting is green.
+Publisher side is covered by three unit tests in `domain_projects`: delete publishes,
+a missing project publishes nothing, and a publish failure does not fail the delete.
 
 ---
 
@@ -302,27 +346,65 @@ token checking is how you eventually get one that is subtly wrong.
 
 ---
 
-### 1.2 Enforce additive-only proto in CI · S
+### 1.2 Enforce additive-only proto in CI · S · ✅ FIXED 2026-08-31
 
 **Problem.** The policy is documented in [`grpc.md`](./grpc.md) and the proto uses
-`reserved`, but nothing checks a PR. `just proto-breaking` already exists
-(`justfile:142`, `buf breaking --against '.git#branch=main'`) and simply is not wired up.
+`reserved`, but nothing checked a PR. `just proto-breaking` existed and was not wired up.
 
-**Fix.** Add it to `.github/workflows/ci-optimized.yml`.
+**The recipe was also broken, which is why "just wire it up" would have failed CI on the
+first PR.** It read `cd manifests/grpc && buf breaking --against '.git#branch=main'`, and
+buf resolves a `.git` input relative to the **cwd** — so from inside the module directory
+it looked for `manifests/grpc/.git` and died with
+`fatal: '…/manifests/grpc/.git' does not appear to be a git repository`. It now runs from
+the repo root with the module as the input and `subdir` aiming the historical side at the
+same `buf.yaml`:
 
-**Acceptance.** A PR that renumbers or removes a proto field fails CI.
+```
+buf breaking manifests/grpc --against '.git#branch=main,subdir=manifests/grpc'
+```
+
+**Fixed.** Wired into the CI `supply-chain` job (which already had `fetch-depth: 0` and
+`buf-setup`), guarded `if: github.event_name == 'pull_request'` — on a push to main the
+comparison is main against itself. Also added to `just verify`, with the caveat noted at
+the recipe: locally it compares against the **local** `main` ref, so it is only as fresh
+as your last fetch and is a no-op while standing on main.
+
+**Acceptance — verified red/green 2026-08-31.** Renumbering `CreateRequest.title` from
+`1` to `99` in `tasks.proto` fails the gate with
+`Previously present field "1" with name "title" on message "CreateRequest" was deleted.`
+(exit 100); reverting turns it green. The `breaking: use: [FILE]` rule was already
+configured in `manifests/grpc/buf.yaml`.
 
 ---
 
-### 1.3 Enforce the dependency direction in CI · S
+### 1.3 Enforce the dependency direction in CI · S · ✅ FIXED 2026-08-31
 
-**Problem.** Nothing stops the next developer adding `domain_tasks` back to `zerg_api`.
-The Phase 2 invariant is a grep in a doc.
+**Problem.** Nothing stopped the next developer adding `domain_tasks` back to `zerg_api`.
+The Phase 2 invariant was a grep in a doc.
 
-**Fix.** A CI step asserting no app depends on another app's `domain_*` crate — a
-`cargo tree` check or a scripted `grep` over `apps/*/Cargo.toml`.
+**Fixed — as a tag-based gate over the whole nx graph, not a `Cargo.toml` grep.** Every
+node now carries a `scope:` tag: contributed by `tools/nx/plugin.ts` from the declared
+ownership map in `tools/nx/scope-tags.ts` (`apps/<vertical>/**` → its vertical;
+`apps/zerg/tasks` + `domain_tasks` → their own `scope:tasks`, because the service
+boundary is what 1.3 protects; `libs/**` → `scope:shared` except the zerg-owned domains),
+plus the hand-written `tags` of the remaining `project.json` files. The rule, enforced by
+`tools/nx/check-boundaries.ts` over `nx graph --file` output: **an edge may stay inside
+its scope or point at `scope:shared`; `shared` may only depend on `shared`.** Because the
+nx graph carries both cargo edges (@monodon/rust) and TS workspace edges, one gate covers
+both ecosystems. Untagged nodes default to `shared` — strictest as a source, so a new
+project cannot silently reach into a vertical.
 
-**Acceptance.** Adding `domain_tasks` to `apps/zerg/api/Cargo.toml` fails CI.
+Wired as `just boundaries`, part of `just verify`, and a step in the CI `web` job.
+
+**Found on first run:** `domain_cloud_resources → domain_projects` — the SeaORM FK seam
+Issue 5 of [`architecture-review-todo.md`](./architecture-review-todo.md) flags as
+undecided. Grandfathered explicitly in `scope-tags.ts` with a pointer to that decision;
+removing the entry is how the decision gets enforced once made.
+
+**Acceptance — verified red/green 2026-08-31.** Adding `domain_tasks` to
+`apps/zerg/api/Cargo.toml` fails the gate
+(`zerg_api (scope:zerg) -> domain_tasks (scope:tasks)`); reverting turns it green
+(52 projects, every edge within scope).
 
 ---
 
@@ -516,7 +598,13 @@ case (the worker inherits no repository), so lower priority — but the same cla
 **Rule of thumb:** contract crates are justified by a *serialization boundary between
 independently deployed processes* — not by having a domain, and **not** by exporting
 TypeScript types. `domain_todo` correctly exports `@domain/todo` to `apps/todo/web` with
-no contract crate. `projects`, `users` and `cloud_resources` need none.
+no contract crate. `users` and `cloud_resources` need none.
+
+`projects` gained one in **0.3** — `libs/contracts/projects`, holding `ProjectDeleted`
+and the `PROJECTS` stream identity — which is this rule applied, not an exception to it:
+the crate exists for the event crossing to `zerg_tasks`, and `Project` itself stays out
+of it. That is also the worked example this item should copy: same shape, `TodoEvent`
+instead, with `apps/todo/worker` depending on the contract rather than `domain_todo`.
 
 ### 5.2 Transactional outbox · M
 
@@ -543,19 +631,39 @@ Needed before any UI renders a task's owner or project name. Must be **batched**
 query, not N) and must render a missing ref gracefully — there is no referential
 integrity guaranteeing the row still exists.
 
-### 5.6 Team-boundary tooling · S
+**This is the read-side half of 0.3 and is still open.** 0.3 closed the write side (a
+`ProjectDeleted` consumer nulls the refs), but that correction is *eventually*
+consistent and its publish is best-effort, so a resolver can still be handed an id that
+resolves to nothing. Nothing renders a project name today, which is why 0.3 needed no
+read-side change to be complete — the moment one does, "missing ref renders as no
+project" is a requirement, not a nicety.
 
-All 20 `project.json` files have `tags: []` and there is no `CODEOWNERS`. Rungs 1–2 of the
-autonomy ladder in
-[`modular-monolith-architecture.md`](./modular-monolith-architecture.md), and the cheapest
-way to give another team ownership without splitting anything.
+### 5.6 Team-boundary tooling · S · ✅ FIXED 2026-08-31
+
+Both rungs landed the same day as **1.3**, because they are the same fact expressed
+twice:
+
+- **`scope:` tags** on every graph node — the ownership map is
+  `tools/nx/scope-tags.ts`, contributed through the plugin (verticals for `apps/**`,
+  `scope:tasks` for the extracted service + its domain, `scope:shared` for libs, with
+  the zerg-owned domains called out), enforced by `just boundaries` (see 1.3).
+- **`.github/CODEOWNERS`** — one human owns everything today, but the per-path rows
+  mirror the scope map (verticals, the tasks boundary, shared platform), so handing a
+  vertical to another team is editing owner handles, not inventing structure. The file
+  is **inert until user #2**: GitHub never requests review from a PR's own author. The
+  ordered activation runbook — write access before ownership, the last-match-wins row
+  order, making it blocking via a ruleset, and the `release.yml` direct-push conflict
+  that ruleset creates — is
+  [`todo/codeowners-activation.md`](./todo/codeowners-activation.md).
 
 CI already runs `nx affected -t lint/test/build`, so per-project isolation is in place.
 
 ### 5.7 `zerg_vector` deployment artifacts · S
 
-The crate has `Cargo.toml`, `project.json` and a binary, but no `k8s/` or `Tiltfile`.
-Only needed if **3.1** resolves toward keeping the service.
+The crate has a binary and now ships an image — root `butler.toml` `[container] extra`
+lists `apps/zerg/vector`, so it is in the 12-app container/scan set — but it declares no
+`[workload]`, so it has no Tiltfile, no manifests, and does not deploy. Only needed if
+**3.1** resolves toward keeping the service.
 
 ---
 

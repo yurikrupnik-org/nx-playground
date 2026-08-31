@@ -27,20 +27,21 @@ export const CONFIG_FILE = 'butler.toml';
 /**
  * nx's `createNodesV2` contract, spelled out so no plugin in this directory has
  * to depend on `@nx/devkit`. Each entry maps a matched file to the projects it
- * contributes targets to; nx merges those onto the existing graph nodes.
+ * contributes targets (and tags) to; nx merges those onto the existing graph
+ * nodes.
  */
+export type ProjectContribution = {
+  targets: Record<string, unknown>;
+  tags?: string[];
+};
+
 export type CreateNodesV2 = [
   string,
   (
     files: readonly string[],
     options: unknown,
     context: { workspaceRoot: string },
-  ) => Promise<
-    [
-      string,
-      { projects: Record<string, { targets: Record<string, unknown> }> },
-    ][]
-  >,
+  ) => Promise<[string, { projects: Record<string, ProjectContribution> }][]>,
 ];
 
 /**

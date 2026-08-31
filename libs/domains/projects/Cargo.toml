@@ -5,12 +5,15 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+async-nats = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
 axum-helpers = { workspace = true }
 chrono = { workspace = true }
+contract_projects = { workspace = true }
 core_proc_macros = { workspace = true, features = ["sea_orm_resource"] }
 database = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
 regex = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }

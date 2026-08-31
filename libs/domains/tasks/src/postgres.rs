@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use database::BaseRepository;
 use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
@@ -150,5 +151,33 @@ impl TaskRepository for PgTaskRepository {
             .count(self.base.db())
             .await?;
         Ok(count as usize)
+    }
+
+    async fn clear_project_refs(&self, project_id: Uuid) -> TaskResult<u64> {
+        // One statement, not read-then-write: the rows to fix are exactly those
+        // matching the filter, and a deleted project id is never reassigned, so
+        // there is nothing to race with.
+        //
+        // `updated_at` moves with the write. The row's content really did
+        // change, and callers/caches that key freshness on this column would
+        // otherwise serve a stale `project_id` they believe is current.
+        let result = entity::Entity::update_many()
+            .col_expr(entity::Column::ProjectId, Expr::value(Option::<Uuid>::None))
+            .col_expr(
+                entity::Column::UpdatedAt,
+                Expr::value(chrono::DateTime::<chrono::FixedOffset>::from(Utc::now())),
+            )
+            .filter(entity::Column::ProjectId.eq(project_id))
+            .exec(self.base.db())
+            .await?;
+
+        if result.rows_affected > 0 {
+            tracing::info!(
+                %project_id,
+                rows = result.rows_affected,
+                "cleared task references to deleted project"
+            );
+        }
+        Ok(result.rows_affected)
     }
 }

@@ -70,6 +70,17 @@ pub async fn run() -> eyre::Result<()> {
     };
 
     let (db, redis, jetstream) = tokio::try_join!(postgres_future, redis_future, nats_future)?;
+
+    // Both publishers share the one JetStream context (a cheap handle to clone).
+    // NATS is already a hard boot dependency above, so a project delete cannot
+    // silently run without its event stream.
+    let project_events = Arc::new(
+        domain_projects::NatsProjectPublisher::new(jetstream.clone())
+            .await
+            .map_err(|e| eyre::eyre!("PROJECTS stream initialization failed: {}", e))?,
+    );
+    info!("Project event publisher initialized (PROJECTS stream)");
+
     let notifications = NotificationService::from_jetstream_default(jetstream);
     info!("NotificationService initialized with NATS JetStream");
 
@@ -146,6 +157,7 @@ pub async fn run() -> eyre::Result<()> {
         workos_admin,
         verifier,
         notifications,
+        project_events,
         vector_service,
         rate_limiter,
     };

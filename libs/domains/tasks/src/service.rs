@@ -8,9 +8,20 @@ use crate::models::{CreateTask, Task, TaskFilter, TaskScope, TaskStatus, UpdateT
 use crate::repository::TaskRepository;
 
 /// Service layer for Task business logic
-#[derive(Clone)]
 pub struct TaskService<R: TaskRepository> {
     repository: Arc<R>,
+}
+
+/// Hand-written so cloning only bumps the `Arc`; `derive(Clone)` would demand
+/// `R: Clone`, which a repository holding a DB handle has no reason to be —
+/// and the server needs a second handle to hand to the project-events
+/// consumer.
+impl<R: TaskRepository> Clone for TaskService<R> {
+    fn clone(&self) -> Self {
+        Self {
+            repository: Arc::clone(&self.repository),
+        }
+    }
 }
 
 impl<R: TaskRepository> TaskService<R> {
@@ -115,5 +126,16 @@ impl<R: TaskRepository> TaskService<R> {
         project_id: Uuid,
     ) -> TaskResult<usize> {
         self.repository.count_by_project(org_ref, project_id).await
+    }
+
+    /// Drop every reference to a project that no longer exists, returning how
+    /// many tasks were changed.
+    ///
+    /// Driven by the `ProjectDeleted` fact from the service that owns projects,
+    /// so it is cross-tenant by nature — see
+    /// [`TaskRepository::clear_project_refs`].
+    #[instrument(skip(self), fields(project_id = %project_id))]
+    pub async fn clear_project_refs(&self, project_id: Uuid) -> TaskResult<u64> {
+        self.repository.clear_project_refs(project_id).await
     }
 }

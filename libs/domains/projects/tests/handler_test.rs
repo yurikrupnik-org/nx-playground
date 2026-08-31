@@ -13,6 +13,8 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use std::sync::Arc;
+
 use domain_projects::*;
 use http_body_util::BodyExt;
 use serde_json::json;
@@ -32,7 +34,7 @@ async fn test_create_project_handler_returns_201() {
     db.create_test_user(builder.user_id()).await;
 
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let app = handlers::router(service);
 
     let request = Request::builder()
@@ -67,7 +69,7 @@ async fn test_create_project_handler_returns_201() {
 async fn test_create_project_handler_validates_input() {
     let db = TestDatabase::new().await;
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let app = handlers::router(service);
 
     let builder = TestDataBuilder::from_test_name("handler_validate");
@@ -102,7 +104,7 @@ async fn test_create_project_handler_enforces_free_tier_limit() {
     db.create_test_user(user_id).await;
 
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
 
     // Create 3 projects directly via service
     for i in 0..3 {
@@ -154,7 +156,7 @@ async fn test_get_project_handler_returns_200() {
     db.create_test_user(builder.user_id()).await;
 
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
 
     // Create a project
     let input = CreateProject {
@@ -191,7 +193,7 @@ async fn test_get_project_handler_returns_200() {
 async fn test_get_project_handler_returns_404_for_missing() {
     let db = TestDatabase::new().await;
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let app = handlers::router(service);
 
     let missing_id = uuid::Uuid::now_v7();
@@ -215,7 +217,7 @@ async fn test_list_projects_handler_with_filters() {
     db.create_test_user(user_id).await;
 
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
 
     // Create 2 AWS and 1 GCP project
     for i in 0..2 {
@@ -273,7 +275,7 @@ async fn test_delete_project_handler_returns_204() {
     db.create_test_user(builder.user_id()).await;
 
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
 
     // Create a project
     let input = CreateProject {

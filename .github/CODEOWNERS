@@ -1,0 +1,40 @@
+# Ownership by vertical — backlog 5.6 (docs/architecture-backlog.md).
+# One human owns everything today; the per-path rows below are the seams a
+# second team slots into, and they mirror the `scope:` tags that
+# `just boundaries` enforces (declared in tools/nx/scope-tags.ts).
+# Later rows win over earlier ones — the catch-all stays first.
+#
+# Adding a user? Follow docs/todo/codeowners-activation.md — this file is inert
+# until then (GitHub never requests review from a PR's own author), and an owner
+# without write access is silently ignored at PR time.
+
+* @yurikrupnik
+
+# zerg vertical (+ its domains: projects, users, vector)
+/apps/zerg/ @yurikrupnik
+/libs/domains/projects/ @yurikrupnik
+/libs/domains/users/ @yurikrupnik
+/libs/domains/vector/ @yurikrupnik
+
+# tasks service — extracted boundary (docs/adr-tasks-service-boundary.md);
+# the contract crate is the shared artifact, owned with the service
+/apps/zerg/tasks/ @yurikrupnik
+/libs/domains/tasks/ @yurikrupnik
+/libs/contracts/tasks/ @yurikrupnik
+
+# todo vertical
+/apps/todo/ @yurikrupnik
+/libs/domains/todo/ @yurikrupnik
+
+# terran vertical
+/apps/terran/ @yurikrupnik
+
+# butler CLI + the nx inference façade over its config
+/apps/butler/ @yurikrupnik
+/tools/nx/ @yurikrupnik
+
+# shared platform: core libs, testing, messaging, native addons, manifests, CI
+/libs/ @yurikrupnik
+/manifests/ @yurikrupnik
+/scripts/ @yurikrupnik
+/.github/ @yurikrupnik

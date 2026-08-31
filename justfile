@@ -54,15 +54,21 @@ gen-ci:
 #   weekly = deep dep update (runs `just check` itself) + cross-major preview
 #
 # Adding an ecosystem (go, python, ...): write lint-<eco>/test-<eco> leaves with
-# the ecosystem's NATIVE workspace tool, append them to `lint`/`test`. Rust is
-# deliberately NOT routed through nx: cargo is already a workspace orchestrator
-# and one `--workspace` run beats N per-crate invocations.
+# the ecosystem's NATIVE workspace tool, append them to `lint`/`test`. A
+# full-workspace Rust gate is never routed through nx: cargo is already a
+# workspace orchestrator and one `--workspace` run beats N per-crate
+# invocations. The exception is scope, not orchestration:
+# `check-rust-affected` lets nx answer "which crates did this diff touch" and
+# runs the per-crate lint/test targets for those only (the CI PR path).
 # ============================================================================
 
-# Full read-only gate: everything in `check` + proto lint + Tiltfile drift +
-# container/scan target drift + OSV scan
+# Full read-only gate: everything in `check` + proto lint/additivity + Tiltfile
+# drift + container/scan target drift + OSV scan + dependency boundaries.
+# `proto-breaking` compares against the LOCAL `main` ref, so it is only as fresh
+# as your last fetch, and it is a no-op while you are standing on main. CI's copy
+# is the authoritative one (full history, PR-only).
 [group('flow')]
-verify: check proto-lint tilt-check container-check k8s-check scan
+verify: check proto-lint proto-breaking tilt-check container-check k8s-check scan boundaries
     @echo "verify: all gates passed"
 
 # Auto-fix formatting (rust fmt + Cargo.toml sort + proto + web), then run the full gate

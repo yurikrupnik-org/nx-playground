@@ -3,5 +3,5 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "libs/ui/web-auth/src",
-  "tags": []
+  "tags": ["scope:shared"]
 }

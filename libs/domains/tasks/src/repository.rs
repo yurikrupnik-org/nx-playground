@@ -34,4 +34,13 @@ pub trait TaskRepository: Send + Sync {
 
     /// Count the org's tasks for a project
     async fn count_by_project(&self, org_ref: &str, project_id: Uuid) -> TaskResult<usize>;
+
+    /// Null the `project_id` of every task referencing `project_id`, returning
+    /// how many rows changed.
+    ///
+    /// Deliberately **not** tenant-scoped, unlike every method above: the input
+    /// is a `ProjectDeleted` fact from another service, which carries no org.
+    /// Project ids are globally unique, so matching on the id alone is exact —
+    /// and scoping it to one org would leave the other orgs' rows dangling.
+    async fn clear_project_refs(&self, project_id: Uuid) -> TaskResult<u64>;
 }

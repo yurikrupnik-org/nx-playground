@@ -8,10 +8,12 @@
 # partOf), writes `<app>/k8s/values.yaml`, and renders it through the pinned KCL
 # package from the root butler.toml `[k8s]` section.
 #
-# Outputs, all generated and drift-gated:
-#   <app>/k8s/values.yaml            the merged payload the KCL package validates
-#   manifests/k8s/apps/<app>.yaml     that app rendered
-#   manifests/k8s/apps/kustomization.yaml   the aggregate, one entry per app
+# Outputs, all generated and drift-gated. The directory is the root butler.toml
+# `[k8s] outDir` (default manifests/k8s/apps, `{env}` expands to the deployment
+# environment), so pointing a GitOps repo layout at it is one line of config:
+#   <app>/k8s/values.yaml             the merged payload the KCL package validates
+#   <outDir>/<app>.yaml               that app rendered
+#   <outDir>/kustomization.yaml       the aggregate, one entry per app
 
 # Regenerate every app's values + rendered manifests, then the aggregate
 # kustomization from exactly the app set nx reported.

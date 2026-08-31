@@ -13,6 +13,7 @@ members = [
     'apps/zerg/email-nats',
     'apps/zerg/tasks',
     'apps/zerg/vector',
+    'libs/contracts/projects',
     'libs/contracts/tasks',
     'libs/core/axum-helpers',
     'libs/core/config',
@@ -61,11 +62,13 @@ base64 = '0.23.1'
 chrono = { version = '0.4.45', features = ['serde'] }
 clap = { version = '4.6.6', features = ['derive'] }
 color-eyre = '0.6.5'
+contract_projects = { path = 'libs/contracts/projects' }
 contract_tasks = { path = 'libs/contracts/tasks' }
 core_config = { path = 'libs/core/config', version = '0.1.0' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
 core_retry = { path = 'libs/core/retry' }
 core_strings = { path = 'libs/core/strings', version = '0.1.0' }
+crossfile = { version = '3.1' }
 darling = '0.24.1'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }

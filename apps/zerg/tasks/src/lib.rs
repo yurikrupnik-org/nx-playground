@@ -20,8 +20,10 @@
 
 pub mod auth;
 pub mod config;
+pub mod project_events;
 pub mod server;
 pub mod service;
 
+pub use project_events::{ProjectRefsProcessor, ProjectRefsStream};
 pub use server::run;
 pub use service::TasksServiceImpl;

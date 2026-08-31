@@ -53,6 +53,10 @@ pub struct AppState {
     pub verifier: Arc<oidc_auth::OidcVerifier>,
     /// Notification service for queueing emails via NATS JetStream
     pub notifications: NotificationService,
+    /// Publishes project lifecycle facts (`projects.>`) to NATS JetStream.
+    /// `zerg_tasks` consumes `ProjectDeleted` to clear its `project_id`
+    /// references — see `docs/architecture-backlog.md` 0.3.
+    pub project_events: Arc<dyn domain_projects::ProjectEventPublisher>,
     /// Vector service for Qdrant operations (wrapped in Arc for cheap cloning)
     pub vector_service: Option<Arc<VectorService<QdrantRepository>>>,
     /// Distributed rate limiter (Redis-backed sliding window counter)

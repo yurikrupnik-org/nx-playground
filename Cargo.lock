@@ -1149,6 +1149,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "contract_projects"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "messaging",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "contract_tasks"
 version = "0.1.0"
 dependencies = [
@@ -1740,14 +1751,17 @@ dependencies = [
 name = "domain_projects"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
  "async-trait",
  "axum",
  "axum-helpers",
  "chrono",
+ "contract_projects",
  "core_proc_macros",
  "database",
  "futures",
  "http-body-util",
+ "messaging",
  "mockall 0.15.0",
  "regex",
  "sea-orm",
@@ -8387,16 +8401,19 @@ name = "zerg_tasks"
 version = "0.1.1"
 dependencies = [
  "chrono",
+ "contract_projects",
  "contract_tasks",
  "core_config",
  "database",
  "domain_tasks",
  "eyre",
  "grpc-client",
+ "messaging",
  "oidc-auth",
  "parking_lot",
  "rpc",
  "serde_json",
+ "test-utils",
  "tokio",
  "tokio-stream",
  "tonic",

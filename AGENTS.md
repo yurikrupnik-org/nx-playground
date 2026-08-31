@@ -26,14 +26,42 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
 
 ## Hard-won rules
 
-- **Never run Rust tasks through nx** (`nx run-many -t test/lint/build` on crates).
-  Benchmarked: 3–8x slower than `cargo <cmd> --workspace` — per-crate cargo
-  processes serialize on the target-dir lock and nx cache never hits (shared
-  `dist/target` isn't fingerprintable). Nx is for web (`-p '*-web'`), affected
-  in CI, and container targets. The inferred `build`/`run` targets from
-  `tools/nx/rust-targets.ts` exist for graph/CI SHAPE, not for running the
-  workspace build: `just test-rust`/`lint-rust` stay cargo-direct, and no
-  `test`/`lint` targets are inferred for crates.
+- **Never run a WHOLE-WORKSPACE Rust task through nx** (`nx run-many -t lint test
+  -p tag:rust`). Re-measured while adding the per-crate targets, warm target dir,
+  45 crates / 90 tasks: `just lint-rust` + `just test-rust` (one cargo process
+  each) **2m13s** (20s + 1m53s, 488 tests), the same work as nx tasks **4m06s**
+  at `--parallel=4` and **10m09s** at `--parallel=1` — per-crate cargo processes
+  serialize on the target-dir lock and each re-checks the shared dep closure.
+  `just lint-rust`/`test-rust` are therefore cargo-direct one-invocation gates,
+  and they are what `just check` and a push to main run.
+- **The one Rust path that DOES go through nx is affected-scoped**:
+  `just check-rust-affected` (the CI PR path) asks nx which crates a diff touched
+  (`nx show projects --affected -p tag:rust`) and runs the inferred per-crate
+  `lint` (`cargo clippy --package X --all-targets -- -D warnings`) and `test`
+  (`cargo nextest run --package X --no-tests=pass`) targets for exactly those,
+  Nx Cloud-cached (measured: 1 crate = 4s at 2/2 cache hits; 3 crates × 2 targets
+  = 14.7s cold, 16ms at 6/6 hits). A diff with no crate in it runs no cargo at
+  all. Past `max` crates (default **20**, from the ~5.5s-per-crate against flat
+  2m13s arithmetic above) it hands over to `lint-rust`/`test-rust` instead — the
+  recipe is bounded by the workspace gate, never a 10-minute fan-out.
+  Four things make it correct and they are load-bearing: the `rustGlobals`
+  namedInput (Cargo.lock, Cargo.toml, rust-toolchain.toml,
+  `.cargo/{config,clippy}.toml`) is in every crate target's `inputs`, which is
+  ALSO what makes nx treat a dep bump as touching all 45 crates (`sharedGlobals`
+  does NOT drive `affected` — only `{workspaceRoot}/...` globs reachable from a
+  target's `inputs` do, via `getImplicitlyTouchedProjects`); `nx affected` has NO
+  project filter, it FORWARDS `-p` to the command (`-p tag:rust` arrives as a
+  cargo argument and fails every task), so the crate list must come from `nx show
+  projects` and be handed to `run-many`; the `rust` tag is withheld from a crate
+  whose `lint`/`test` come from a package.json script — the N-API addons, whose
+  `lint` is a mutating `biome check --write` and whose gate is `just test-napi`;
+  and `test` passes `--no-tests=pass`, because nextest exits 4 on a crate with no
+  test binaries, which `--workspace` never hits but a single `--package` often
+  does. `lint`/`test` on crates carry `outputs: []` on purpose: cargo writes
+  into the unfingerprintable shared `dist/target`, so a cache entry may only mean
+  "these inputs passed", never "an artifact was restored" (`build` still inherits
+  the JS-shaped `{projectRoot}/dist` from `targetDefaults`, which wins over an
+  inferred value — that target stays graph/CI SHAPE only).
 - **Dependency updates go through `upkg`** (`just upkg` / `upkg-fast` / `upkg-paranoid`),
   never raw `cargo upgrade --incompatible` — it bulldozes range pins and skips
   OSV scans / post-checks. upkg lives in dotconfig (`config/scripts/upkg.nu`).
@@ -80,8 +108,9 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   the module globs into one pattern and dispatches on the path;
   `tilt-targets.ts` → `tilt-gen`/`tilt-check`, `rust-targets.ts` → `build`
   (`cargo build --package <crate>`, `production` configuration adds `--release`;
-  a crate with no binary gets `cargo check` and no `production`) plus `run` for
-  crates that have a binary, `container-targets.ts` → `container`/`scan`,
+  a crate with no binary gets `cargo check` and no `production`) plus `lint`,
+  `test` and the `rust` tag on every crate, and `run` for crates that have a
+  binary, `container-targets.ts` → `container`/`scan`,
   `k8s-targets.ts` → `k8s-gen`/`k8s-check`. App-level targets are keyed on
   `apps/**/butler.toml`, because that file is where an app declares its
   `[workload]` — the manifests it used to be keyed on are now that table's
@@ -89,9 +118,18 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   `@nx/plugin`), and every target MERGES onto an EXISTING graph node — the plugin
   creates none. `@monodon/rust` infers the nodes and the dep edges but ONLY the
   `nx-release-publish` target, which is why ~30 `project.json` files used to
-  hand-copy these. project.json targets OVERRIDE inferred ones — a leftover copy
-  silently shadows inference — so the hand-written copies were deleted (27 files,
-  1347 lines). The modules share `tools/nx/butler-config.ts`: they read the root
+  hand-copy these — and it infers no `tags` at all, which is why the `rust` tag
+  (the only marker of "this node is a cargo crate") is contributed here: a
+  plugin's `tags` CONCAT onto an existing node, they do not replace it. The plugin
+  also contributes a `scope:` tag to every node it touches (declared ownership map
+  in `tools/nx/scope-tags.ts` — verticals for `apps/**`, `scope:tasks` for the
+  extracted service + its domain, `scope:shared` for libs), enforced by
+  `just boundaries` (`tools/nx/check-boundaries.ts` over `nx graph --file`): an
+  edge may stay inside its scope or point at `scope:shared`. It runs in `just
+  verify` and CI; `.github/CODEOWNERS` mirrors the same map.
+  project.json AND package.json scripts OVERRIDE inferred targets — a leftover
+  copy silently shadows inference — so the hand-written copies were deleted (27
+  files, 1347 lines). The modules share `tools/nx/butler-config.ts`: they read the root
   `butler.toml` in TS while butler resolves the same facts in Rust, and `just
   container-check` (`butler container verify --graph`) is the gate that stops the
   two drifting.
@@ -170,8 +208,8 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   `rust` stage is `FROM scratch`: syncing sources in rebuilds nothing while Tilt
   reports success. Rust source changes rebuild the image; the tight `only=` list
   is what keeps that cheap.
-- **N-API addons live in `libs/native/*`** and are the one Rust exception to the
-  no-nx rule: the deliverable is a JS package, so `just test-napi` drives
+- **N-API addons live in `libs/native/*`** and are the one crate kind whose nx
+  targets are NOT cargo: the deliverable is a JS package, so `just test-napi` drives
   `nx run-many -t build test -p '@native/*'` (build outputs `index.js`,
   `index.d.ts`, `*.node` are declared in the project's `project.json` — the
   `dist` targetDefault would cache nothing). They build with the workspace

@@ -35,13 +35,12 @@ env = "dev"
 [k8s]
 package = "oci://docker.io/yurikrupnik/app"
 tag = "0.1.2"
-
+outDir = "manifests/k8s/lol"
 # Where the rendered manifests and their aggregate land. `{env}` expands to `env`
 # above, so a repo that renders several environments keeps them apart with one
 # line (`outDir = "manifests/gitops/{env}/apps"`). Both butler and
 # tools/nx/k8s-targets.ts read this key — nx caches on declared outputs, so they
 # must agree on the path.
-outDir = "manifests/k8s/apps"
 
 # Appended verbatim to the generated aggregate kustomization, and resolved
 # RELATIVE TO outDir — change one and check the other. Environment fixtures only:

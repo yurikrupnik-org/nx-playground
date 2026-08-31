@@ -15,10 +15,14 @@ permissions:
   packages: write        # Push/pull buildx layer cache to GHCR
 
 # CI runs the same `just` recipes developers run (see justfile "Flows"), so a green
-# local `just verify` means a green CI. Rust goes through cargo's own workspace
-# orchestration, never nx — see the benchmark note in the root justfile header.
+# local `just verify` means a green CI. Cargo owns the Rust build: the gates below
+# are one `--workspace` invocation each, never one nx task per crate — see the
+# benchmark note in the root justfile header. nx is used for change detection on a
+# PR (`just check-rust-affected` -> the inferred per-crate `lint`/`test` targets,
+# Nx Cloud-cached), while a push to main always gates the whole workspace.
 jobs:
-  # cargo workspace gates: `just fmt-check lint-rust test-rust audit`
+  # cargo gates: `just fmt-check audit` always, plus either the affected crates
+  # (PR) or the whole workspace (main).
   rust:
     runs-on: ubuntu-latest
     env:
@@ -48,17 +52,42 @@ jobs:
 
       - uses: extractions/setup-just@v3
 
-      # Binaries the recipes below invoke: test-rust -> nextest, audit -> audit + deny
+      # Binaries the recipes below invoke: nextest for tests, audit + deny for `audit`
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest,cargo-audit,cargo-deny
 
+      # nx drives the affected-crate path below; it needs the workspace's node deps
+      - uses: oven-sh/setup-bun@v2
+        if: github.event_name == 'pull_request'
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+        if: github.event_name == 'pull_request'
+
+      # Sets NX_BASE/NX_HEAD, which `check-rust-affected` defaults to
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        if: github.event_name == 'pull_request'
+        uses: nrwl/nx-set-shas@v5
+
       - run: just fmt-check
 
-      - run: just lint-rust
+      # PR: clippy + nextest for the crates this diff touches and their cargo
+      # dependents, each task cached by Nx Cloud across runs. A Cargo.lock,
+      # rust-toolchain.toml or .cargo/*.toml change is an input of every crate's
+      # targets, so it widens to all of them — and past 20 crates the recipe
+      # hands over to `lint-rust`/`test-rust`, one cargo process each, so this
+      # step is never slower than the workspace gate below.
+      # testcontainers-backed tests need docker, which ubuntu-latest provides.
+      - name: Rust gates for the affected crates
+        if: github.event_name == 'pull_request'
+        run: just check-rust-affected
 
-      # testcontainers-backed tests need docker, which ubuntu-latest provides
-      - run: just test-rust
+      # main: the authoritative full gate, one cargo process per command.
+      - name: Rust gates for the whole workspace
+        if: github.event_name != 'pull_request'
+        run: just lint-rust test-rust
 
       - run: just audit
 
@@ -100,11 +129,15 @@ jobs:
       # deliverable is a JS package, so cargo runs via napi-cli under nx.
       - run: just test-napi
 
+      # Tag-based dependency boundaries over the nx graph (backlog 1.3):
+      # an edge may stay inside its scope: tag or point at scope:shared.
+      - run: just boundaries
+
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: bun nx fix-ci
         if: always()
 
-  # supply-chain gates: `just scan` (OSV) + `just proto-lint` (buf)
+  # supply-chain gates: `just scan` (OSV) + `just proto-lint` / `proto-breaking` (buf)
   supply-chain:
     runs-on: ubuntu-latest
     steps:
@@ -125,6 +158,12 @@ jobs:
       - run: just scan
 
       - run: just proto-lint
+
+      # Additive-only wire policy (backlog 1.2, docs/grpc.md): renumbering or
+      # removing a field fails the PR. PR-only — on a push to main the
+      # `--against '.git#branch=main'` comparison is main against itself.
+      - run: just proto-breaking
+        if: github.event_name == 'pull_request'
 
   affected:
     if: github.event_name == 'pull_request'

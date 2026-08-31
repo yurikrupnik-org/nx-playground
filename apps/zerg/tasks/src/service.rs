@@ -373,6 +373,21 @@ mod tests {
                 .filter(|task| task.org_ref == org_ref && task.project_id == Some(project_id))
                 .count())
         }
+
+        async fn clear_project_refs(&self, project_id: Uuid) -> Result<u64, TaskError> {
+            let mut tasks = self.tasks.lock();
+            let mut cleared = 0;
+            // Cross-tenant on purpose, mirroring the real query: the event
+            // carries no org, and a project id is globally unique.
+            for task in tasks.values_mut() {
+                if task.project_id == Some(project_id) {
+                    task.project_id = None;
+                    task.updated_at = Utc::now();
+                    cleared += 1;
+                }
+            }
+            Ok(cleared)
+        }
     }
 
     fn create_test_service() -> TasksServiceImpl<MockTaskRepository> {

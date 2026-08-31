@@ -31,6 +31,11 @@ CREATE TYPE task_status AS ENUM ('todo', 'in_progress', 'done');
 -- deletion is not implemented; revisit with a `UserDeleted` NATS event when it is.
 --
 -- `project_id` is likewise an opaque id, not an FK into the zerg `projects` table.
+-- Unlike the user/org refs above, this one IS maintained across the boundary: the
+-- owning service publishes `ProjectDeleted` (`projects.>`, contract_projects) and
+-- this service's `tasks-project-refs` consumer nulls the column. An ID reference
+-- plus an event is what replaces a cross-context FK here; the read side still
+-- tolerates a stale id, because the correction is eventually consistent.
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT uuidv7(),
   title VARCHAR(255) NOT NULL,

@@ -1,15 +1,19 @@
 use std::sync::Arc;
-use tracing::instrument;
+
+use contract_projects::ProjectDeleted;
+use tracing::{instrument, warn};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::error::{ProjectError, ProjectResult};
+use crate::events::ProjectEventPublisher;
 use crate::models::{CreateProject, Project, ProjectFilter, ProjectStatus, UpdateProject};
 use crate::repository::ProjectRepository;
 
 /// Service layer for Project business logic
 pub struct ProjectService<R: ProjectRepository> {
     repository: Arc<R>,
+    publisher: Arc<dyn ProjectEventPublisher>,
 }
 
 /// Hand-written so cloning only bumps the `Arc`; `derive(Clone)` would demand
@@ -18,14 +22,20 @@ impl<R: ProjectRepository> Clone for ProjectService<R> {
     fn clone(&self) -> Self {
         Self {
             repository: Arc::clone(&self.repository),
+            publisher: Arc::clone(&self.publisher),
         }
     }
 }
 
 impl<R: ProjectRepository> ProjectService<R> {
-    pub fn new(repository: R) -> Self {
+    /// The publisher is a required argument rather than an optional builder
+    /// step: a project deleted without its `ProjectDeleted` event leaves
+    /// permanently dangling `project_id` references in the tasks service, and
+    /// that must not be reachable by forgetting a call.
+    pub fn new(repository: R, publisher: Arc<dyn ProjectEventPublisher>) -> Self {
         Self {
             repository: Arc::new(repository),
+            publisher,
         }
     }
 
@@ -108,13 +118,32 @@ impl<R: ProjectRepository> ProjectService<R> {
         self.update_project(id, input).await
     }
 
-    /// Delete a project
+    /// Delete a project, then announce it so other services can drop their
+    /// references to the id.
+    ///
+    /// The publish is **best-effort by design**, matching the welcome-email
+    /// dual write in `establish_session`: the row is already gone, so failing
+    /// the request would report an error for work that succeeded and invite a
+    /// retry of a delete that cannot be repeated. A lost event therefore
+    /// leaves a stale `project_id` in the tasks service, which is why the read
+    /// side must render an unresolvable project reference as "no project"
+    /// rather than trusting it — the two halves of backlog 0.3. Upgrade this
+    /// to a transactional outbox (backlog 5.2) if a consumer ever needs an
+    /// exactly-once guarantee here.
     #[instrument(skip(self), fields(project_id = %id))]
     pub async fn delete_project(&self, id: Uuid) -> ProjectResult<()> {
         let deleted = self.repository.delete(id).await?;
 
         if !deleted {
             return Err(ProjectError::NotFound(id));
+        }
+
+        if let Err(e) = self
+            .publisher
+            .publish_deleted(ProjectDeleted::new(id))
+            .await
+        {
+            warn!(error = %e, project_id = %id, "failed to publish ProjectDeleted");
         }
 
         Ok(())
@@ -200,6 +229,7 @@ impl<R: ProjectRepository> ProjectService<R> {
 mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::events::{MockProjectEventPublisher, NoopProjectPublisher};
     use crate::repository::MockProjectRepository;
 
     #[tokio::test]
@@ -213,7 +243,7 @@ mod tests {
             .with(mockall::predicate::eq(user_id))
             .returning(|_| Ok(2));
 
-        let service = ProjectService::new(mock_repo);
+        let service = ProjectService::new(mock_repo, Arc::new(NoopProjectPublisher));
         let can_create = service.can_user_create_project(user_id).await.unwrap();
 
         assert!(
@@ -233,7 +263,7 @@ mod tests {
             .with(mockall::predicate::eq(user_id))
             .returning(|_| Ok(3));
 
-        let service = ProjectService::new(mock_repo);
+        let service = ProjectService::new(mock_repo, Arc::new(NoopProjectPublisher));
         let can_create = service.can_user_create_project(user_id).await.unwrap();
 
         assert!(
@@ -253,7 +283,7 @@ mod tests {
             .with(mockall::predicate::eq(user_id))
             .returning(|_| Ok(5));
 
-        let service = ProjectService::new(mock_repo);
+        let service = ProjectService::new(mock_repo, Arc::new(NoopProjectPublisher));
         let can_create = service.can_user_create_project(user_id).await.unwrap();
 
         assert!(
@@ -273,12 +303,73 @@ mod tests {
             .with(mockall::predicate::eq(user_id))
             .returning(|_| Ok(0));
 
-        let service = ProjectService::new(mock_repo);
+        let service = ProjectService::new(mock_repo, Arc::new(NoopProjectPublisher));
         let can_create = service.can_user_create_project(user_id).await.unwrap();
 
         assert!(
             can_create,
             "User with 0 projects should be able to create their first"
         );
+    }
+
+    /// The delete → event link is the whole mechanism behind backlog 0.3: if a
+    /// delete stops announcing itself, other services keep references to an id
+    /// that no longer exists, and nothing fails loudly.
+    #[tokio::test]
+    async fn deleting_a_project_publishes_project_deleted() {
+        let id = Uuid::now_v7();
+        let mut mock_repo = MockProjectRepository::new();
+        mock_repo
+            .expect_delete()
+            .with(mockall::predicate::eq(id))
+            .returning(|_| Ok(true));
+
+        let mut publisher = MockProjectEventPublisher::new();
+        publisher
+            .expect_publish_deleted()
+            .withf(move |event| event.project_id == id)
+            .times(1)
+            .returning(|_| Ok(()));
+
+        let service = ProjectService::new(mock_repo, Arc::new(publisher));
+        service.delete_project(id).await.unwrap();
+    }
+
+    /// A delete that changed nothing must not announce a deletion: consumers
+    /// would clear references to a project that still exists.
+    #[tokio::test]
+    async fn a_missing_project_publishes_nothing() {
+        let id = Uuid::now_v7();
+        let mut mock_repo = MockProjectRepository::new();
+        mock_repo.expect_delete().returning(|_| Ok(false));
+
+        let mut publisher = MockProjectEventPublisher::new();
+        publisher.expect_publish_deleted().never();
+
+        let service = ProjectService::new(mock_repo, Arc::new(publisher));
+        let err = service.delete_project(id).await.unwrap_err();
+        assert!(matches!(err, ProjectError::NotFound(missing) if missing == id));
+    }
+
+    /// A broker outage must not fail a delete that already committed — the row
+    /// is gone, and reporting an error would invite a retry of unrepeatable
+    /// work. Documented as best-effort on `delete_project`.
+    #[tokio::test]
+    async fn a_publish_failure_does_not_fail_the_delete() {
+        let id = Uuid::now_v7();
+        let mut mock_repo = MockProjectRepository::new();
+        mock_repo.expect_delete().returning(|_| Ok(true));
+
+        let mut publisher = MockProjectEventPublisher::new();
+        publisher
+            .expect_publish_deleted()
+            .times(1)
+            .returning(|_| Err(ProjectError::Internal("nats down".to_string())));
+
+        let service = ProjectService::new(mock_repo, Arc::new(publisher));
+        service
+            .delete_project(id)
+            .await
+            .expect("delete must succeed even when the event cannot be published");
     }
 }

@@ -12,10 +12,15 @@ proto-fmt:
 proto-lint:
     cd {{ proto_dir }} && buf lint
 
-# Check for breaking changes (against git main branch)
+# Check for breaking changes (against the git main branch).
+# NOT `cd {{ proto_dir }} && buf breaking --against '.git#...'`: the `.git` input is
+# resolved relative to the cwd, so from inside manifests/grpc it looks for
+# manifests/grpc/.git and dies with "does not appear to be a git repository".
+# Run from the repo root instead — the module dir is the input, and `subdir` points
+# the historical side at the same buf.yaml.
 [group('proto')]
 proto-breaking:
-    cd {{ proto_dir }} && buf breaking --against '.git#branch=main'
+    buf breaking {{ proto_dir }} --against '.git#branch=main,subdir={{ proto_dir }}'
 
 # Build/validate proto files
 [group('proto')]

@@ -72,7 +72,8 @@ to tooling already wired into the workspace — no new tools, no generic advice.
 ### Pin/unpin decisions
 
 - [ ] Check whether testcontainers-modules has released 0.28 support (inspect the sparse
-      index dependencies of testcontainers-modules).
+      index dependencies of testcontainers-modules). *Last checked 2026-08-31: latest
+      modules is still 0.15.0 requiring testcontainers `^0.27.0` — the pin stays.*
 - [ ] If it has: remove the `=` pin on `testcontainers`, run `just upkg`, confirm
       `cargo nextest run --workspace` is green (testcontainers-backed tests need Docker
       running), and delete the now-stale pin note in `AGENTS.md`.

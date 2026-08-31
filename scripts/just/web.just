@@ -25,6 +25,14 @@ web-fix:
 test-napi:
     bun nx run-many -t build test -p '@native/*'
 
+# Dependency boundaries over the whole nx graph (cargo + TS edges): every edge
+# must stay inside its `scope:` tag or point at scope:shared. Tags are declared
+# in tools/nx/scope-tags.ts; this is backlog 1.3 as an executable gate.
+[group('quality')]
+boundaries:
+    bun nx graph --file=dist/boundaries-graph.json >/dev/null
+    bun tools/nx/check-boundaries.ts dist/boundaries-graph.json
+
 # npm-check-updates preview across all workspace package.json files (no -u)
 [group('deps')]
 outdated-node:

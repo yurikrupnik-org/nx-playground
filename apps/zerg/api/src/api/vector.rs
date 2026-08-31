@@ -55,7 +55,10 @@ pub fn router(state: &crate::state::AppState) -> Option<Router> {
     let service = state.vector_service.as_ref()?;
     let vector_state = VectorState {
         service: Arc::clone(service),
-        projects: ProjectService::new(PgProjectRepository::new(state.db.clone())),
+        projects: ProjectService::new(
+            PgProjectRepository::new(state.db.clone()),
+            Arc::clone(&state.project_events),
+        ),
     };
 
     use axum::routing::{get, post};
@@ -482,10 +485,13 @@ mod tests {
     async fn owner_gets_a_tenant_scoped_to_the_verified_user() {
         let owner = Uuid::now_v7();
         let project_id = Uuid::now_v7();
-        let projects = ProjectService::new(OneProject {
-            id: project_id,
-            owner,
-        });
+        let projects = ProjectService::new(
+            OneProject {
+                id: project_id,
+                owner,
+            },
+            Arc::new(domain_projects::NoopProjectPublisher),
+        );
 
         let tenant = authorize(
             &projects,
@@ -510,10 +516,13 @@ mod tests {
         let owner = Uuid::now_v7();
         let attacker = Uuid::now_v7();
         let project_id = Uuid::now_v7();
-        let projects = ProjectService::new(OneProject {
-            id: project_id,
-            owner,
-        });
+        let projects = ProjectService::new(
+            OneProject {
+                id: project_id,
+                owner,
+            },
+            Arc::new(domain_projects::NoopProjectPublisher),
+        );
 
         let err = authorize(&projects, &caller(attacker), project_id, None)
             .await
@@ -528,10 +537,13 @@ mod tests {
     #[tokio::test]
     async fn unknown_project_is_reported_as_not_found() {
         let owner = Uuid::now_v7();
-        let projects = ProjectService::new(OneProject {
-            id: Uuid::now_v7(),
-            owner,
-        });
+        let projects = ProjectService::new(
+            OneProject {
+                id: Uuid::now_v7(),
+                owner,
+            },
+            Arc::new(domain_projects::NoopProjectPublisher),
+        );
 
         let err = authorize(&projects, &caller(owner), Uuid::now_v7(), None)
             .await

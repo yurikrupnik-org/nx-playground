@@ -95,7 +95,7 @@
 - [x] **Phase 5:** ungate `/ready`, add per-call deadlines, split `VectorService` into its own binary, adopt additive-only proto policy. *(2026-07-25: with tasks killed, `/ready` stays 200 and only `/api/tasks` returns 503.)*
 - [ ] Guardrail: before any *future* extraction, run the boundary checklist in `docs/modular-monolith-architecture.md` — resilience infra alone is not a boundary.
 - [ ] Resolve the messaging-lib ambiguity: document what `libs/core/messaging` is for post-cleanup, or finish removing it. Cross-link `docs/messaging-patterns.md`.
-- [ ] Prefer publishing an event over a synchronous cross-domain call when adding new inter-domain flows.
+- [x] Prefer publishing an event over a synchronous cross-domain call when adding new inter-domain flows. *(2026-08-31: first new cross-service flow since this was written — `ProjectDeleted` (backlog 0.3) is an event on an `EventLog` stream, not an RPC from projects into tasks. `libs/core/messaging` earned its keep here, which also answers half of the ambiguity above.)*
 
 ---
 
@@ -111,8 +111,8 @@
 **Recommended patterns:** Modular Monolith first (keep it), boundaries by business capability, contexts communicate via IDs + events (not shared FKs across contexts), extract a service only when a concrete scaling/deployment/ownership driver appears — the "monolith-first" rule.
 
 **Todos**
-- [ ] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call.
-- [ ] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.**
+- [~] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call. *(2026-08-31: the edge is now surfaced and pinned — grandfathered in `tools/nx/scope-tags.ts` with a pointer here; `just boundaries` enforces whichever way this is decided, by merging scopes or deleting the exception.)*
+- [x] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.** *(2026-08-31: written down AND executable — `just boundaries` fails a cross-scope import, and backlog 0.3 is the worked example of the other half: an ID reference stays correct via a `ProjectDeleted` event instead of an FK. The `cloud_resources → projects` FK above is the one grandfathered exception, named in `tools/nx/scope-tags.ts`.)*
 - [ ] Add a "when do we extract a service?" checklist (scaling, independent deploy, team ownership) so distribution stays a deliberate decision, not a default.
 - [ ] Keep the app layer as the only composition point — no domain-imports-domain code coupling.
 
@@ -129,5 +129,61 @@
 | 5 | Wrong/premature boundaries | ✅ Modular monolith; FK seam to decide | Low–Med |
 
 **Suggested order of attack:** Issue 2 (highest leverage, unblocks 3) → Issue 3 → Issues 1, 4 & 5 (mostly guardrails, verification, and documentation — the boundaries and transports are already sound).
+
+---
+
+## Patterns practice ladder (added 2026-08-31)
+
+The repo's stated goal is to *feel* coding styles and patterns, basic through advanced —
+the way `todo-web` already compares state management per route (`/` vs `/xstate` vs
+`/effect`, see `docs/todo-state-management.md`) and `docs/sqlx-vs-seaorm.md` /
+`docs/repository-comparison.md` compare persistence styles. Each rung below is anchored
+to an existing backlog item so this stays one list, not a parallel one. Rule inherited
+from the state-management vertical: a pattern earns its place by a **measured or
+demonstrated delta** (LOC, compile-time enforcement, test count, kB shipped), not by
+being interesting.
+
+### Basic — language-level, one PR each
+
+- [ ] **Newtype / value objects**: `ProjectName`, `Email` (Issue 2 todo). Parse, don't
+  validate — invalid states unrepresentable. First taste of the "make the type carry the
+  rule" style.
+- [ ] **Intent methods over field mutation**: `project.activate()? / .suspend()?`
+  returning `Result` (Issue 2 reference aggregate). Rich-domain-model basics.
+- [ ] **Task-based endpoint next to CRUD**: one named command endpoint with an
+  intent+reason DTO (Issue 3). Compare the handler diff against the generic `PUT /{id}`.
+
+### Intermediate — API and boundary design
+
+- [ ] **Generic library extraction**: promote `CallerAuth` into `libs/core/grpc`
+  (backlog **1.1**) — practice designing a generic-over-scope-type API that two services
+  consume without a live IdP in tests.
+- [ ] **Wire-contract crate**: extract `libs/contracts/todo` (backlog **5.1**) —
+  serialization boundary as a first-class artifact; contrast with `libs/contracts/tasks`.
+- [ ] **Idempotency**: `Nats-Msg-Id` + `duplicate_window` + idempotent processor
+  (backlog **0.2**) — the at-least-once residual is already measured (1 dup per replica
+  loss); the pattern's acceptance test exists (`just email-scale-check` churn run).
+- [x] **Architecture-as-test**: turn the dependency-direction and proto-additivity rules
+  into CI gates (backlog **1.2/1.3**) — the "fitness function" pattern; a rule is real
+  only when its violation is red. *(2026-08-31: both done and both verified red/green —
+  `scope:` tags + `just boundaries` for dependency direction, `just proto-breaking` for
+  wire additivity. Lesson worth keeping: the proto recipe had been **broken since it was
+  written** (`.git` resolved relative to the cwd), so the rule had a gate, a doc and a
+  policy while checking nothing. An unrun gate is indistinguishable from no gate.)*
+
+### Advanced — type-system and distributed patterns
+
+- [ ] **Typestate**: encode `Project` status transitions so an illegal transition does
+  not compile (`Project<Active>::suspend() -> Project<Suspended>`), as a comparison
+  branch against the runtime-`Result` version from the basic rung. Write down the
+  ergonomic cost (storage/`enum` erasure at the DB edge) — that tradeoff is the lesson.
+- [ ] **Transactional outbox**: backlog **5.2**, triggered by **3.4** (`DocumentUploaded`
+  ingestion) — the first must-not-lose message. Contrast with the deliberately
+  best-effort welcome-email dual write.
+- [ ] **Saga / compensation**: `POST /api/org` idempotency + compensating delete
+  (backlog **5.4**) — consistency rungs 1–2 without new infrastructure.
+- [ ] **CQRS-lite on one domain**: split write-intent commands from read-shape queries
+  where Issue 3's audit finds a lifecycle-heavy entity; explicitly *not* event sourcing —
+  record why that line is drawn.
 
 **Next step:** Confirm the 5 headings against the actual video, then I can turn any section into a concrete implementation plan (starting with the `Project` aggregate for Issue 2).

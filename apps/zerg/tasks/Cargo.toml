@@ -12,12 +12,14 @@ path = "src/main.rs"
 
 [dependencies]
 chrono = { workspace = true }
+contract_projects = { workspace = true }
 contract_tasks = { workspace = true }
 core_config = { workspace = true }
 database = { workspace = true, features = ["config"] }
 domain_tasks = { workspace = true }
 eyre = { workspace = true }
 grpc-client = { workspace = true, features = ["server"] }
+messaging = { workspace = true, features = ["nats"] }
 oidc-auth = { workspace = true }
 rpc = { workspace = true }
 serde_json = { workspace = true }
@@ -30,6 +32,7 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 parking_lot = { workspace = true }
+test-utils = { workspace = true, features = ["nats"] }
 
 [lints]
 workspace = true
