@@ -3,7 +3,7 @@ name = "zerg_api"
 publish = false
 # Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
 # sed-bumps this literal line for every project with a container target.
-version = "0.1.2"
+version = "0.1.3"
 edition.workspace = true
 
 [[bin]]

@@ -1,6 +1,6 @@
 {
   "name": "zerg-web",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "SolidJS SPA for the zerg vertical (BFF against zerg-api).",
   "type": "module",
   "scripts": {
