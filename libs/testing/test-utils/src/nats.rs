@@ -58,7 +58,7 @@ impl TestNats {
             .await
             .expect("Failed to get NATS port");
 
-        let connection_string = format!("nats://127.0.0.1:{}", host_port);
+        let connection_string = format!("nats://127.0.0.1:{host_port}");
 
         let client = async_nats::connect(&connection_string)
             .await
@@ -180,7 +180,7 @@ mod tests {
         // Publish messages
         for i in 0..3 {
             jetstream
-                .publish("consumer.test", format!("message-{}", i).into())
+                .publish("consumer.test", format!("message-{i}").into())
                 .await
                 .unwrap()
                 .await

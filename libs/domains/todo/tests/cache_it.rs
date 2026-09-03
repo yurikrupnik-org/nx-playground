@@ -10,8 +10,8 @@
 //!
 //! The NATS-backed tests require Docker. Run: `cargo test -p domain_todo --test cache_it`.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -20,7 +20,7 @@ use parking_lot::Mutex;
 use uuid::Uuid;
 
 use domain_todo::models::{CreateTodo, Todo, TodoFilter, TodoPriority, UpdateTodo};
-use domain_todo::{open_cache_bucket, CachedTodoRepository, TodoError, TodoRepository, TodoResult};
+use domain_todo::{CachedTodoRepository, TodoError, TodoRepository, TodoResult, open_cache_bucket};
 use test_utils::TestNats;
 
 /// In-memory repository that counts how many reads reach "the DB".

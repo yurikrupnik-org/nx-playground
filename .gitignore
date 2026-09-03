@@ -6,6 +6,10 @@ dist
 tmp
 out-tsc
 
+# python bytecode (platform/sdk/python)
+__pycache__/
+*.py[cod]
+
 # dependencies
 node_modules
 
@@ -43,6 +47,9 @@ Thumbs.db
 .nx/workspace-data
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
+
+# Emitted by `just gen-ci` (kcl); the hand-maintained workflow is ci-optimized.yml
+.github/workflows/generated-ci.yml
 
 # Environment files with secrets
 .env

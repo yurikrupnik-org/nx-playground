@@ -1,0 +1,87 @@
+# Local/kind dev Postgres for the todo vertical. Ephemeral (emptyDir) and
+# plaintext dev creds by design — NOT for anything beyond the local cluster.
+# Schema comes from the todo-migrations ConfigMap (manifests/db/todo/k8s/base),
+# mounted into /docker-entrypoint-initdb.d so initdb applies it on first boot.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: todo-postgres
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: todo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: todo-postgres
+  template:
+    metadata:
+      labels:
+        app: todo-postgres
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: todo
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: pg
+          env:
+            - name: POSTGRES_USER
+              value: todo
+            - name: POSTGRES_PASSWORD
+              value: todo
+            - name: POSTGRES_DB
+              value: todo
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "todo", "-d", "todo"]
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "todo", "-d", "todo"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: migrations
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: migrations
+          configMap:
+            name: todo-migrations
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/part-of: todo
+spec:
+  selector:
+    app: todo-postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: 5432

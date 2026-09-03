@@ -1,0 +1,57 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+hostPort = 5231
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.service]` shape
+# already states is omitted, and `image`/`name`/`namespace`/`partOf` are injected
+# by butler from the image facts and this app's path.
+[workload]
+
+# 6 * 5s = up to 30s of startup grace before liveness can restart the container.
+[workload.startupProbe]
+path = "/health"
+port = 8080
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 6
+
+[workload.livenessProbe]
+path = "/health"
+port = 8080
+
+# /ready (not /health): readiness reports dependency health, so a failing
+# database pulls the pod out of the Service instead of restarting it.
+[workload.readinessProbe]
+path = "/ready"
+port = 8080
+periodSeconds = 5
+timeoutSeconds = 2
+
+# cpu 70 / memory 80 are the package's own defaults; the replica floor and
+# ceiling are stated because nothing else in the repo says what they should be.
+# The kind default `replicas` never reaches the Deployment while this is set:
+# the package omits spec.replicas whenever an autoscaler owns it.
+[workload.hpa]
+minReplicas = 1
+maxReplicas = 10
+
+# Rendered from the `[config]` table below (the package names it `<name>-config`).
+[[workload.envFrom]]
+kind = "configMap"
+name = "terran-api-config"
+
+# Not produced by anything in this repo — the cluster's external-secrets setup
+# owns it. `optional` defaults to true for a secret, so local kind (no
+# external-secrets controller) still starts.
+[[workload.envFrom]]
+kind = "secret"
+name = "terran-api-secrets"
+
+# → ConfigMap terran-api-config.
+[config]
+PORT = "8080"
+RUST_LOG = "info"

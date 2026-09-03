@@ -130,6 +130,7 @@ pub trait SelectableFields: Serialize {
             .iter()
             .filter(|f| !available.iter().any(|a| a == *f))
             .map(|f| (*f).to_string())
+            // .is_empty()
             .collect();
 
         if invalid.is_empty() {

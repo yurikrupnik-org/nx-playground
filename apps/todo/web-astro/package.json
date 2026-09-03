@@ -1,0 +1,28 @@
+{
+  "name": "todo-astro-web",
+  "version": "0.0.1",
+  "description": "Astro SSR host for the todo vertical: same UI twice \u2014 a Solid island vs pure HTML + htmx fragments (both talk to todo-api).",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "serve": "astro preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --write ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@astrojs/node": "^11.1.4",
+    "@astrojs/solid-js": "^7.0.2",
+    "@domain/todo": "workspace:*",
+    "@native/field-selector": "workspace:*",
+    "astro": "^7.2.8",
+    "htmx.org": "^2.0.10",
+    "solid-js": "^1.9.14"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

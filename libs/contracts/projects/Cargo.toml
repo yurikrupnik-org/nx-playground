@@ -1,0 +1,17 @@
+[package]
+name = "contract_projects"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+serde = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

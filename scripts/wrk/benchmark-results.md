@@ -248,15 +248,18 @@ With optimized configuration:
 
 ## Benchmark Commands
 
+> The `/api/tasks-direct` endpoint measured below was removed when the tasks service
+> boundary was fixed ([`adr-tasks-service-boundary.md`](../../docs/adr-tasks-service-boundary.md)).
+> The direct-DB columns are retained as a historical record; only the gRPC path is
+> reproducible today.
+
 ```bash
-# Run full comparison
-just bench-tasks-compare
+# Run GET + POST
+just bench-tasks-all
 
 # Individual endpoints
 just bench-tasks-grpc           # gRPC GET
-just bench-tasks-direct         # Direct DB GET
 just bench-tasks-grpc-post      # gRPC POST
-just bench-tasks-direct-post    # Direct DB POST
 
 # Quick test (10s, lighter load)
 just bench-tasks-quick
@@ -268,7 +271,7 @@ just bench-tasks-quick
 
 To compare future results against this baseline:
 
-1. Run `just bench-tasks-compare`
+1. Run `just bench-tasks-all`
 2. Compare against "Scenario 1: Optimized" results above
 3. Expected variance: ±5% due to system load
 4. Investigate if > 10% regression

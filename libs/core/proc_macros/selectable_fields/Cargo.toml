@@ -1,10 +1,10 @@
 [package]
 name = "selectable_fields"
+description = "SelectableFields derive macro for dynamic field selection"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
-
-[lints]
-workspace = true
 
 [lib]
 proc-macro = true
@@ -20,3 +20,6 @@ core_proc_macros = { workspace = true, features = ["selectable_fields"] }
 field-selector = { workspace = true }
 serde = { workspace = true }
 trybuild = { workspace = true }
+
+[lints]
+workspace = true

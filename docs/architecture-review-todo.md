@@ -70,22 +70,32 @@
 
 **The argument:** Splitting a system but wiring the pieces with synchronous request/response chains gives you the worst of both — distribution's failure modes plus the monolith's temporal coupling. A → B → C sync calls fail together, scale together, and deploy together.
 
-**In our system — [~] mostly good; `tasks` is a deliberate, well-built microservice split (not a smell).**
+**In our system — [!] REVISED 2026-07-25. The resilience infra is excellent; the *boundary* is not one. See `docs/adr-tasks-service-boundary.md`.**
 - Sync in-process for `projects`, `users`, `cloud_resources` — fine, they're in one process.
-- **`tasks` is a proper microservice extraction, done right.** `apps/zerg/tasks` is a standalone gRPC **server** binary (own process/deploy) hosting `TasksServiceServer` + `VectorServiceServer` (`apps/zerg/tasks/src/server.rs`). `apps/zerg/api` is the HTTP gateway holding a pooled `TasksServiceClient` (`apps/zerg/api/src/grpc_pool.rs`) that **`connect_lazy()`s so the api boots independently of tasks**, with a **health-gated `/ready`** (`tasks_health`) and a tracing interceptor. Channel config already sets HTTP/2 keep-alive, 5s connect timeout, 30s request timeout, and there's a `create_channel_with_retry` + exponential-backoff helper (`libs/core/grpc/src/channel/mod.rs`). This is the *opposite* of the accidental distributed monolith — a real boundary with the boot-decoupling and resilience infra to match.
-- **Async events** for `todo`: publishes `TodoEvent` to NATS JetStream, consumed by `apps/todo/worker`, hidden behind a `TodoEventPublisher` trait (`libs/domains/todo/src/events.rs`). Healthy loosely-coupled pattern.
+- **What holds up (unchanged):** `apps/zerg/tasks` is a standalone gRPC server binary; `apps/zerg/api` holds a pooled `TasksServiceClient` (`grpc_pool.rs`) that `connect_lazy()`s so the api boots independently, with a tracing interceptor, HTTP/2 keep-alive, 5s connect / 30s request timeouts, and `create_channel_with_retry` (`libs/core/grpc/src/channel/mod.rs`). Contract is versioned (`tasks.v1`) and generated for both sides by buf. This is genuinely good plumbing.
+- **What does not hold up:** the original verdict graded *resilience infrastructure* and never audited *boundary hygiene*. On the three tests that define a service boundary, it fails:
+  - **Dependency direction.** `apps/zerg/api` and `apps/zerg/tasks` both depend on `domain_tasks`; the client imports `PgTaskRepository, TaskService, handlers` (`api/tasks_direct.rs:2`), and the caller's HTTP→gRPC handlers live inside the callee's crate (`domain_tasks/handlers/grpc.rs`). A domain model change recompiles and redeploys both — the independence the split was meant to buy.
+  - **Data ownership.** Two processes write one table: `api/tasks_direct.rs:5` and `tasks/src/server.rs:71` both construct `PgTaskRepository`. `/api/tasks-direct` is a live path that bypasses the service entirely. This *is* "a domain reaching synchronously into another's data mid-request" — the thing Issue 4 says is not happening. Adding tenant scoping had to be applied twice or isolation would have been bypassable.
+  - **Authentication.** `org_id`/`user_id` cross the wire as plaintext proto fields the server trusts. `required_uuid()` validates shape, not entitlement — anything that can reach `:50051` can read any org's tasks.
+- **Also:** `/ready` gates on `tasks_grpc` (`api/health.rs:40`), so tasks being down takes projects, users, and org endpoints down with it — *negative* fault isolation, two processes that must both be up. And `tasks/src/server.rs:101-102` hosts `VectorServiceServer` alongside tasks, so "scale tasks independently" is already false.
+- **Async events** for `todo`: publishes `TodoEvent` to NATS JetStream, consumed by `apps/todo/worker`, hidden behind a `TodoEventPublisher` trait (`libs/domains/todo/src/events.rs`). Healthy loosely-coupled pattern — and notably our *cleanest* boundary, because a queue forces a message contract and forbids shared state, while a synchronous call lets you keep both and feel separated.
 - Note commit `aaf4c85` pruned legacy messaging helpers from `libs/core` but `libs/core/messaging` is still live — worth confirming the messaging story is coherent, not half-removed.
 
-**The one honest nuance:** the `api → tasks` gRPC call is still **synchronous on the request path**, so tasks being unavailable fails those endpoints. Given the health-gated `/ready` and independent boot, that's a **deliberate, acceptable tradeoff**, not the anti-pattern. The distributed-monolith warning only bites if *accidental* multi-hop sync chains (A→B→C) start forming, or if a domain reaches synchronously into another's data mid-request. Neither is happening today.
+**The corrected nuance:** synchronous-on-the-request-path was never the real problem — with lazy connect and health gating that is a reasonable trade. The real problem is that we pay network cost for module-level coupling: shared crate, shared table, unauthenticated hop. That is the textbook distributed monolith, arrived at from the opposite direction than expected.
 
-**Recommended patterns:** Keep the deliberate service boundary. For *new* cross-boundary flows, prefer events over adding synchronous hops; keep own-your-data (no "ask another service for its data" inside a request); ensure per-call deadlines/retry are actually applied where the infra exists.
+**Recommended patterns:** Execute `docs/adr-tasks-service-boundary.md` (contract-only client dep, own database with ID references instead of cross-service FKs, verified-token identity at the hop, decoupled readiness). For *new* cross-boundary flows, prefer events over synchronous hops.
 
 **Todos**
-- [x] `tasks` split has independent boot (`connect_lazy`), health gating (`/ready`), pooled client, timeouts, and a retry helper — resilience infra is in place.
-- [ ] Verify per-**call** deadlines/retry are actually wired on the `TasksServiceClient` calls (the channel-level infra exists; confirm handlers set request deadlines rather than relying only on the 30s default).
-- [ ] Guardrail: if a *second* remote sync hop is ever added on a request path, flag the A→B→C chain and consider events instead — this is the only way `tasks` could drift toward a distributed monolith.
+- [x] `tasks` split has independent boot (`connect_lazy`), health gating, pooled client, timeouts, retry helper — resilience infra is in place.
+- [x] Audit boundary hygiene, not just resilience → recorded in `docs/adr-tasks-service-boundary.md`.
+- [x] **Phase 1:** delete `/tasks-direct` and `direct_router` — one door to the data. *(2026-07-25: route returns 404, OpenAPI lists only `/tasks`; `bench-*-direct` recipes removed.)*
+- [x] **Phase 2:** extract `libs/contracts/tasks`; `zerg_api` depends on the contract, not `domain_tasks`. *(2026-07-25: `grep -rn "domain_tasks" apps/zerg/api/` is empty; `domain_tasks` shed 16 deps incl. axum/utoipa/tonic/rpc/ts-rs.)*
+- [x] **Phase 3:** give tasks its own database; `org_ref`/`user_ref` IDs replace cross-service FKs. *(2026-07-25: `manifests/db/tasks/` + `tasks_app` role; `tasks` absent from the zerg schema.)*
+- [x] **Phase 4:** forward the user token as gRPC metadata, verify via JWKS in `zerg_tasks`, delete `org_id`/`user_id` from proto requests. *(2026-07-25: direct unauthenticated and forged-token calls to `:50051` both return `Unauthenticated` — see `apps/zerg/tasks/tests/boundary_smoke.rs`.)*
+- [x] **Phase 5:** ungate `/ready`, add per-call deadlines, split `VectorService` into its own binary, adopt additive-only proto policy. *(2026-07-25: with tasks killed, `/ready` stays 200 and only `/api/tasks` returns 503.)*
+- [ ] Guardrail: before any *future* extraction, run the boundary checklist in `docs/modular-monolith-architecture.md` — resilience infra alone is not a boundary.
 - [ ] Resolve the messaging-lib ambiguity: document what `libs/core/messaging` is for post-cleanup, or finish removing it. Cross-link `docs/messaging-patterns.md`.
-- [ ] Prefer publishing an event over a synchronous cross-domain call when adding new inter-domain flows.
+- [x] Prefer publishing an event over a synchronous cross-domain call when adding new inter-domain flows. *(2026-08-31: first new cross-service flow since this was written — `ProjectDeleted` (backlog 0.3) is an event on an `EventLog` stream, not an RPC from projects into tasks. `libs/core/messaging` earned its keep here, which also answers half of the ambiguity above.)*
 
 ---
 
@@ -101,8 +111,8 @@
 **Recommended patterns:** Modular Monolith first (keep it), boundaries by business capability, contexts communicate via IDs + events (not shared FKs across contexts), extract a service only when a concrete scaling/deployment/ownership driver appears — the "monolith-first" rule.
 
 **Todos**
-- [ ] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call.
-- [ ] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.**
+- [~] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call. *(2026-08-31: the edge is now surfaced and pinned — grandfathered in `tools/nx/scope-tags.ts` with a pointer here; `just boundaries` enforces whichever way this is decided, by merging scopes or deleting the exception.)*
+- [x] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.** *(2026-08-31: written down AND executable — `just boundaries` fails a cross-scope import, and backlog 0.3 is the worked example of the other half: an ID reference stays correct via a `ProjectDeleted` event instead of an FK. The `cloud_resources → projects` FK above is the one grandfathered exception, named in `tools/nx/scope-tags.ts`.)*
 - [ ] Add a "when do we extract a service?" checklist (scaling, independent deploy, team ownership) so distribution stays a deliberate decision, not a default.
 - [ ] Keep the app layer as the only composition point — no domain-imports-domain code coupling.
 
@@ -119,5 +129,61 @@
 | 5 | Wrong/premature boundaries | ✅ Modular monolith; FK seam to decide | Low–Med |
 
 **Suggested order of attack:** Issue 2 (highest leverage, unblocks 3) → Issue 3 → Issues 1, 4 & 5 (mostly guardrails, verification, and documentation — the boundaries and transports are already sound).
+
+---
+
+## Patterns practice ladder (added 2026-08-31)
+
+The repo's stated goal is to *feel* coding styles and patterns, basic through advanced —
+the way `todo-web` already compares state management per route (`/` vs `/xstate` vs
+`/effect`, see `docs/todo-state-management.md`) and `docs/sqlx-vs-seaorm.md` /
+`docs/repository-comparison.md` compare persistence styles. Each rung below is anchored
+to an existing backlog item so this stays one list, not a parallel one. Rule inherited
+from the state-management vertical: a pattern earns its place by a **measured or
+demonstrated delta** (LOC, compile-time enforcement, test count, kB shipped), not by
+being interesting.
+
+### Basic — language-level, one PR each
+
+- [ ] **Newtype / value objects**: `ProjectName`, `Email` (Issue 2 todo). Parse, don't
+  validate — invalid states unrepresentable. First taste of the "make the type carry the
+  rule" style.
+- [ ] **Intent methods over field mutation**: `project.activate()? / .suspend()?`
+  returning `Result` (Issue 2 reference aggregate). Rich-domain-model basics.
+- [ ] **Task-based endpoint next to CRUD**: one named command endpoint with an
+  intent+reason DTO (Issue 3). Compare the handler diff against the generic `PUT /{id}`.
+
+### Intermediate — API and boundary design
+
+- [ ] **Generic library extraction**: promote `CallerAuth` into `libs/core/grpc`
+  (backlog **1.1**) — practice designing a generic-over-scope-type API that two services
+  consume without a live IdP in tests.
+- [ ] **Wire-contract crate**: extract `libs/contracts/todo` (backlog **5.1**) —
+  serialization boundary as a first-class artifact; contrast with `libs/contracts/tasks`.
+- [ ] **Idempotency**: `Nats-Msg-Id` + `duplicate_window` + idempotent processor
+  (backlog **0.2**) — the at-least-once residual is already measured (1 dup per replica
+  loss); the pattern's acceptance test exists (`just email-scale-check` churn run).
+- [x] **Architecture-as-test**: turn the dependency-direction and proto-additivity rules
+  into CI gates (backlog **1.2/1.3**) — the "fitness function" pattern; a rule is real
+  only when its violation is red. *(2026-08-31: both done and both verified red/green —
+  `scope:` tags + `just boundaries` for dependency direction, `just proto-breaking` for
+  wire additivity. Lesson worth keeping: the proto recipe had been **broken since it was
+  written** (`.git` resolved relative to the cwd), so the rule had a gate, a doc and a
+  policy while checking nothing. An unrun gate is indistinguishable from no gate.)*
+
+### Advanced — type-system and distributed patterns
+
+- [ ] **Typestate**: encode `Project` status transitions so an illegal transition does
+  not compile (`Project<Active>::suspend() -> Project<Suspended>`), as a comparison
+  branch against the runtime-`Result` version from the basic rung. Write down the
+  ergonomic cost (storage/`enum` erasure at the DB edge) — that tradeoff is the lesson.
+- [ ] **Transactional outbox**: backlog **5.2**, triggered by **3.4** (`DocumentUploaded`
+  ingestion) — the first must-not-lose message. Contrast with the deliberately
+  best-effort welcome-email dual write.
+- [ ] **Saga / compensation**: `POST /api/org` idempotency + compensating delete
+  (backlog **5.4**) — consistency rungs 1–2 without new infrastructure.
+- [ ] **CQRS-lite on one domain**: split write-intent commands from read-shape queries
+  where Issue 3's audit finds a lifecycle-heavy entity; explicitly *not* event sourcing —
+  record why that line is drawn.
 
 **Next step:** Confirm the 5 headings against the actual video, then I can turn any section into a concrete implementation plan (starting with the `Project` aggregate for Issue 2).

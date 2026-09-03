@@ -1,10 +1,19 @@
 //! Direct REST handlers for vector operations
+//!
+//! # Trust boundary
+//!
+//! These handlers take the tenant straight from client input and perform **no**
+//! authorization of their own. They exist to describe the wire shape (they carry
+//! the `utoipa` annotations behind [`super::VectorApiDoc`]); the served routes are
+//! `zerg_api`'s in `apps/zerg/api/src/api/vector.rs`, which verify project
+//! ownership against the request's authenticated tenant first. Do not mount
+//! [`super::router`] on a public listener without an equivalent guard.
 
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -144,6 +153,7 @@ pub struct DeleteResponse {
     ),
     responses(
         (status = 200, description = "List of collections", body = Vec<CollectionInfo>),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -214,6 +224,7 @@ pub async fn get_collection<R: VectorRepository>(
     responses(
         (status = 201, description = "Collection created", body = CollectionInfo),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -242,7 +253,7 @@ pub async fn create_collection<R: VectorRepository>(
     ),
     responses(
         (status = 204, description = "Collection deleted"),
-        (status = 404, description = "Collection not found"),
+        (status = 404, description = "Collection or project not found"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -268,6 +279,7 @@ pub async fn delete_collection<R: VectorRepository>(
     responses(
         (status = 200, description = "Search results", body = Vec<SearchResult>),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -290,6 +302,7 @@ pub async fn search<R: VectorRepository>(
     responses(
         (status = 200, description = "Vector upserted", body = UpsertResponse),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -325,6 +338,7 @@ pub async fn upsert<R: VectorRepository>(
     responses(
         (status = 200, description = "Vectors upserted", body = UpsertBatchResponse),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -362,6 +376,7 @@ pub async fn upsert_batch<R: VectorRepository>(
     responses(
         (status = 200, description = "Retrieved vectors", body = Vec<Vector>),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -390,6 +405,7 @@ pub async fn get_vectors<R: VectorRepository>(
     responses(
         (status = 200, description = "Vectors deleted", body = DeleteResponse),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -447,6 +463,7 @@ pub async fn embed<R: VectorRepository>(
     responses(
         (status = 200, description = "Search results", body = Vec<SearchResult>),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]

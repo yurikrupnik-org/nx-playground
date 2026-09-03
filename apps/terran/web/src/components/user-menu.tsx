@@ -1,5 +1,5 @@
 import { Show } from 'solid-js';
-import { useAuth } from '../lib/auth-context';
+import { useAuth } from '../lib/auth';
 
 export function UserMenu() {
   const auth = useAuth();

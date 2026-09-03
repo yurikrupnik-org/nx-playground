@@ -43,6 +43,11 @@ pub struct CreateResponse {
     pub created_at: i64,
     #[prost(int64, tag="10")]
     pub updated_at: i64,
+    /// Identity-provider refs (org_01... / user_01... / personal:{subject}).
+    #[prost(string, tag="13")]
+    pub org_ref: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub user_ref: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GetByIdRequest {
@@ -72,6 +77,11 @@ pub struct GetByIdResponse {
     pub created_at: i64,
     #[prost(int64, tag="10")]
     pub updated_at: i64,
+    /// Identity-provider refs (org_01... / user_01... / personal:{subject}).
+    #[prost(string, tag="13")]
+    pub org_ref: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub user_ref: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UpdateByIdRequest {
@@ -114,6 +124,11 @@ pub struct UpdateByIdResponse {
     pub created_at: i64,
     #[prost(int64, tag="10")]
     pub updated_at: i64,
+    /// Identity-provider refs (org_01... / user_01... / personal:{subject}).
+    #[prost(string, tag="13")]
+    pub org_ref: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub user_ref: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DeleteByIdRequest {
@@ -139,6 +154,10 @@ pub struct ListRequest {
     /// int32 instead of string
     #[prost(int32, tag="6")]
     pub offset: i32,
+    /// Narrow to the caller's own tasks. The request can say *whether* to narrow,
+    /// never *whose* tasks to fetch - "someone else's tasks" is now inexpressible.
+    #[prost(bool, tag="9")]
+    pub mine: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ListResponse {
@@ -157,6 +176,8 @@ pub struct ListStreamRequest {
     pub completed: ::core::option::Option<bool>,
     #[prost(int32, tag="5")]
     pub limit: i32,
+    #[prost(bool, tag="8")]
+    pub mine: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ListStreamResponse {
@@ -180,6 +201,11 @@ pub struct ListStreamResponse {
     pub created_at: i64,
     #[prost(int64, tag="10")]
     pub updated_at: i64,
+    /// Identity-provider refs (org_01... / user_01... / personal:{subject}).
+    #[prost(string, tag="13")]
+    pub org_ref: ::prost::alloc::string::String,
+    #[prost(string, tag="14")]
+    pub user_ref: ::prost::alloc::string::String,
 }
 /// Enums use 1 byte instead of 4-6 bytes for strings
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

@@ -1,11 +1,9 @@
 [package]
 name = "domain_vector"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-
-[lints]
-workspace = true
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 async-trait = { workspace = true }
@@ -29,3 +27,6 @@ uuid = { workspace = true }
 mockall = { workspace = true }
 test-utils = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

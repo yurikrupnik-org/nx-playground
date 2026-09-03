@@ -20,11 +20,17 @@ FROM chef AS builder
 ARG APP_NAME
 ARG RUST_TARGET
 
-# Compile dependencies first; this layer is reused until the manifests/lockfile change.
+# Compile dependencies first; this layer is reused until the manifests/lockfile
+# change. `-p ${APP_NAME}` is not an optimisation: an unscoped cook builds every
+# workspace member, and `libs/native/field-selector` is an N-API cdylib, which
+# the musl target cannot produce ("cannot produce cdylib ... as the target
+# x86_64-unknown-linux-musl does not support these crate types") — that failed
+# the image build of every service the moment that crate joined the workspace.
 COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target,id=rust-target,sharing=locked \
-    cargo chef cook --release --locked --recipe-path recipe.json --target ${RUST_TARGET}
+    cargo chef cook --release --locked --recipe-path recipe.json \
+    --target ${RUST_TARGET} -p ${APP_NAME}
 
 COPY Cargo.toml Cargo.lock ./
 COPY apps/ apps/
@@ -43,7 +49,7 @@ COPY --from=builder /app-bin /app
 
 # scratch has no /etc/passwd, so use a numeric UID:GID. This makes the image
 # genuinely non-root and satisfies Kubernetes runAsNonRoot / restricted PSS.
-USER 65534:65534
+USER 65532:65532
 
 ENV PORT=8080 \
     RUST_BACKTRACE=1

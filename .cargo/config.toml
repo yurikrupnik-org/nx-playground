@@ -5,6 +5,10 @@ target-dir = 'dist/target'
 rustc-wrapper = "sccache"
 
 [env]
+# Clippy only reads clippy.toml from the crate/workspace root, so point it here
+# to keep tool configs together in .cargo/ (like deny.toml).
+CLIPPY_CONF_DIR = { value = ".cargo", relative = true }
+
 # Default export directory for ts-rs (relative to each crate root)
 # Override with #[ts(export_to = "custom/")] per type if needed
 TS_RS_EXPORT_DIR = { value = "types", relative = false }

@@ -37,7 +37,7 @@ just check
 tilt up
 
 # Or run services without k8s
-just _docker-up        # Start Postgres, Redis, NATS via Docker Compose
+just docker-up        # Start Postgres, Redis, NATS via Docker Compose
 cargo run -p api       # Start the API service
 just web               # Start the web frontend
 ```

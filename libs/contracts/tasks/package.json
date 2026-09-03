@@ -1,0 +1,12 @@
+{
+  "name": "@contract/tasks",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./types/index.ts",
+  "types": "./types/index.ts",
+  "exports": {
+    ".": "./types/index.ts",
+    "./types": "./types/index.ts"
+  },
+  "description": "Tasks service contract - Rust DTOs with auto-generated TypeScript types"
+}

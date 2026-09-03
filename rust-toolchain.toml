@@ -1,0 +1,17 @@
+# Pins the Rust toolchain for every entrypoint: local cargo, bacon, nx, CI, and
+# Docker builds. rustup reads this automatically for any cargo/rustc invocation
+# under this directory and installs the toolchain on first use.
+#
+# MUST live at the repo root — rustup does not look in .cargo/ and there is no
+# env var or flag to relocate it (unlike clippy.toml / deny.toml / rustfmt.toml).
+#
+# Bumping: change `channel`, run `just check`, and update the `rust_channel` /
+# rust image in scripts/kcl/ci so CI does not pre-install a second toolchain.
+
+[toolchain]
+channel = "1.97.1"
+profile = "default"
+
+# clippy + rustfmt back `just lint` and `just fmt-check`.
+# rust-src is what rust-analyzer needs to resolve std.
+components = ["clippy", "rustfmt", "rust-src"]

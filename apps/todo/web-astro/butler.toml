@@ -1,0 +1,52 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+hostPort = 5252
+resourceDeps = ["todo-api"]
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.node]` shape
+# already states is omitted — the 1000 (`node`) uid and the V8-sized resource
+# envelope — and `image`/`name`/`namespace`/`partOf` are injected by butler from
+# the image facts and this app's path.
+[workload]
+# SSR requests are short; 10s is enough to drain them, unlike the node default.
+terminationGracePeriodSeconds = 10
+
+# 12 * 5s = up to 60s of startup grace. The node process has to boot V8 and load
+# its N-API addon before it binds, hence the 3s initial delay too.
+[workload.startupProbe]
+path = "/health"
+port = "http"
+initialDelaySeconds = 3
+periodSeconds = 5
+failureThreshold = 12
+
+[workload.livenessProbe]
+path = "/health"
+port = "http"
+
+# Astro talks to todo-api per request rather than at boot, so it has no
+# dependency state to report: readiness probes the same path, just faster.
+[workload.readinessProbe]
+path = "/health"
+port = "http"
+periodSeconds = 5
+timeoutSeconds = 2
+
+# HOST/PORT are the @astrojs/node standalone server's bind inputs; PORT must
+# agree with `[workload] port` (the kind default 8080).
+[[workload.env]]
+name = "HOST"
+value = "0.0.0.0"
+
+[[workload.env]]
+name = "PORT"
+value = "8080"
+
+# SSR fetches the API itself — no nginx, so no proxy ConfigMap.
+[[workload.env]]
+name = "TODO_API_URL"
+value = "http://todo-api:8080"

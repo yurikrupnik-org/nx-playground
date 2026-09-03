@@ -1,0 +1,18 @@
+[package]
+name = "devenv-sdk"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+k8s-openapi = { workspace = true }
+kube = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

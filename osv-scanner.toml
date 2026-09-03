@@ -1,0 +1,6 @@
+# Advisories acknowledged as not actionable. Keep in sync with the ignore list
+# in the justfile `audit` recipe (cargo audit).
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0235"
+reason = "rkyv 0.7 is a lockfile-only optional dep of rust_decimal, never compiled (cargo tree -i rkyv -e all --target all: not in graph); no semver-compatible fix exists"

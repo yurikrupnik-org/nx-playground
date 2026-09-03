@@ -1,6 +1,14 @@
 //! Integration tests against the live dev stack (Postgres `terran`, Keycloak `:8088`,
 //! Redis `:6379`). `#[ignore]`d so CI without the stack stays green. Run with:
 //!   cargo test --package terran_api --test api -- --ignored
+#![allow(
+    clippy::unwrap_used,
+    reason = "integration test: a panic on a broken fixture is the intended failure mode"
+)]
+#![allow(
+    unsafe_code,
+    reason = "std::env::set_var is unsafe since edition 2024; these tests are single-threaded setup"
+)]
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
@@ -201,6 +209,87 @@ async fn rls_blocks_cross_tenant_under_app_role() {
         .unwrap();
     tx.commit().await.unwrap();
     assert!(none.is_empty(), "no app.org_id -> zero rows under RLS");
+}
+
+/// The observe-only cloud inventory: auth-guarded, and every entry mirrors a live
+/// cluster resource. Needs the `demo` CloudInventory claim (`just inventory-create`).
+#[tokio::test]
+#[ignore = "requires live Keycloak + Postgres + Redis + a kind cluster with the demo CloudInventory"]
+async fn cloud_inventory_is_auth_guarded_and_read_only() {
+    let state = terran_api::build_state(test_config())
+        .await
+        .expect("build state");
+    assert!(
+        state.inventory.is_some(),
+        "no cluster access — is the kind cluster up?"
+    );
+    unsafe { std::env::set_var("CORS_ALLOWED_ORIGIN", "http://localhost:3001") };
+    let app = terran_api::build_app(state).await.expect("build app");
+    let token = fetch_keycloak_token().await;
+
+    let unauth = app
+        .clone()
+        .oneshot(
+            Request::get("/api/cloud-resources")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unauth.status(), StatusCode::UNAUTHORIZED, "no creds -> 401");
+
+    let listed = app
+        .clone()
+        .oneshot(
+            Request::get("/api/cloud-resources")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(listed.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(listed.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let resources: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let coredns = resources
+        .iter()
+        .find(|r| r["name"] == "coredns")
+        .expect("demo inventory observes the coredns Deployment");
+    assert_eq!(coredns["kind"], "Deployment");
+    assert_eq!(coredns["resource_type"], "compute");
+    assert_eq!(coredns["status"], "active");
+    assert!(
+        coredns["configuration"]["metadata"]
+            .get("managedFields")
+            .is_none(),
+        "server bookkeeping must be stripped from the observed manifest"
+    );
+
+    // The inventory is read-only: no write verb is routed.
+    for req in [
+        Request::post("/api/cloud-resources"),
+        Request::delete(format!(
+            "/api/cloud-resources/{}",
+            coredns["id"].as_str().unwrap()
+        )),
+    ] {
+        let res = app
+            .clone()
+            .oneshot(
+                req.header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            res.status(),
+            StatusCode::METHOD_NOT_ALLOWED,
+            "inventory exposes no write path"
+        );
+    }
 }
 
 #[tokio::test]
@@ -433,6 +522,8 @@ fn openapi_spec_lists_all_endpoints() {
         "/assets",
         "/assets/{id}",
         "/assets/by-user/{user_id}",
+        "/cloud-resources",
+        "/cloud-resources/{id}",
     ] {
         assert!(paths.contains_key(p), "missing path {p} in OpenAPI spec");
     }
@@ -440,7 +531,12 @@ fn openapi_spec_lists_all_endpoints() {
     let schemas = spec["components"]["schemas"]
         .as_object()
         .expect("component schemas");
-    for s in ["CloudAsset", "CreateAsset", "PasswordLogin"] {
+    for s in [
+        "CloudAsset",
+        "CreateAsset",
+        "PasswordLogin",
+        "ObservedCloudResource",
+    ] {
         assert!(
             schemas.contains_key(s),
             "missing schema {s} in OpenAPI spec"

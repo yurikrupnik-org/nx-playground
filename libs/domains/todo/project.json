@@ -4,30 +4,6 @@
   "projectType": "library",
   "sourceRoot": "libs/domains/todo/src",
   "targets": {
-    "build": {
-      "cache": true,
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "cargo check --package domain_todo",
-        "cwd": "{workspaceRoot}"
-      }
-    },
-    "test": {
-      "cache": true,
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "cargo test --package domain_todo",
-        "cwd": "{workspaceRoot}"
-      }
-    },
-    "lint": {
-      "cache": true,
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "cargo clippy --package domain_todo",
-        "cwd": "{workspaceRoot}"
-      }
-    },
     "ts-gate": {
       "executor": "nx:run-commands",
       "options": {

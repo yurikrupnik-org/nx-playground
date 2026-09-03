@@ -1,9 +1,12 @@
 [package]
 name = "zerg_email_nats"
+publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.2"
-edition = "2021"
+edition.workspace = true
 description = "Email worker service using NATS JetStream"
-license = "MIT"
+license.workspace = true
 
 [lib]
 path = "src/lib.rs"
@@ -39,7 +42,17 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+# Throwaway NATS container for tests/examples_it.rs, which runs the publisher
+# examples as real processes.
+test-utils = { workspace = true, features = ["nats"] }
 
 [[example]]
 name = "publish_test"
 path = "examples/publish_test.rs"
+
+[[example]]
+name = "publish_bulk"
+path = "examples/publish_bulk.rs"
+
+[lints]
+workspace = true

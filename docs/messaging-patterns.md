@@ -1,6 +1,11 @@
 # Messaging & Communication Patterns
 
-When to use Redis Streams, Kafka, RabbitMQ, and gRPC.
+Technology **reference**: when to use Redis Streams, Kafka, RabbitMQ, and gRPC.
+
+> **Looking for what *we* should do?** This page compares technologies, most of which we
+> do not run. For the decision guide covering the three transports this repo actually
+> operates — NATS JetStream, gRPC, HTTP — plus the dual-write problem and saga patterns,
+> see [`communication-and-consistency.md`](./communication-and-consistency.md).
 
 ## Quick Decision Guide
 
@@ -253,11 +258,28 @@ Need immediate response?
 ## This Project's Setup
 
 Currently using:
-- **gRPC** (tonic): `zerg_api` ↔ `zerg_tasks` communication
-- **Redis**: Available in docker-compose (can add Streams)
-- **PostgreSQL**: Primary data store
+- **NATS JetStream** (`libs/core/messaging`): durable job queues and domain events —
+  email jobs consumed by `apps/zerg/email-nats`, `TodoEvent` consumed by
+  `apps/todo/worker`. Explicit ack, bounded retries, dead-letter stream. This is our
+  cleanest boundary: the queue forces a message contract and forbids shared state.
+- **gRPC** (tonic): `zerg_api` → `zerg_tasks`, synchronous on the request path.
+  Boundary remediation in progress — see
+  [`adr-tasks-service-boundary.md`](./adr-tasks-service-boundary.md).
+- **Redis**: sessions, rate limiting, login-flow store.
+- **PostgreSQL**: primary data store (per-service databases; see `manifests/db/README.md`).
 
 Potential additions:
-- **Redis Streams**: For task notifications, cache invalidation
-- **Kafka**: If needing event sourcing, analytics pipeline
-- **RabbitMQ**: If needing complex background job routing
+- **Kafka**: if needing event sourcing or an analytics pipeline (NATS covers today's needs).
+- **RabbitMQ**: if needing complex background job routing.
+
+### Choosing between them here
+
+Before adding a **synchronous** hop, check that a library call or an event won't do.
+A gRPC call couples availability (callee down ⇒ caller's route fails) and latency
+(caller waits) — pay that only when you need the answer *inside* the current request.
+If the work can happen shortly afterwards, publish to JetStream instead: the producer
+returns immediately, the consumer retries on its own, and failures land in the DLQ
+rather than in the user's response.
+
+Whichever you pick, a transport is not a boundary — see the checklist in
+[`modular-monolith-architecture.md`](./modular-monolith-architecture.md#then-the-boundary-checklist).

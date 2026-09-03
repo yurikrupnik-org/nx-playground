@@ -1,17 +1,25 @@
 # =============================================================================
 # Database Management (multi-DB)
 # =============================================================================
-# Layout: manifests/db/<db>/{schema.sql, seed.sql, migrations/, k8s/}
+# Layout: manifests/db/<db>/{schema.sql, seed.sql, migrations/ (optional), k8s/}
 # Source of truth: schema.sql per DB
-# Migrations: plain SQL applied via sqlx (local) and Atlas Operator (cluster)
 #
-# Workflow:
+# Each DB picks one of two modes:
+#
+# A) Declarative (no migrations/ dir) — e.g. zerg
+#   1. Edit manifests/db/<db>/schema.sql
+#   2. just db-fresh <db>                  → drop/recreate locally from schema + seed
+#   3. just gen-schema-configmap <db>      → regenerate cluster ConfigMap (AtlasSchema)
+#
+# B) Versioned (has migrations/) — e.g. terran
 #   1. Edit manifests/db/<db>/schema.sql (source of truth)
-#   2. just migrate-add <db> <name>   → creates .up.sql + .down.sql
-#   3. Write ALTER/CREATE in .up.sql, reversal in .down.sql
-#   4. just migrate <db>               → apply locally
-#   5. just migrate-validate <db>      → verify schema.sql == migrations result
-#   6. just gen-migrations-configmap <db>  → regenerate cluster ConfigMap
+#   2. just migrate-add <db> <name>        → creates .up.sql
+#   3. Write ALTER/CREATE in .up.sql
+#   4. just migrate <db>                   → apply locally
+#   5. just migrate-validate <db>          → verify schema.sql == migrations result
+#   6. just gen-migrations-configmap <db>  → regenerate cluster ConfigMap (AtlasMigration)
+#
+# The migrate* recipes apply to mode B only; they fail on a declarative DB by design.
 #
 # Local: docker-compose postgres on :5432 with super-user `myuser`.
 # Cluster: kind/CNPG via port-forward on :5433.
@@ -27,13 +35,18 @@ _pg_cmd := "if docker exec dockers-postgres-1 true 2>/dev/null; then echo 'docke
 # Per-DB connection URL. Add new (db, env) pairs as you onboard databases.
 # env is one of: local, cluster
 [private]
+[group('db')]
 _db-url db env="local":
     #!/usr/bin/env bash
     case "{{ db }}-{{ env }}" in
       zerg-local)    echo "postgres://myuser:mypassword@localhost:5432/zerg?sslmode=disable" ;;
       zerg-cluster)  echo "postgres://zerg:zerg@localhost:5433/zerg?sslmode=disable" ;;
+      tasks-local)     echo "postgres://myuser:mypassword@localhost:5432/tasks?sslmode=disable" ;;
+      tasks-cluster)   echo "postgres://tasks:tasks@localhost:5433/tasks?sslmode=disable" ;;
       terran-local)    echo "postgres://myuser:mypassword@localhost:5432/terran?sslmode=disable" ;;
       terran-cluster)  echo "postgres://terran:terran@localhost:5433/terran?sslmode=disable" ;;
+      todo-local)      echo "postgres://myuser:mypassword@localhost:5432/todo?sslmode=disable" ;;
+      todo-cluster)    echo "postgres://todo:todo@localhost:5433/todo?sslmode=disable" ;;
       *)
         echo "unknown db/env: {{ db }}/{{ env }} — add it to _db-url in manifests/db/db.just" >&2
         exit 1
@@ -45,6 +58,7 @@ _db-url db env="local":
 # =============================================================================
 
 # List all configured databases (folders under manifests/db/)
+[group('db')]
 db-list:
     @ls -d manifests/db/*/ 2>/dev/null | xargs -n1 basename
 
@@ -53,6 +67,7 @@ db-list:
 # =============================================================================
 
 # Reset <db> from schema.sql + seed.sql (local docker-compose)
+[group('db')]
 db-fresh db:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -86,18 +101,21 @@ db-fresh db:
     echo "Done!"
 
 # Apply seed data only for <db>
+[group('db')]
 db-seed db:
     #!/usr/bin/env bash
     PG=$({{ _pg_cmd }})
     $PG -d {{ db }} < manifests/db/{{ db }}/seed.sql
 
 # Inspect live <db> schema (SQL output)
+[group('db')]
 db-inspect db:
     #!/usr/bin/env bash
     PG=$({{ _pg_cmd }})
     ${PG/psql/pg_dump} -d {{ db }} --schema-only --no-owner --no-privileges
 
 # Nuke docker + volumes + rebuild from scratch (docker-compose only); reapplies all DBs
+[group('db')]
 reset-db:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -118,6 +136,7 @@ reset-db:
 # Create a new forward-only migration for <db>
 # (Single .up.sql per migration — Atlas Operator can't disambiguate up/down pairs.
 #  For local rollback during dev, use `just db-fresh <db>` to reset from schema.sql.)
+[group('db')]
 migrate-add db name:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -129,24 +148,28 @@ migrate-add db name:
     echo "Edit, then run: just migrate {{ db }}"
 
 # Apply pending migrations for <db> (local)
+[group('db')]
 migrate db:
     sqlx migrate run \
       --source manifests/db/{{ db }}/migrations \
       --database-url "$(just _db-url {{ db }} local)"
 
 # Apply migrations for <db> against kind cluster (port-forwarded :5433)
+[group('db')]
 migrate-cluster db:
     sqlx migrate run \
       --source manifests/db/{{ db }}/migrations \
       --database-url "$(just _db-url {{ db }} cluster)"
 
 # Show migration status for <db>
+[group('db')]
 migrate-status db:
     sqlx migrate info \
       --source manifests/db/{{ db }}/migrations \
       --database-url "$(just _db-url {{ db }} local)"
 
 # Mark existing migrations as applied without running them (use after db-fresh)
+[group('db')]
 migrate-baseline db:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -179,6 +202,7 @@ migrate-baseline db:
     echo "Done! Run 'just migrate-status {{ db }}' to verify."
 
 # Test migration path for <db>: drop → create → migrate → seed
+[group('db')]
 migrate-test db:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -197,6 +221,7 @@ migrate-test db:
     echo "{{ db }} migration test passed!"
 
 # Verify schema.sql matches the result of running all migrations for <db>
+[group('db')]
 migrate-validate db:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -233,6 +258,7 @@ migrate-validate db:
 # =============================================================================
 
 # Generate schema ConfigMap for <db> (used by AtlasSchema declarative mode)
+[group('db')]
 gen-schema-configmap db:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -244,11 +270,13 @@ gen-schema-configmap db:
 
 # Recompute the Atlas checksum manifest (atlas.sum) for <db>'s migrations dir.
 # Run after any edit/add/delete of migration files; required by Atlas Operator.
+[group('db')]
 migrate-hash db:
     atlas migrate hash --dir "file://manifests/db/{{ db }}/migrations"
 
 # Generate migrations ConfigMap for <db> (used by AtlasMigration versioned mode)
 # Always re-hashes first so atlas.sum is consistent with the SQL files.
+[group('db')]
 gen-migrations-configmap db: (migrate-hash db)
     #!/usr/bin/env bash
     set -euo pipefail
@@ -258,14 +286,19 @@ gen-migrations-configmap db: (migrate-hash db)
       --name {{ db }}-migrations \
       -o manifests/db/{{ db }}/k8s/base/migrations-configmap.yaml
 
-# Regenerate ConfigMaps for every DB under manifests/db/
+# Regenerate ConfigMaps for every DB under manifests/db/ (each in its own mode:
+# versioned DBs get a migrations ConfigMap, declarative ones a schema ConfigMap).
+[group('db')]
 gen-all-configmaps:
     #!/usr/bin/env bash
     set -euo pipefail
     for d in manifests/db/*/; do
-      [[ -d "$d/migrations" ]] || continue
       db=$(basename "$d")
-      just gen-migrations-configmap "$db"
+      if [[ -d "$d/migrations" ]]; then
+        just gen-migrations-configmap "$db"
+      elif [[ -f "$d/schema.sql" ]]; then
+        just gen-schema-configmap "$db"
+      fi
     done
 
 # =============================================================================
@@ -273,6 +306,7 @@ gen-all-configmaps:
 # =============================================================================
 
 # Show CNPG cluster status (cluster-wide, not per-DB)
+[group('db')]
 cnpg-status ns="dbs":
     kubectl get clusters -n {{ ns }}
     kubectl get pods -n {{ ns }} -l cnpg.io/cluster
@@ -280,5 +314,6 @@ cnpg-status ns="dbs":
     kubectl get atlasmigration -A -o wide 2>/dev/null || echo "No AtlasMigration resources found"
 
 # Tail CNPG logs
+[group('db')]
 cnpg-logs ns="dbs":
     kubectl logs -n {{ ns }} -l cnpg.io/cluster --tail=100 -f

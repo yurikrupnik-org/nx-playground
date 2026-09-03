@@ -4,12 +4,12 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use qdrant_client::Qdrant;
 use qdrant_client::qdrant::{
     self, CreateCollectionBuilder, DeletePointsBuilder, Distance, GetPointsBuilder, PointId,
     PointStruct, RecommendPointsBuilder, SearchPointsBuilder, UpsertPointsBuilder,
     Value as QdrantValue, VectorParamsBuilder,
 };
-use qdrant_client::Qdrant;
 use uuid::Uuid;
 
 use super::QdrantConfig;

@@ -1,6 +1,6 @@
 //! Job trait for background job processing.
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 /// A job that can be processed by a worker.
@@ -11,9 +11,16 @@ use uuid::Uuid;
 ///
 /// # Required Methods
 ///
-/// - `job_id`: Unique identifier for the job
-/// - `retry_count`: Current retry count
-/// - `with_retry`: Create a copy with incremented retry count
+/// - `job_id`: Unique identifier for the job, stable across redeliveries
+///
+/// # Why there is no `retry_count`
+///
+/// A payload-carried retry counter cannot work over JetStream. A `nak` asks the
+/// server to redeliver the *stored* message, so any counter the consumer bumps is
+/// thrown away — the next delivery carries the original bytes. The authoritative
+/// attempt count is `NatsMessage::delivery_count`, which the server maintains.
+/// This trait used to expose `retry_count`/`with_retry`/`can_retry`; they were
+/// permanently 0, which silently disabled the worker's DLQ path.
 ///
 /// # Example
 ///
@@ -27,23 +34,11 @@ use uuid::Uuid;
 ///     id: Uuid,
 ///     to: String,
 ///     subject: String,
-///     retry_count: u32,
 /// }
 ///
 /// impl Job for EmailJob {
 ///     fn job_id(&self) -> Uuid {
 ///         self.id
-///     }
-///
-///     fn retry_count(&self) -> u32 {
-///         self.retry_count
-///     }
-///
-///     fn with_retry(&self) -> Self {
-///         Self {
-///             retry_count: self.retry_count + 1,
-///             ..self.clone()
-///         }
 ///     }
 /// }
 /// ```
@@ -53,31 +48,6 @@ pub trait Job: Serialize + DeserializeOwned + Send + Sync + Clone + 'static {
     /// This should be a stable identifier that doesn't change across retries.
     fn job_id(&self) -> Uuid;
 
-    /// Get the current retry count.
-    ///
-    /// Starts at 0 for a new job.
-    fn retry_count(&self) -> u32;
-
-    /// Create a new instance with incremented retry count.
-    ///
-    /// This is called when a job needs to be retried. The implementation
-    /// may choose to:
-    /// - Keep the same ID (for idempotency tracking)
-    /// - Generate a new ID (for unique message IDs)
-    fn with_retry(&self) -> Self;
-
-    /// Get the maximum number of retries (default: 3).
-    ///
-    /// Override this to customize per-job-type retry limits.
-    fn max_retries(&self) -> u32 {
-        3
-    }
-
-    /// Check if the job can be retried.
-    fn can_retry(&self) -> bool {
-        self.retry_count() < self.max_retries()
-    }
-
     /// Get the job priority (default: Normal).
     ///
     /// Higher priority jobs may be processed first, depending on the backend.
@@ -85,7 +55,7 @@ pub trait Job: Serialize + DeserializeOwned + Send + Sync + Clone + 'static {
         JobPriority::Normal
     }
 
-    /// Get the job type name (for logging and metrics).
+    /// Get the job type name (for logging, metrics and DLQ entries).
     ///
     /// Default implementation uses the type name.
     fn job_type(&self) -> &'static str {
@@ -129,45 +99,37 @@ mod tests {
     #[derive(Clone, Serialize, Deserialize)]
     struct TestJob {
         id: Uuid,
-        retry_count: u32,
     }
 
     impl Job for TestJob {
         fn job_id(&self) -> Uuid {
             self.id
         }
-
-        fn retry_count(&self) -> u32 {
-            self.retry_count
-        }
-
-        fn with_retry(&self) -> Self {
-            Self {
-                id: self.id,
-                retry_count: self.retry_count + 1,
-            }
-        }
     }
 
     #[test]
-    fn test_job_trait() {
+    fn job_id_is_stable_across_clones() {
         let id = Uuid::new_v4();
-        let job = TestJob { id, retry_count: 0 };
+        let job = TestJob { id };
 
         assert_eq!(job.job_id(), id);
-        assert_eq!(job.retry_count(), 0);
-        assert!(job.can_retry());
-        assert_eq!(job.max_retries(), 3);
+        assert_eq!(
+            job.clone().job_id(),
+            id,
+            "redelivery must not change job_id"
+        );
+    }
 
-        let retried = job.with_retry();
-        assert_eq!(retried.retry_count(), 1);
-        assert!(retried.can_retry());
+    #[test]
+    fn job_defaults_are_normal_priority_and_type_name() {
+        let job = TestJob { id: Uuid::new_v4() };
 
-        let at_max = TestJob {
-            id: Uuid::new_v4(),
-            retry_count: 3,
-        };
-        assert!(!at_max.can_retry());
+        assert_eq!(job.priority(), JobPriority::Normal);
+        assert!(
+            job.job_type().ends_with("TestJob"),
+            "job_type should name the concrete type, got {}",
+            job.job_type()
+        );
     }
 
     #[test]

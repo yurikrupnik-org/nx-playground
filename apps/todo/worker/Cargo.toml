@@ -1,7 +1,10 @@
 [package]
 name = "todo_worker"
+publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 description = "Todo event worker: consumes todos.> from NATS JetStream and processes lifecycle events"
 
 [lib]
@@ -14,7 +17,7 @@ path = "src/main.rs"
 [dependencies]
 async-trait = { workspace = true }
 core_config = { workspace = true }
-domain_todo = { path = "../../../libs/domains/todo" }
+domain_todo = { workspace = true }
 eyre = { workspace = true }
 messaging = { workspace = true, features = ["nats"] }
 tokio = { workspace = true, features = ["full", "signal"] }
@@ -26,3 +29,6 @@ chrono = { workspace = true }
 futures = { workspace = true }
 test-utils = { workspace = true, features = ["nats"] }
 uuid = { workspace = true }
+
+[lints]
+workspace = true

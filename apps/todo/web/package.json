@@ -8,22 +8,26 @@
     "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "biome check --write ."
   },
   "license": "MIT",
   "dependencies": {
     "@domain/todo": "workspace:*",
-    "@tanstack/solid-query": "^5.90.15",
-    "solid-js": "^1.9.5"
+    "@solidjs/router": "2.0.0-next.19",
+    "@solidjs/web": "2.0.0-rc.4",
+    "@tanstack/solid-query": "6.0.0-rc.0",
+    "effect": "^3.22.1",
+    "solid-js": "2.0.0-rc.4",
+    "xstate": "^5.32.6"
   },
   "devDependencies": {
-    "@solidjs/testing-library": "^0.8.10",
-    "@testing-library/jest-dom": "^6.6.3",
-    "jsdom": "^25.0.1",
-    "solid-devtools": "^0.34.3",
-    "typescript": "^5.7.2",
-    "vite": "^7.1.4",
-    "vite-plugin-solid": "2.11.9",
-    "vitest": "^4.0.0"
+    "@solidjs/testing-library": "1.0.0-beta.2",
+    "@solidjs/vite-plugin": "3.0.0-next.34",
+    "@testing-library/jest-dom": "^7.0.1",
+    "jsdom": "^30.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
   }
 }

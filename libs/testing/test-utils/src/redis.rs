@@ -53,7 +53,7 @@ impl TestRedis {
             .await
             .expect("Failed to get Redis port");
 
-        let connection_string = format!("redis://127.0.0.1:{}", host_port);
+        let connection_string = format!("redis://127.0.0.1:{host_port}");
 
         let client =
             Client::open(connection_string.clone()).expect("Failed to create Redis client");

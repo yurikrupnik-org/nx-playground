@@ -53,9 +53,9 @@ const CardFooter: Component<ComponentProps<'div'>> = (props) => {
 
 export {
   Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardDescription,
   CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
 };

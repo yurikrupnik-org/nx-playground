@@ -1,0 +1,30 @@
+---
+// Solid island variant: nothing rendered on the server for the app itself;
+// the island boots, fetches JSON, and owns the DOM from there.
+//
+// Flags are resolved server-side (todo-api is the single evaluation point) and
+// handed to the island as props — the browser never talks to Flagsmith and
+// pays no extra round trip. `todo_app_astro` off ⇒ 503 + disabled panel and
+// the island is never mounted.
+import { SolidTodoApp } from '../components/SolidTodoApp';
+import Layout from '../layouts/Layout.astro';
+import { flagContext } from '../lib/api';
+import { renderDisabledPanel } from '../lib/fragments';
+
+const { identity, flags, appEnabled, canWrite } = await flagContext(
+  Astro.cookies,
+);
+if (!appEnabled) Astro.response.status = 503;
+---
+
+<Layout title="Todos — Solid island" identity={identity} flags={flags}>
+  {appEnabled ? (
+    <SolidTodoApp
+      client:only="solid-js"
+      identity={identity}
+      flags={{ appEnabled, canWrite, source: flags.source }}
+    />
+  ) : (
+    <Fragment set:html={renderDisabledPanel(identity)} />
+  )}
+</Layout>

@@ -1,15 +1,19 @@
 [package]
 name = "domain_projects"
-version = "0.1.0"
-edition = "2024"
+publish = false
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
+async-nats = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
 axum-helpers = { workspace = true }
 chrono = { workspace = true }
+contract_projects = { workspace = true }
 core_proc_macros = { workspace = true, features = ["sea_orm_resource"] }
 database = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
 regex = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
@@ -25,7 +29,7 @@ validator = { workspace = true }
 
 [dev-dependencies]
 futures = { workspace = true }
-http-body-util = "0.1"
+http-body-util = { workspace = true }
 mockall = { workspace = true }
 serde_json = { workspace = true }
 test-utils = { workspace = true }

@@ -1,0 +1,85 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+hostPort = 5206
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: the root `[workloadDefaults.web]` shape already states
+# everything about running an SPA behind unprivileged nginx (uid/gid 101, the
+# four writable emptyDirs, no metrics endpoint, the small resource envelope), so
+# only this app's probes and its upstream wiring are left. `image`/`name`/
+# `namespace`/`partOf` are injected by butler.
+[workload]
+
+# 4 * 5s = up to 20s for nginx to render its template and bind. `port = "http"`
+# is the container port's name, so the probes never restate the port number.
+[workload.startupProbe]
+path = "/health"
+port = "http"
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 4
+
+[workload.livenessProbe]
+path = "/health"
+port = "http"
+
+# nginx has no dependency to report, so readiness reuses /health.
+[workload.readinessProbe]
+path = "/health"
+port = "http"
+periodSeconds = 5
+timeoutSeconds = 2
+
+# The reverse-proxy upstream, read by manifests/dockers/default.conf.template at
+# container start (`envsubst` on /etc/nginx/templates). Values come from the
+# ConfigMap below rather than literals so the proxy target can be repointed
+# without rebuilding the image.
+[[workload.env]]
+name = "UPSTREAM_HOST"
+configMapName = "zerg-web-config"
+configMapKey = "upstream_host"
+
+[[workload.env]]
+name = "UPSTREAM_PORT"
+configMapName = "zerg-web-config"
+configMapKey = "upstream_port"
+
+[[workload.env]]
+name = "UPSTREAM_NAME"
+configMapName = "zerg-web-config"
+configMapKey = "upstream_name"
+
+# → ConfigMap zerg-web-config (was the kustomize `proxy-envs` generator; the
+# package names every app's ConfigMap `<name>-config`, which also removes the
+# collision between this app's `proxy-envs` and terran-web's).
+[config]
+upstream_host = "zerg-api"
+upstream_port = "8080"
+upstream_name = "backend"
+# Unconsumed: neither the pod's env nor default.conf.template reads
+# upstream_path. Carried over from the kustomize generator so the migration
+# renders 1:1; a deletion candidate once that diff is signed off.
+upstream_path = "/api"
+
+# Public entry point for the zerg product. Gateway API, prod only: local dev
+# reaches this app through the Tilt host port above, and kind runs no Gateway.
+# It lives here, not in a leftover kustomize file, so butler.toml stays the app's
+# single k8s surface — the price is that `zerg-web` is spelled literally, since
+# extraManifests is passthrough and cannot see the injected workload name.
+[[env.prod.workload.extraManifests]]
+apiVersion = "gateway.networking.k8s.io/v1"
+kind = "HTTPRoute"
+metadata = { name = "zerg-web" }
+
+# ${GATEWAY_SUFFIX} is substituted by Flux (postBuild), not by butler or KCL.
+[env.prod.workload.extraManifests.spec]
+parentRefs = [{ name = "main-gateway", namespace = "gateway", sectionName = "https" }]
+hostnames = ["zerg.${GATEWAY_SUFFIX}"]
+
+# The SPA owns the whole hostname; /api is proxied inside the pod by nginx.
+[[env.prod.workload.extraManifests.spec.rules]]
+matches = [{ path = { type = "PathPrefix", value = "/" } }]
+backendRefs = [{ name = "zerg-web", port = 8080 }]

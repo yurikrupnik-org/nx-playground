@@ -68,7 +68,7 @@ pub struct Todo {
 }
 
 /// DTO for creating a todo.
-#[derive(Debug, Clone, Deserialize, Validate, ToSchema, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema, TS)]
 #[ts(export)]
 pub struct CreateTodo {
     #[validate(length(min = 1, max = 255))]
@@ -80,7 +80,7 @@ pub struct CreateTodo {
 }
 
 /// DTO for updating a todo. All fields optional (PATCH semantics).
-#[derive(Debug, Clone, Default, Deserialize, Validate, ToSchema, TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Validate, ToSchema, TS)]
 #[ts(export)]
 pub struct UpdateTodo {
     #[validate(length(min = 1, max = 255))]
@@ -91,7 +91,10 @@ pub struct UpdateTodo {
 }
 
 /// Query filters for listing todos.
-#[derive(Debug, Clone, Default, Deserialize, ToSchema, IntoParams)]
+///
+/// `Default` matches the serde defaults (`limit` 50, not 0), the same manual
+/// impl every sibling domain filter carries — a derived `Default` is `LIMIT 0`.
+#[derive(Debug, Clone, Deserialize, ToSchema, IntoParams)]
 pub struct TodoFilter {
     pub completed: Option<bool>,
     pub priority: Option<TodoPriority>,
@@ -103,6 +106,17 @@ pub struct TodoFilter {
 
 fn default_limit() -> usize {
     50
+}
+
+impl Default for TodoFilter {
+    fn default() -> Self {
+        Self {
+            completed: None,
+            priority: None,
+            limit: default_limit(),
+            offset: 0,
+        }
+    }
 }
 
 impl Todo {
