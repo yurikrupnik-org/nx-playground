@@ -35,6 +35,7 @@ flowchart LR
   L --> B["broadcast bus"]
   B -->|"SSE /api/events/sse"| UI["todo-web list<br/>(cache patch)"]
   B -->|"WebSocket /api/events/ws"| F["event feed"]
+  B -->|"gRPC todo.v1 Watch"| G["services / CLIs"]
 ```
 
 1. **Trigger** — `manifests/db/todo/migrations/20260828133022_todo_notify.up.sql`
@@ -45,7 +46,9 @@ flowchart LR
 2. **Listener** — `libs/domains/todo/src/db_events.rs` holds a dedicated
    connection (`sqlx::PgListener`), decodes the payload, and builds a `TodoEvent`.
 3. **Fan-out** — `apps/todo/api/src/events.rs` owns a `tokio::broadcast` bus and
-   serves it as SSE and WebSocket.
+   serves it as SSE and WebSocket; `apps/todo/api/src/grpc.rs` serves the same
+   bus as the `todo.v1.TodoService/Watch` server stream on the same port
+   (`docs/todo-delivery-options.md` compares the three framings).
 4. **UI** — `apps/todo/web/src/lib/realtime.ts` keeps one shared `EventSource`
    for the page and merges events into the TanStack Query cache;
    `apps/todo/web/src/todo-app.tsx` renders from that cache.

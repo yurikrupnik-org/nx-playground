@@ -41,6 +41,8 @@ docker_build(
         'apps/zerg/tasks/src/main.rs',
         'apps/zerg/vector/Cargo.toml',
         'apps/zerg/vector/src/main.rs',
+        'libs/contracts/projects/Cargo.toml',
+        'libs/contracts/projects/src/lib.rs',
         'libs/contracts/tasks/Cargo.toml',
         'libs/contracts/tasks/src/lib.rs',
         'libs/core/feature-flags/Cargo.toml',
@@ -83,8 +85,6 @@ docker_build(
         'libs/patterns/type_state/src/lib.rs',
         'libs/platform/devenv-sdk/Cargo.toml',
         'libs/platform/devenv-sdk/src/lib.rs',
-        'libs/rpc/Cargo.toml',
-        'libs/rpc/src/lib.rs',
         'libs/testing/test-utils/Cargo.toml',
         'libs/testing/test-utils/src/lib.rs',
         # this crate plus its transitive workspace deps, from the butler
@@ -102,6 +102,7 @@ docker_build(
         'libs/core/strings',
         'libs/database',
         'libs/domains/todo',
+        'libs/rpc',
     ],
     ignore=[
         'target/',

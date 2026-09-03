@@ -1,14 +1,18 @@
-//! Standalone Todo REST API.
+//! Standalone Todo API — one backend, four transports on one port.
 //!
 //! - Owns a Postgres connection (SeaORM) over the `todos` schema (migrations are
 //!   applied out of band: `just migrate todo`, or the Atlas operator in-cluster).
-//! - Serves the `domain_todo` router under `/api/todos`.
+//! - Serves the `domain_todo` REST router under `/api/todos`.
+//! - Serves the same service as gRPC (`todo.v1.TodoService`, plus
+//!   `grpc.health.v1.Health`) on the SAME listener: tonic routes are merged
+//!   into the axum router and `axum::serve` speaks h2c. See `grpc.rs`.
 //! - Publishes lifecycle events to NATS JetStream (`todos.>`) when reachable;
 //!   degrades to a no-op publisher otherwise (events must not block the API).
-//! - Streams **database-sourced** changes to browsers over SSE
-//!   (`/api/events/sse`) and WebSocket (`/api/events/ws`): a Postgres trigger
-//!   NOTIFYs on every committed write and `domain_todo::db_events` fans it out,
-//!   so UIs stay correct regardless of which process made the change.
+//! - Streams **database-sourced** changes to clients over SSE
+//!   (`/api/events/sse`), WebSocket (`/api/events/ws`) and the gRPC `Watch`
+//!   server stream: a Postgres trigger NOTIFYs on every committed write and
+//!   `domain_todo::db_events` fans it out, so UIs stay correct regardless of
+//!   which process made the change.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,6 +31,7 @@ use tracing::{error, info, warn};
 
 mod config;
 mod events;
+mod grpc;
 mod stacks;
 
 /// Embedded schema applied on startup (idempotent).
@@ -109,14 +114,19 @@ async fn main() -> Result<()> {
     });
 
     let service = TodoService::new(repository, publisher);
+    let grpc = grpc::router(service.clone(), event_tx.clone()).await;
 
+    // CORS + tracing wrap the HTTP routes only. The gRPC routes are merged
+    // afterwards: a CORS preflight has no meaning for h2c gRPC, and tonic's
+    // own status codes must not be reshaped by an HTTP-flavoured layer.
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .nest("/api/todos", domain_todo::router(service))
         .nest("/api/stacks", stacks::router(db))
         .nest("/api/events", events::router(event_tx))
         .layer(create_permissive_cors_layer())
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .merge(grpc);
 
     let server_config = config.server;
     info!(addr = %server_config.addr(), "todo-api listening");

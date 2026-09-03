@@ -455,6 +455,14 @@ Note: the package is `tasks.v1`. An earlier unversioned `tasks` package was gene
 into the crate but never regenerated from a checked-in proto — always confirm the code
 you import comes from `manifests/grpc/proto/`.
 
+**todo.v1.TodoService** (`manifests/grpc/proto/apps/v1/todo.proto`), served by
+`todo_api` on the SAME port as its REST/SSE/WebSocket routes (h2c, merged into
+the axum router — `apps/todo/api/src/grpc.rs`). Unary CRUD plus the
+intent-revealing `Complete`/`Uncomplete`, and `Watch`, a server stream of
+database-sourced lifecycle events. Try it: `cargo run -p todo_api --example
+grpc_client`. Compared against the vertical's other transports in
+`docs/todo-delivery-options.md`.
+
 ### Running
 
 ```bash

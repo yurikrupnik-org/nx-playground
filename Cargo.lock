@@ -608,7 +608,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tower",
- "tower-http 0.7.0",
+ "tower-http 0.7.1",
  "tracing",
  "utoipa",
  "utoipa-rapidoc",
@@ -3614,7 +3614,7 @@ dependencies = [
  "test-utils",
  "thiserror 2.0.20",
  "tokio",
- "tower-http 0.7.0",
+ "tower-http 0.7.1",
  "tracing",
  "uuid",
 ]
@@ -4557,7 +4557,7 @@ dependencies = [
  "proc-macro-error-attr3",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -6416,14 +6416,14 @@ dependencies = [
 
 [[package]]
 name = "temporalio-client"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "749e987bf8895c2c1e04d87c2cda31b81191fbfa555555210c81c774b943d4ea"
+checksum = "06a672ea7c8fb963e3da4224c74b4fb2b0d2085dbe55d9b735a24c70af68c68f"
 dependencies = [
  "anyhow",
  "async-trait",
  "backon",
- "base64 0.22.1",
+ "base64 0.23.1",
  "bon",
  "bytes",
  "derive_more",
@@ -6450,9 +6450,9 @@ dependencies = [
 
 [[package]]
 name = "temporalio-common"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5fb31f018bb56a490834e07d3a4cf03cacd076b9a41cbad8d0daa1bfb1abc2d"
+checksum = "49a8ab419d730698e89a027a9c80aaedd8da40f8b4a761ad5bf94abfd62ccbfe"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6488,9 +6488,9 @@ dependencies = [
 
 [[package]]
 name = "temporalio-common-wasm"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "554221c08d489f4aee18432b4d5bfbc6e3b78d6738251424ac717e91475d68ea"
+checksum = "08156363d4ae71b05dfacf68d3a6ed06f3fc997dca3b115924ab54235ab8e023"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6515,9 +6515,9 @@ dependencies = [
 
 [[package]]
 name = "temporalio-macros"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0204af3cafd33d1aac4bf6d998ba6c6070b1a1dc3e7331f8e3a1127bf0b8386"
+checksum = "43058fe5557a8d122704c136991510703ea3998ff83d5279d0e0924434164413"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6526,12 +6526,12 @@ dependencies = [
 
 [[package]]
 name = "temporalio-protos"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8188305170ff0998c1c99ec8a62ef305b8d580efd32fe8ac7023bafc5a4191c7"
+checksum = "43bea5d1e495f0c0177849e902d785380102a8fa7b0e1aaaa75307cf300243f6"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
+ "base64 0.23.1",
  "derive_more",
  "http",
  "pbjson",
@@ -6549,9 +6549,9 @@ dependencies = [
 
 [[package]]
 name = "temporalio-sdk"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85efb98b1d7f198aa98b61a591f90bc64c04d537d749cb926bf084053a6afb0d"
+checksum = "099245859a89a43c9218ab0e3e37fab62a3bcbd2fa962ef409c8c783ed0c8679"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6578,9 +6578,9 @@ dependencies = [
 
 [[package]]
 name = "temporalio-sdk-core"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f4f99b384438aad4656344b27e6ee6cb05e8ee568210a23d86836046eda0c9b"
+checksum = "a976a260ae17083aaae5852d2c3b05d1cf86332f8edec1e3e1a167fffc498a52"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6623,9 +6623,9 @@ dependencies = [
 
 [[package]]
 name = "temporalio-workflow"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b3dfd064fd82be4b0ffefdaa1e7a0e7a0b8d1722d96bd59e9791585702b96e6"
+checksum = "aa469b8e55b2ad6cc589b5596bd4ec4b2ac498800a38c5f1a69027d3fd751004"
 dependencies = [
  "anyhow",
  "bon",
@@ -6637,6 +6637,7 @@ dependencies = [
  "rand 0.10.2",
  "rand_pcg",
  "serde",
+ "siphasher",
  "temporalio-common-wasm",
  "temporalio-macros",
  "thiserror 2.0.20",
@@ -6860,19 +6861,25 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-helpers",
+ "chrono",
  "core_config",
  "database",
  "domain_todo",
  "eyre",
  "futures",
  "messaging",
+ "parking_lot",
+ "reqwest",
+ "rpc",
  "sea-orm",
  "serde",
  "serde_json",
  "tokio",
  "tokio-stream",
+ "tonic",
+ "tonic-health",
  "tower",
- "tower-http 0.7.0",
+ "tower-http 0.7.1",
  "tracing",
  "uuid",
 ]
@@ -6929,7 +6936,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "tower-http 0.7.0",
+ "tower-http 0.7.1",
  "tracing",
 ]
 
@@ -7249,9 +7256,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b11f75e912b0c2be01b63d8cf8057b8c3f97cf34abb3d431a3a4c8675498e233"
+checksum = "08a05a66a4fdd61cbbe0a1d755ffe0ca6aba159dd4820936a0ff8a8278245b9c"
 dependencies = [
  "async-compression",
  "bitflags 2.13.1",
@@ -8365,7 +8372,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-health",
- "tower-http 0.7.0",
+ "tower-http 0.7.1",
  "tracing",
  "utoipa",
  "uuid",

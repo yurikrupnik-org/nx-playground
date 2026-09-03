@@ -1,5 +1,10 @@
 # E2E Test Plan for Zerg API
 
+> **Status: plan only.** Nothing below exists yet — `apps/zerg/api/tests/` is
+> not a directory. The repo's implemented e2e suite is the browser-level
+> Playwright project for the todo vertical, `apps/todo/e2e` (`just e2e`); see
+> `docs/TESTING_GUIDE.md` § E2E Tests.
+
 ## Overview
 
 End-to-End (E2E) tests verify the **entire application** from HTTP request to database and back. These tests ensure all components work together correctly in production-like conditions.

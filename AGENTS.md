@@ -292,6 +292,30 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   the trap this replaced. Never add a second event source for the same data; the
   DB notification is also the cache-invalidation signal. See
   `docs/realtime-todo.md`. Other web apps are intentionally request/response.
+- **`todo_api` is ONE backend with four transports on ONE port** (`:8080`):
+  REST, SSE, WebSocket and gRPC (`todo.v1.TodoService`, proto in
+  `manifests/grpc/proto/apps/v1/todo.proto`, impl `apps/todo/api/src/grpc.rs`).
+  tonic routes are merged into the axum router and `axum::serve` speaks h2c, so
+  no second listener, port or `butler.toml` change. Two traps: build from
+  `Routes::from(axum::Router::new())` — `Routes::default()` carries an
+  `UNIMPLEMENTED` fallback that would swallow unknown HTTP paths — and merge
+  AFTER the CORS/`TraceLayer::new_for_http` layers. `Watch` streams the same
+  DB-sourced bus as SSE. Never add a separate gRPC binary over the todo tables.
+  `docs/todo-delivery-options.md` compares every delivery option with measured
+  bytes (JSON vs protobuf: 247 B vs 110 B per todo, 2.2×).
+- **Browser e2e lives in `apps/todo/e2e` (`just e2e`, in `verify`, not `check`).**
+  Playwright owns the whole stack via `webServer` (docker Postgres → todo-api
+  with migrations on its readiness path → vite SPA → built Astro node server →
+  axum htmx), on ports 55433/18090/3110/3210/3310 so dev servers are never
+  reused. Three traps, all hit: Playwright SIGKILLs a webServer's process
+  GROUP and port-checks before launching, so (a) `docker run` needs the
+  out-of-group watchdog in `scripts/postgres.sh` or the container outlives the
+  run and blocks the next one, (b) never launch a dev server via `bun run` —
+  bun puts the child in a new group — call `node_modules/.bin/vite` directly,
+  and (c) never use `astro dev` — Astro 7 daemonizes it when `am-i-vibing`
+  detects an AI-agent shell; serve `astro build` + `node dist/server/entry.mjs`
+  (what ships anyway). Postgres' image runs a socket-only bootstrap server
+  first: probe with `psql -h 127.0.0.1 -d todo`, not `pg_isready`.
 - **State management is compared by route in `todo-web`**, not chosen globally:
   `/` (TanStack Query + signals) is the real app, `/xstate` and `/effect` are
   equivalent implementations of the same loop for comparison. Both alternatives

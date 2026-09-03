@@ -25,6 +25,16 @@ web-fix:
 test-napi:
     bun nx run-many -t build test -p '@native/*'
 
+# Browser e2e for the todo vertical (apps/todo/e2e): Playwright boots a
+# throwaway Postgres (docker), todo-api, and all three frontends on dedicated
+# ports, then drives every delivery option against the one backend. Needs
+# docker + cargo; the first run compiles two binaries and downloads Chromium
+# (`playwright install` is idempotent). ~10s warm, 9 tests.
+[group('quality')]
+e2e:
+    cd apps/todo/e2e && bunx playwright install chromium
+    bun nx e2e todo-e2e
+
 # Dependency boundaries over the whole nx graph (cargo + TS edges): every edge
 # must stay inside its `scope:` tag or point at scope:shared. Tags are declared
 # in tools/nx/scope-tags.ts; this is backlog 1.3 as an executable gate.

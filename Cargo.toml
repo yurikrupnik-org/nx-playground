@@ -68,7 +68,7 @@ core_config = { path = 'libs/core/config', version = '0.1.0' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
 core_retry = { path = 'libs/core/retry' }
 core_strings = { path = 'libs/core/strings', version = '0.1.0' }
-crossfile = { version = '3.1' }
+#crossfile = { version = '3.1' }
 darling = '0.24.1'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
@@ -127,13 +127,13 @@ sqlx = { version = '0.9.0', default-features = false, features = ['postgres', 'm
 strum = { version = '0.28.0', features = ['derive'] }
 syn = { version = '3.0.4', features = ['full', 'extra-traits', 'visit'] }
 temp-env = '0.3'
-temporalio-client = '0.7.0'
-temporalio-common = '0.7.0'
-temporalio-macros = '0.7.0'
-temporalio-sdk = '0.7.0'
-temporalio-workflow = '0.7.0'
+temporalio-client = '0.8.0'
+temporalio-common = '0.8.0'
+temporalio-macros = '0.8.0'
+temporalio-sdk = '0.8.0'
+temporalio-workflow = '0.8.0'
 test-utils = { path = 'libs/testing/test-utils' }
-testcontainers = '=0.27.3'
+testcontainers = '=0.27'
 testcontainers-modules = '0.15.0'
 thiserror = '2.0.20'
 tokio = { version = '1.53.1', features = ['full'] }
@@ -144,7 +144,7 @@ tonic = { version = '0.14.6', features = ['zstd'] }
 tonic-health = '0.14.6'
 tonic-prost = '0.14.6'
 tower = '0.5.3'
-tower-http = { version = '0.7.0', features = ['timeout', 'trace', 'compression-full', 'decompression-full', 'cors'] }
+tower-http = { version = '0.7.1', features = ['timeout', 'trace', 'compression-full', 'decompression-full', 'cors'] }
 tracing = '0.1.44'
 tracing-error = '0.2.1'
 tracing-opentelemetry = '0.33.0'

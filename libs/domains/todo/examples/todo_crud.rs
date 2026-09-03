@@ -74,11 +74,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("step:completed completed={}", completed.completed);
 
     // ---- list -------------------------------------------------------------
-    // `limit` must be set explicitly: TodoFilter::default() gives 0, i.e. LIMIT 0.
     let done = service
         .list_todos(TodoFilter {
             completed: Some(true),
-            limit: 50,
             ..Default::default()
         })
         .await?;
