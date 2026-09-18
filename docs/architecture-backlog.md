@@ -499,6 +499,18 @@ issuer.
 and `kubectl kustomize manifests/db/tasks/k8s/overlays/dev` renders a complete
 ConfigMap + Secret + AtlasSchema. **Still open:** CNPG must actually create the `tasks`
 database in-cluster — the compose fix in 2.0 covers local only.
+`manifests/cnpg/base/cluster.yaml:31-33` bootstraps only `mydatabase`, and no
+`kind: Database` CR exists anywhere under `manifests/`.
+
+**Also found 2026-09-03 — a stale second copy of the zerg schema.**
+`manifests/cnpg/base/migrations-configmap.yaml:119-133` still creates the `tasks` table
+**in the zerg database**, with `fk_tasks_project … REFERENCES projects(id)` (:130) — the
+FK Phase 3 removed and the table Phase 3 moved out. `manifests/db/zerg/schema.sql` has no
+`tasks` table; the configmap is wired into `manifests/cnpg/base/kustomization.yaml:10`,
+so an in-cluster bootstrap recreates the pre-Phase-3 layout. Same class as 2.0: a sibling
+file nothing keeps in sync. The fix is to render the configmap from the
+`manifests/db/<db>/schema.sql` sources or delete it in favour of the Atlas path
+`manifests/db/tasks/k8s/base/atlas-schema.yaml` already uses.
 
 **Also open — prod secrets.** Both new secrets exist for **dev** only.
 `apps/zerg/tasks/butler.toml` needs an `[env.prod.externalSecret]` table — the treatment
@@ -530,8 +542,9 @@ Design rationale in
 ### 3.1 Collapse the vector service to one door · M
 
 **Problem.** Two doors to Qdrant, and the gRPC one is dead: `VectorServiceClient` appears
-nowhere in the repo, while `apps/zerg/api/src/main.rs:93` builds its own `QdrantRepository` and
-serves `/api/vector/*` in-process. This is `/api/tasks-direct` again.
+nowhere in the repo outside generated code (0 consumers), `zerg_vector` has 0 tests, and
+`apps/zerg/api/src/lib.rs:109` builds its own `QdrantRepository` and serves
+`/api/vector/*` in-process (`api/vector.rs`, 554 LOC). This is `/api/tasks-direct` again.
 
 **Fix (given vector work is starting).** Point `/api/vector/*` at `zerg_vector` over gRPC
 and delete the in-process repository from `zerg_api`. Depends on **1.1** so the service
@@ -590,8 +603,8 @@ must not gate on it, per-call deadlines, and the boundary smoke test.
 
 ### 5.1 Extract `libs/contracts/todo` · S
 
-`apps/todo/worker/Cargo.toml:17` depends on `domain_todo` purely to name `TodoEvent`
-(`apps/todo/worker/src/lib.rs:12`) — the shared-kernel pattern Phase 2 removed from tasks, over NATS
+`apps/todo/worker/Cargo.toml:20` depends on `domain_todo` to name three symbols
+(`TodoEvent`, `TodoNatsStream`, `TodoEventKind` — `apps/todo/worker/src/lib.rs:12,56`) — the shared-kernel pattern Phase 2 removed from tasks, over NATS
 instead of gRPC. **A JSON event payload is a wire contract too.** Milder than the tasks
 case (the worker inherits no repository), so lower priority — but the same class of bug.
 
@@ -619,8 +632,8 @@ is a user-visible 503.
 
 ### 5.4 `POST /api/org` — idempotency + compensation · M
 
-Four steps across WorkOS, Redis and Postgres with no transaction
-(`apps/zerg/api/src/api/org.rs:117,141,161,167`). Failure after step 1 leaves an orphan
+Seven sequential awaits across WorkOS, Redis, JWKS and Postgres with no transaction
+(`apps/zerg/api/src/api/org.rs:120,122,133,144,152,168,174`; 0 compensation paths, `Idempotency`/`rollback`/`compensat` 0 hits). Failure after step 1 leaves an orphan
 org. Move to consistency rungs 1–2: make org creation idempotent, compensate a failed
 membership by deleting the org. No new infrastructure.
 

@@ -59,7 +59,7 @@ one ownership-scoped sample resource, then grow the domain as we go.
 ## Supporting services
 
 Added to `manifests/dockers/compose.yaml` (started via `just docker-up`); all share the existing
-Postgres (extra DBs created by `manifests/dockers/config/postgres-init/01-create-databases.sql`):
+Postgres (extra DBs created by `manifests/dockers/postgres-init/10-create-extra-databases.sh`):
 
 - **Keycloak** (`:8088`) — identity provider; realm imported from
   `manifests/dockers/config/keycloak/terran-realm.json` (client `terran-api`, roles, test user,

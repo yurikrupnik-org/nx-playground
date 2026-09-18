@@ -43,6 +43,22 @@ boundaries:
     bun nx graph --file=dist/boundaries-graph.json >/dev/null
     bun tools/nx/check-boundaries.ts dist/boundaries-graph.json
 
+# Platform tool registry drift gate (bun, no nx): every tool in
+# docs/tooling/registry.toml must still cite paths that exist, every `adopted`
+# row must name a gate or a declared [[gap]], and every paid tool must carry a
+# human approval. Contract: .claude/skills/cncf-manager/SKILL.md.
+[group('quality')]
+tooling-check:
+    bun tools/tooling/check-registry.ts
+
+# Freeze the STAGED diff into one review input both pre-commit passes read
+# (file table + class per file + the gates that diff implies + the diff
+# itself). Exits 1 on a hard stop (secret-shaped path). Protocol:
+# .claude/skills/precommit-review/SKILL.md
+[group('quality')]
+review-bundle out="dist/review/bundle.md":
+    bun tools/review/bundle.ts --out {{ out }}
+
 # npm-check-updates preview across all workspace package.json files (no -u)
 [group('deps')]
 outdated-node:

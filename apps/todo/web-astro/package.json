@@ -13,16 +13,16 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@astrojs/node": "^11.1.4",
+    "@astrojs/node": "^11.1.5",
     "@astrojs/solid-js": "^7.0.2",
     "@domain/todo": "workspace:*",
     "@native/field-selector": "workspace:*",
-    "astro": "^7.2.8",
+    "astro": "^7.3.2",
     "htmx.org": "^2.0.10",
-    "solid-js": "^1.9.14"
+    "solid-js": "^1.9.15"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.0"
   }
 }

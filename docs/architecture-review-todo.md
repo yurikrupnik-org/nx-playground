@@ -33,8 +33,9 @@
 **The argument:** When entities are just public-field data bags and all rules live in fat service classes, you have a procedural transaction-script wearing an OO costume. Invariants aren't enforced by the type, so they get duplicated, skipped, or drift.
 
 **In our system — ❌ the most notable smell.**
-- `Project` = 13 public fields, no invariants on the type (`libs/domains/projects/src/models.rs`). `User` = 17 public fields (`libs/domains/users/src/models.rs`).
-- Real domain rules live in services, not the model: the 3-project free-tier limit in `ProjectService::can_user_create_project` (`libs/domains/projects/src/service.rs`), and status-transition guards in `activate_project` / `suspend_project`.
+- `Project` = 13 public fields, no invariants on the type (`libs/domains/projects/src/models.rs:112-140`). `User` = 11 public fields (`libs/domains/users/src/models.rs:42-66`; an earlier revision of this doc said 17).
+- Real domain rules live in services, not the model: the 3-project free-tier limit in `ProjectService::can_user_create_project` (`libs/domains/projects/src/service.rs:62`), and status-transition guards in `activate_project` / `suspend_project`.
+- **Measured 2026-09-03 — the guards do not cover every write.** Guarded status writes: 2 (`activate_project` service.rs:167/171, `suspend_project` :192/196). Unguarded: `archive_project` :219 (no precondition), `Project::apply_update` models.rs:258 (reached by `PUT /{id}` → `update_project` :96, which only runs `validate()`), `postgres.rs:148`. A `PUT` can therefore move a `Deleting` project to `Active`, which `activate_project` refuses. This is the concrete defect the first todo below fixes; its red test is "PUT status=active on a Deleting project → 4xx".
 - There *is* a thin veneer (`Project::new`, `Project::apply_update`) — so it's not purely anemic, but the important rules are outside the model.
 
 **Recommended patterns:** Rich Domain Model / Aggregates, encapsulated invariants (private fields + intent methods), value objects for validated primitives (e.g. `ProjectName`, `EmailAddress`), state as an explicit state machine on the aggregate.
@@ -54,7 +55,7 @@
 
 **In our system — [~] partially addressed.**
 - Base routers are CRUD: `GET/POST /`, `GET/PUT/DELETE /{id}` (`libs/domains/projects/src/handlers.rs`, same in `tasks`, `todo`).
-- **But** the richer domains already add intent-revealing endpoints: `POST /{id}/activate|suspend|archive` on projects, and login/register/OAuth actions in `users/src/auth_handlers.rs`. This is the right direction.
+- **But** the richer domains already add intent-revealing endpoints: `POST /{id}/activate|suspend|archive` on projects, `POST /{id}/verify-email` on users, `POST /{id}/complete|uncomplete` on todo, `POST /{id}/soft-delete` on cloud_resources (7 command routes across 4 domains, none taking a body), and login/logout/callback in `apps/zerg/api/src/api/auth.rs` (composed at the app layer — `users` has no auth handlers). `tasks` has no handlers crate-side; its HTTP router is `apps/zerg/api/src/api/tasks.rs:63-67`, 5 CRUD / 0 commands. This is the right direction.
 
 **Recommended patterns:** Task-based UI / intent-revealing endpoints, Commands over CRUD, (optionally) CQRS to split write-intent from read-shapes. Keep generic CRUD only for genuinely CRUD-shaped reference data.
 
@@ -94,7 +95,7 @@
 - [x] **Phase 4:** forward the user token as gRPC metadata, verify via JWKS in `zerg_tasks`, delete `org_id`/`user_id` from proto requests. *(2026-07-25: direct unauthenticated and forged-token calls to `:50051` both return `Unauthenticated` — see `apps/zerg/tasks/tests/boundary_smoke.rs`.)*
 - [x] **Phase 5:** ungate `/ready`, add per-call deadlines, split `VectorService` into its own binary, adopt additive-only proto policy. *(2026-07-25: with tasks killed, `/ready` stays 200 and only `/api/tasks` returns 503.)*
 - [ ] Guardrail: before any *future* extraction, run the boundary checklist in `docs/modular-monolith-architecture.md` — resilience infra alone is not a boundary.
-- [ ] Resolve the messaging-lib ambiguity: document what `libs/core/messaging` is for post-cleanup, or finish removing it. Cross-link `docs/messaging-patterns.md`.
+- [x] Resolve the messaging-lib ambiguity: document what `libs/core/messaging` is for post-cleanup, or finish removing it. *(2026-09-03: not ambiguous — 11 workspace crates depend on it (all `features = ["nats"]`), 3,007 LOC across 14 files, two integration suites (`dlq_it`, `stream_kind_it`), and it is already the documented JetStream layer in `docs/messaging-patterns.md:261` and `docs/communication-and-consistency.md:53`. Nothing to remove.)*
 - [x] Prefer publishing an event over a synchronous cross-domain call when adding new inter-domain flows. *(2026-08-31: first new cross-service flow since this was written — `ProjectDeleted` (backlog 0.3) is an event on an `EventLog` stream, not an RPC from projects into tasks. `libs/core/messaging` earned its keep here, which also answers half of the ambiguity above.)*
 
 ---
@@ -113,7 +114,7 @@
 **Todos**
 - [~] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call. *(2026-08-31: the edge is now surfaced and pinned — grandfathered in `tools/nx/scope-tags.ts` with a pointer here; `just boundaries` enforces whichever way this is decided, by merging scopes or deleting the exception.)*
 - [x] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.** *(2026-08-31: written down AND executable — `just boundaries` fails a cross-scope import, and backlog 0.3 is the worked example of the other half: an ID reference stays correct via a `ProjectDeleted` event instead of an FK. The `cloud_resources → projects` FK above is the one grandfathered exception, named in `tools/nx/scope-tags.ts`.)*
-- [ ] Add a "when do we extract a service?" checklist (scaling, independent deploy, team ownership) so distribution stays a deliberate decision, not a default.
+- [x] Add a "when do we extract a service?" checklist (scaling, independent deploy, team ownership) so distribution stays a deliberate decision, not a default. *(Already exists: `docs/modular-monolith-architecture.md:772-803` — "First: do you actually need a separate process?" plus the seven-row boundary checklist. The Issue 4 guardrail todo above points at the same section.)*
 - [ ] Keep the app layer as the only composition point — no domain-imports-domain code coupling.
 
 ---

@@ -339,21 +339,17 @@ let users_repo = PgUserRepository::new(pool.clone());
 
 ### Migration Strategy
 
-Migrations are located in `manifests/migrations/postgres/`
+There is no `manifests/migrations/` directory. Schemas live per database under
+`manifests/db/<db>/` (`just db-list`): `zerg` and `tasks` are **declarative**
+(`schema.sql` + `seed.sql`, applied by `just db-fresh <db>` / `just db-seed <db>`; Atlas
+diffs the live database against `schema.sql`), while `todo` and `terran` carry Atlas
+**versioned** migrations in `manifests/db/<db>/migrations/` (`atlas.sum` + timestamped
+`*.sql`). Connection strings come from `just _db-url <db> <env>`.
 
-**Naming Convention**: `NNNN_description.sql`
-- `0000_bootstrap.sql` - Initial setup
-- `0004_projects.sql` - Projects v1 (old)
-- `0005_users.sql` - Users table
-- `0007_projects_v2.sql` - Projects v2 (current)
-
-**Run Migrations**:
 ```bash
-just _migration
-# or
-sqlx migrate run \
-  --database-url=postgres://myuser:mypassword@localhost/mydatabase \
-  --source manifests/migrations/postgres/
+just db-fresh zerg      # drop + recreate from manifests/db/zerg/schema.sql
+just db-seed zerg       # load manifests/db/zerg/seed.sql
+just db-inspect zerg    # pg_dump --schema-only of the live database
 ```
 
 ### Repository Pattern

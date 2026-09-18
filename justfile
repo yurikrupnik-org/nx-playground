@@ -25,6 +25,9 @@ default:
     # just proto-lint
     just -l
 
+slava:
+  cargo install --path apps/butler --force
+
 lol:
   devkit up --skip-dbs --skip-tilt --gitops --flux --skip-secrets
 events:
@@ -69,7 +72,7 @@ gen-ci:
 # as your last fetch, and it is a no-op while you are standing on main. CI's copy
 # is the authoritative one (full history, PR-only).
 [group('flow')]
-verify: check proto-lint proto-breaking tilt-check container-check k8s-check scan boundaries e2e
+verify: check proto-lint proto-breaking tilt-check container-check k8s-check tooling-check scan boundaries e2e
     @echo "verify: all gates passed"
 
 # Auto-fix formatting (rust fmt + Cargo.toml sort + proto + web), then run the full gate

@@ -256,6 +256,34 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   `platform/cloud-inventory`) apply with a deprecation warning and default to
   `scope: LegacyCluster`, so claims keep working. Do not add `scope:` to them
   unless migrating to v2 namespaced XRs — that drops the claim API.
+- **Every platform tool is a row in `docs/tooling/registry.toml`, gated by
+  `just tooling-check`** (in `verify`; `tools/tooling/check-registry.ts`). A row
+  states what INSTALLS the tool, what USES it and which gate catches it
+  breaking; cited paths must resolve (no line numbers — they rot), an `adopted`
+  row with `gate = "none"` must be covered by a declared `[[gap]]`, and
+  `paid = true` requires a human `approval` record — an agent never signs up for
+  a paid service. This exists because `README.md` listed **Istio + Kiali** as
+  prerequisites for months with no control plane, no CRs and no canary anywhere
+  in the repo (`docs/tooling/service-mesh.md`): north–south is Gateway API
+  `HTTPRoute`s parented to `main-gateway`, a Gateway gitops-v1 owns and this
+  repo never defines, and east–west is plain ClusterIP + tower middleware. The
+  inert `istio-injection` labels in `manifests/k8s/base/namespace.yaml` stay —
+  that file is byte-mirrored from gitops-v1 so Flux's apply is a no-op. Playbook:
+  `skill://cncf-manager`.
+- **A non-trivial commit is reviewed twice, and `just review-bundle` is what
+  both passes read** (`tools/review/bundle.ts` → gitignored
+  `dist/review/bundle.md`): the STAGED diff, a class per file, the gates that
+  diff implies, the generated output with the command that produces it and a
+  proof that can actually FAIL (`just proto-check` is `cargo check -p rpc`, so
+  the proof for generated protobuf is `just proto-gen` + `git diff
+  --exit-code`), and what the working tree adds on top — because
+  `coderabbit review --uncommitted` and `codex exec review --uncommitted`
+  transmit the working tree, not the index. It writes NOTHING and exits 1 on a
+  secret-shaped staged path or secret material in an added line; `--out` must
+  be inside the repo and gitignored. Pass 1 is the model that wrote the code,
+  pass 2 is `reviewer` + `security-reviewer` + the authenticated vendor CLIs,
+  blind to pass 1; a claim raised by ≥2 components is blocker-eligible.
+  Playbook: `skill://precommit-review` (`/precommit`, `/precommit-quick`).
 
 ## Environment gotchas
 

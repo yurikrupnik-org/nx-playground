@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    let runtime = Runtime::new_assume_tokio(Default::default())
+    let runtime = Runtime::from_current_tokio(Default::default())
         .map_err(|e| eyre!("init temporal runtime: {e}"))?;
     let (conn_opts, client_opts) =
         ClientOptions::load_from_config(LoadClientConfigProfileOptions::default())

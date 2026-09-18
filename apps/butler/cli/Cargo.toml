@@ -1,6 +1,6 @@
 [package]
 name = "butler"
-publish = false
+publish = true
 # Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
 # sed-bumps this literal line for every project with a container target.
 version = "0.1.0"

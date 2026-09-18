@@ -46,6 +46,13 @@ need_stdout = true
 default_watch = false
 background = false
 
+[jobs.todo-astro-web]
+command = ["bun", "nx", "dev", "astro-web"]
+need_stdout = true
+# vite owns hot-reload; do NOT let bacon watch/restart it (that would kill HMR).
+default_watch = false
+background = false
+
 [jobs.zerg-api]
 command = ["cargo", "run", "-p", "zerg_api", "--color", "always"]
 need_stdout = true

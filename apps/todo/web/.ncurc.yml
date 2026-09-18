@@ -1,0 +1,14 @@
+# The Solid 2 release-candidate line moves as ONE set, by hand: every package
+# below peers on a specific solid-js / @solidjs/web rc, and ncu (run per
+# workspace by upkg, prereleases included because the current version is one)
+# happily bumps one of them past the others — @tanstack/solid-query 6.0.0-rc.3
+# and @solidjs/vite-plugin 3.0.0-next.42 both require solid-js >= rc.6/rc.7
+# while the app is on rc.4. Exact pins do not stop ncu the way `=` stops
+# `cargo upgrade`; this reject list does. Drop it when the set is on stable 2.x.
+reject:
+  - solid-js
+  - "@solidjs/web"
+  - "@solidjs/router"
+  - "@solidjs/vite-plugin"
+  - "@solidjs/testing-library"
+  - "@tanstack/solid-query"

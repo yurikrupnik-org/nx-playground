@@ -1,51 +1,22 @@
 ---
-description: Quick pre-commit workflow (checks + commit message, no AI review)
-allowed-tools: []
+description: Quick pre-commit path (bundle + gates + commit message, no second review pass)
+allowed-tools: Bash(just:*), Bash(git diff:*), Bash(git status:*)
 ---
 
-# Quick Pre-Commit Workflow ⚡
+# Quick Pre-Commit ⚡
 
-Fast pre-commit workflow without AI code review. Perfect for:
-- Minor changes (typos, formatting)
-- Documentation updates
-- Quick fixes
-- When you're confident in your changes
+The reduced path of `.claude/skills/precommit-review/SKILL.md`: pass 0 and
+pass 1 only, **no independent pass**.
 
-## Step 1: Quality Checks ⚙️
+Legal only when `just review-bundle` reports the staged diff as `docs` and/or
+`config` classes with no `source`/`test` file — that is the objective test, not
+"it feels small". Anything else runs `/precommit`.
 
-Run `/git:check` to verify code quality:
-- Lint checks
-- Build verification
-- Test suite
-
-**Critical**: Stop if any checks fail. Fix issues before proceeding.
-
-## Step 2: Generate Commit Message 📝
-
-Run `/git:commit-msg` to generate conventional commit message.
-
-The message will:
-- Follow conventional commits format
-- Include detailed description
-- Be ready to copy/paste
-
-## Step 3: Ready to Commit ✅
-
-**To commit:**
-```bash
-git commit -m "..."  # Use the generated message
-```
-
-**Or ask me to:**
-- Revise the commit message
-- Run full `/precommit` with AI review
-- Make additional changes
-
----
-
-**Workflow Summary:**
-1. ⚙️  Quality checks
-2. 📝 Generate commit message
-3. ✅ Commit
-
-**Pro tip**: Use `/precommit` (full version) for important logic changes, refactoring, or new features.
+1. `just review-bundle` — check the class column. Any `source` or `test` row
+   (or a hard stop) → stop and use `/precommit`.
+2. Run the gates the bundle listed, and the proof gate for any generated file
+   in the diff (`just tilt-check` / `k8s-check` / `proto-check`).
+3. Author pass over the staged diff: does the prose still match what the code
+   does, and does any claim in it cite a path that exists?
+4. Commit with a Conventional Commits message. Never on `main`, never
+   `--no-verify`.

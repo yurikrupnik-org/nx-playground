@@ -21,11 +21,6 @@ pre-commit:
       glob: "*.rs"
       run: cargo clippy --workspace --all-targets -- -D warnings
 
-    # Schema diagram generation (only when entities change)
-    schema-gen:
-      glob: "libs/domains/*/src/entity.rs"
-      run: cargo run --bin schema-gen && git add docs/schema.md docs/schema.dbml
-
 # Pre-push: Thorough checks before pushing
 pre-push:
   parallel: true
