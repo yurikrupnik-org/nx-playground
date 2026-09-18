@@ -22,10 +22,13 @@ mod middleware;
 
 pub use error::{AuthError, Result};
 pub use flow::{LoginFlow, LoginFlowStore, StoredFlow};
-pub use identity::AuthIdentity;
-pub use middleware::{AuthLayerState, auth_required};
+pub use identity::{AuthIdentity, PERSONAL_PREFIX};
+pub use middleware::{AccessToken, AuthLayerState, auth_required};
 pub use provider::keycloak::KeycloakProvider;
 pub use provider::workos::WorkosProvider;
+pub use provider::workos_admin::{
+    WorkosAdmin, WorkosInvitation, WorkosMembership, WorkosOrgUser, WorkosOrganization,
+};
 pub use provider::{IdentityProvider, TokenSet, UserProfile};
 pub use session::{RedisSessionStore, SessionRecord, SessionStore};
 pub use verifier::{OidcVerifier, VerifierConfig};

@@ -382,6 +382,46 @@ Server::builder()
 
 ---
 
+## Service Boundary Rules (required)
+
+gRPC gives you a *wire contract*, not a *boundary*. A tonic server that shares a crate
+and a database with its caller is a monolith with extra latency. Before shipping any
+service on this transport, all of these must hold — see the full checklist in
+[`modular-monolith-architecture.md`](./modular-monolith-architecture.md#then-the-boundary-checklist).
+
+- **Contract-only client dependency.** The caller depends on the generated `rpc::*`
+  types and a contract crate — never on the service's domain/entity/repository crate.
+  The caller's HTTP→gRPC handlers live in the caller's app.
+- **The service owns its tables.** The caller holds no DB grants on them. Cross-service
+  references are plain ID columns, never foreign keys.
+- **Authenticate the hop; never trust identity in the payload.** Tenant/user scope must
+  be derived from a verified token, not read from a request field. Forward the caller's
+  access token as `authorization` metadata and verify it with `oidc_auth::OidcVerifier`
+  (JWKS/RS256). A `bytes org_id` field the server trusts means anyone who can reach the
+  port can read any tenant's data.
+- **Additive-only proto evolution.** Never renumber or remove a field, never rename a
+  package — both force lockstep deploys. Deprecate, ship, then remove in a later release.
+  When a field genuinely must go, `reserved` its number **and** its name so the tag can
+  never be silently reused with a different meaning:
+
+  ```protobuf
+  message GetByIdRequest {
+    bytes id = 1;
+    reserved 2;              // was org_id - identity is no longer a request field
+    reserved "org_id";
+  }
+  ```
+
+  `tasks.proto` is the worked example: the Phase 4 release removed the identity fields
+  from every request and reserved all of them. That was the last breaking change; from
+  there the policy is enforced by the reservations themselves.
+- **Don't gate the caller's readiness on the callee.** Degrade that service's routes to
+  503; keep everything else serving.
+- **Set per-call deadlines.** Channel-level timeouts are a backstop, not a policy.
+
+> Worked example, including the mistakes we made:
+> [`adr-tasks-service-boundary.md`](./adr-tasks-service-boundary.md).
+
 ## This Project
 
 ### Proto Location
@@ -391,13 +431,15 @@ manifests/grpc/proto/apps/v1/tasks.proto
 
 ### Generated Code
 ```
-libs/rpc/src/gen/tasks.rs        # Message types
-libs/rpc/src/gen/tasks.tonic.rs  # Client & Server
+libs/rpc/src/generated/tasks/v1/tasks.v1.rs        # Message types
+libs/rpc/src/generated/tasks/v1/tasks.v1.tonic.rs  # Client & Server
 ```
+Regenerate with `just proto` (buf: format → lint → build → generate → `cargo check -p rpc`).
+Hand-maintained `mod.rs` files wire the generated files into the crate.
 
 ### Services
 
-**TasksService** (`tasks.proto`):
+**tasks.v1.TasksService** (`manifests/grpc/proto/apps/v1/tasks.proto`):
 ```protobuf
 service TasksService {
   rpc Create(CreateRequest) returns (CreateResponse);           // Unary
@@ -408,6 +450,18 @@ service TasksService {
   rpc ListStream(ListStreamRequest) returns (stream ListStreamResponse); // Server Streaming
 }
 ```
+
+Note: the package is `tasks.v1`. An earlier unversioned `tasks` package was generated
+into the crate but never regenerated from a checked-in proto — always confirm the code
+you import comes from `manifests/grpc/proto/`.
+
+**todo.v1.TodoService** (`manifests/grpc/proto/apps/v1/todo.proto`), served by
+`todo_api` on the SAME port as its REST/SSE/WebSocket routes (h2c, merged into
+the axum router — `apps/todo/api/src/grpc.rs`). Unary CRUD plus the
+intent-revealing `Complete`/`Uncomplete`, and `Watch`, a server stream of
+database-sourced lifecycle events. Try it: `cargo run -p todo_api --example
+grpc_client`. Compared against the vertical's other transports in
+`docs/todo-delivery-options.md`.
 
 ### Running
 

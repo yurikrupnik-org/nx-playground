@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "name": "@native/field-selector",
+  "targets": {
+    "build": {
+      "outputs": [
+        "{projectRoot}/index.js",
+        "{projectRoot}/index.d.ts",
+        "{projectRoot}/*.node"
+      ],
+      "inputs": [
+        "{projectRoot}/Cargo.toml",
+        "{projectRoot}/build.rs",
+        "{projectRoot}/src/**/*",
+        "{projectRoot}/package.json",
+        "{workspaceRoot}/Cargo.toml",
+        "{workspaceRoot}/Cargo.lock",
+        "{workspaceRoot}/libs/core/field-selector/**/*"
+      ]
+    },
+    "test": {
+      "dependsOn": ["build"]
+    }
+  }
+}

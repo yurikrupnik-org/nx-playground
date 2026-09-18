@@ -7,7 +7,7 @@
 //!
 //! ```ignore
 //! use grpc_client::server::{run_grpc_server, ServerConfig};
-//! use rpc::tasks::tasks_service_server::{TasksServiceServer, SERVICE_NAME};
+//! use rpc::tasks::v1::tasks_service_server::{TasksServiceServer, SERVICE_NAME};
 //! use tonic::codec::CompressionEncoding;
 //!
 //! let config = ServerConfig::from_env()?;
@@ -22,7 +22,7 @@
 //!
 //! ```ignore
 //! use grpc_client::server::{GrpcServer, ServerConfig, HealthReporterExt};
-//! use rpc::tasks::tasks_service_server::{TasksServiceServer, SERVICE_NAME};
+//! use rpc::tasks::v1::tasks_service_server::{TasksServiceServer, SERVICE_NAME};
 //! use tonic::codec::CompressionEncoding;
 //! use tonic::transport::Server;
 //!

@@ -2,29 +2,31 @@
 //!
 //! Run with: cargo run -p zerg_email_nats --example publish_test
 
-use email::EmailJob;
+use email::{EmailJob, EmailNatsStream};
+use messaging::nats::{StreamConfig, stream_config_for};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nats_url =
         std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
-    println!("Connecting to NATS at {}...", nats_url);
+    println!("Connecting to NATS at {nats_url}...");
     let jetstream = messaging::nats::jetstream(&nats_url).await?;
 
-    // Ensure stream exists
+    // Same builder the worker uses. Hardcoding a config here (this example used to
+    // pin `RetentionPolicy::Limits`) silently recreates the stream with the wrong
+    // retention whenever the publisher runs first, restoring per-replica fan-out.
     println!("Creating/getting EMAILS stream...");
-    let stream_config = async_nats::jetstream::stream::Config {
-        name: "EMAILS".to_string(),
-        subjects: vec!["emails.>".to_string()],
-        retention: async_nats::jetstream::stream::RetentionPolicy::Limits,
-        max_messages: 100_000,
-        ..Default::default()
-    };
-
-    match jetstream.get_or_create_stream(stream_config).await {
+    match jetstream
+        .get_or_create_stream(stream_config_for(
+            EmailNatsStream::STREAM_NAME,
+            EmailNatsStream::SUBJECT,
+            EmailNatsStream::KIND,
+        ))
+        .await
+    {
         Ok(_) => println!("Stream EMAILS ready"),
-        Err(e) => println!("Stream warning: {}", e),
+        Err(e) => println!("Stream warning: {e}"),
     }
 
     // Create test email job using the actual EmailJob type

@@ -210,30 +210,56 @@ pub async fn logout(State(st): State<AppState>, headers: HeaderMap) -> Response 
     resp
 }
 
-/// `GET /api/auth/me` → current user profile (guarded route).
+/// `GET /api/auth/me` → current user profile + active org context (guarded route).
 ///
-/// Returns the bare [`UserResponse`] the SPA expects (`lib/auth-api.ts`).
+/// Response is the flattened [`UserResponse`] plus an `org` object (terran's `Me`
+/// shape) so the SPA can render tenant context and gate admin UI.
+#[derive(serde::Serialize, ToSchema)]
+pub struct MeResponse {
+    #[serde(flatten)]
+    pub user: UserResponse,
+    pub org: OrgInfo,
+}
+
+#[derive(serde::Serialize, ToSchema)]
+pub struct OrgInfo {
+    pub id: uuid::Uuid,
+    pub external_id: String,
+    pub name: String,
+    pub role: String,
+    pub is_personal: bool,
+}
+
 #[utoipa::path(
     get,
-    path = "/auth/me",
+    path = "/me",
     tag = "auth",
-    security(("session_cookie" = [])),
     responses(
-        (status = 200, description = "Current user", body = UserResponse),
-        (status = 401, description = "Missing or invalid session")
+        (status = 200, description = "Current user with org context", body = MeResponse),
+        (status = 401, description = "Not authenticated")
     )
 )]
 pub async fn me(
     State(st): State<AppState>,
     identity: oidc_auth::AuthIdentity,
-) -> ApiResult<Json<UserResponse>> {
+) -> ApiResult<Json<MeResponse>> {
     // A session always follows JIT provisioning, so a missing row means the
     // principal was deleted out-of-band — treat as unauthenticated.
     let user = user_service(&st)
         .get_user_by_subject(&identity.subject)
         .await
         .map_err(|_| ApiError::new(StatusCode::UNAUTHORIZED, "unknown principal"))?;
-    Ok(Json(user))
+    let tenant = crate::orgs::resolve_tenant(&st, &identity).await?;
+    Ok(Json(MeResponse {
+        user,
+        org: OrgInfo {
+            id: tenant.org_id,
+            external_id: tenant.external_org_id.clone(),
+            name: tenant.org_name.clone(),
+            role: tenant.role.clone(),
+            is_personal: tenant.is_personal(),
+        },
+    }))
 }
 
 // --- helpers --------------------------------------------------------------------
@@ -272,6 +298,13 @@ async fn establish_session(st: &AppState, tokens: TokenSet) -> ApiResult<Vec<Str
             .await
     {
         tracing::warn!(error = %e, user_id = %user.id, "failed to queue welcome email");
+    }
+
+    // Eager tenant provisioning: mirrors the org + membership locally so invited
+    // B2B users (token carries the org's `org_id`) are queryable on first login.
+    if let Err(e) = crate::orgs::provision_tenant(st, &identity, user.id, Some(&user.name)).await {
+        // Non-fatal: the tenant middleware re-provisions on the first API call.
+        tracing::warn!(user_id = %user.id, "tenant provisioning at login failed: {e:?}");
     }
 
     let now = now_secs();

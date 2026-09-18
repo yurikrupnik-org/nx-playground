@@ -85,10 +85,6 @@ pub struct EmailJob {
     #[serde(default)]
     pub priority: EmailPriority,
 
-    /// Current retry count
-    #[serde(default)]
-    pub retry_count: u32,
-
     /// When the job was created
     pub created_at: DateTime<Utc>,
 }
@@ -110,7 +106,6 @@ impl EmailJob {
             body_text: None,
             body_html: None,
             priority: EmailPriority::Normal,
-            retry_count: 0,
             created_at: Utc::now(),
         }
     }
@@ -139,7 +134,6 @@ impl EmailJob {
             body_text: email.body_text.clone(),
             body_html: email.body_html.clone(),
             priority: email.priority.clone(),
-            retry_count: email.retry_count,
             created_at: Utc::now(),
         }
     }
@@ -227,30 +221,19 @@ impl EmailJob {
     }
 }
 
-// Implement messaging::Job for NATS backend
+// Implement messaging::Job for NATS backend.
+//
+// No retry surface: JetStream owns the attempt count (`NatsMessage::delivery_count`)
+// and the per-category policy in `messaging::ErrorCategory` owns the ceiling. The
+// old `max_retries()` override, which varied the cap by EmailPriority, never took
+// effect — it was only reachable through `can_retry()`, which nothing called.
 impl MessagingJob for EmailJob {
     fn job_id(&self) -> Uuid {
         self.id
     }
 
-    fn retry_count(&self) -> u32 {
-        self.retry_count
-    }
-
-    fn with_retry(&self) -> Self {
-        Self {
-            retry_count: self.retry_count + 1,
-            created_at: Utc::now(),
-            ..self.clone()
-        }
-    }
-
-    fn max_retries(&self) -> u32 {
-        match self.priority {
-            EmailPriority::High => 5, // More retries for important emails
-            EmailPriority::Normal => 3,
-            EmailPriority::Low => 2,
-        }
+    fn job_type(&self) -> &'static str {
+        "email_job"
     }
 }
 
@@ -265,7 +248,7 @@ mod tests {
         assert_eq!(job.to_email, "test@example.com");
         assert_eq!(job.subject, "Welcome!");
         assert_eq!(job.email_type, EmailType::Welcome);
-        assert_eq!(job.retry_count, 0);
+        assert_eq!(job.priority, EmailPriority::Normal);
     }
 
     #[test]
@@ -284,11 +267,9 @@ mod tests {
         let job = EmailJob::new(EmailType::Transactional, "test@example.com", "Test");
 
         assert!(!Job::job_id(&job).is_nil());
-        assert_eq!(Job::retry_count(&job), 0);
-        assert!(Job::can_retry(&job));
-
-        let retried = Job::with_retry(&job);
-        assert_eq!(Job::retry_count(&retried), 1);
-        assert_eq!(Job::job_id(&retried), Job::job_id(&job)); // ID preserved across retries
+        assert_eq!(Job::job_id(&job), job.id);
+        assert_eq!(Job::job_type(&job), "email_job");
+        // The id must survive a redelivery so DLQ entries and idempotency keys line up.
+        assert_eq!(Job::job_id(&job.clone()), Job::job_id(&job));
     }
 }

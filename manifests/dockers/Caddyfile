@@ -1,0 +1,39 @@
+# Caddy equivalent of default.conf.template (nginx): static SPA + /health +
+# /api reverse proxy. {$VAR:default} placeholders resolve from the container
+# environment at startup, mirroring nginx's envsubst templates.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	root * /srv
+
+	header {
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	handle /health {
+		respond "healthy" 200
+	}
+
+	handle /api/* {
+		reverse_proxy {$UPSTREAM_HOST:localhost}:{$UPSTREAM_PORT:8080}
+	}
+
+	handle {
+		encode gzip
+
+		# Cache static assets hard, never cache HTML (SPA updates).
+		@immutable path_regexp \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
+		header @immutable Cache-Control "public, immutable, max-age=31536000"
+		@html path *.html
+		header @html Cache-Control "no-store, no-cache, must-revalidate"
+
+		try_files {path} /index.html
+		file_server
+	}
+}

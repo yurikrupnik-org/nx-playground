@@ -6,7 +6,7 @@
 //! wiring, and never read the environment anywhere else.
 
 use core_config::server::ServerConfig;
-use core_config::{env_or_default, ConfigError, Environment, FromEnv};
+use core_config::{ConfigError, Environment, FromEnv, env_or_default};
 use database::postgres::PostgresConfig;
 
 /// Aggregate configuration for the todo API.

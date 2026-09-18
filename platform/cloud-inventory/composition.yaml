@@ -1,0 +1,84 @@
+# Composition: CloudInventory on a local kind cluster (in-cluster k8s targets).
+# Logic lives in KCL (function-kcl), same seam as platform/dev-env.
+#
+# Read-only guarantee: every composed Object sets
+#   spec.managementPolicies: ["Observe"]
+# so provider-kubernetes only *reads* the referenced resource — it never
+# creates, patches, adopts or deletes it, and deleting the claim leaves the
+# observed resource untouched.
+#
+# Labels on each Object form the API contract consumed by terran_api:
+#   platform.playground.io/inventory     = claim name (list selector)
+#   platform.playground.io/resource-type = domain ResourceType (serde lowercase)
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: cloudinventory-kind
+  labels:
+    target: kind
+spec:
+  compositeTypeRef:
+    apiVersion: platform.playground.io/v1alpha1
+    kind: XCloudInventory
+  mode: Pipeline
+  pipeline:
+    - step: compose
+      functionRef:
+        name: function-kcl
+      input:
+        apiVersion: krm.kcl.dev/v1alpha1
+        kind: KCLInput
+        spec:
+          source: |
+            oxr = option("params").oxr
+            targets = oxr.spec?.parameters?.targets or []
+
+            claim = oxr.spec?.claimRef?.name or oxr.metadata.name
+
+            _observe = lambda t: any -> any {
+                _ns = t.cluster?.namespace
+                {
+                    apiVersion = "kubernetes.crossplane.io/v1alpha2"
+                    kind = "Object"
+                    metadata.name = "{}-{}".format(claim, t.name)
+                    metadata.annotations = {"krm.kcl.dev/composition-resource-name" = t.name}
+                    metadata.labels = {
+                        "platform.playground.io/inventory" = claim
+                        "platform.playground.io/resource-type" = t?.resourceType or "other"
+                    }
+                    spec = {
+                        managementPolicies = ["Observe"]
+                        forProvider.manifest = {
+                            apiVersion = t.cluster.apiVersion
+                            kind = t.cluster.kind
+                            metadata = {
+                                name = t.cluster.name
+                                if _ns:
+                                    namespace = _ns
+                            }
+                        }
+                        providerConfigRef.name = "in-cluster"
+                    }
+                }
+            }
+
+            _objects = [_observe(t) for t in targets]
+
+            _status = {
+                apiVersion = oxr.apiVersion
+                kind = oxr.kind
+                status.inventory = {
+                    observed = len(targets)
+                    resources = [{
+                        name = t.name
+                        kind = t.cluster.kind
+                        namespace = t.cluster?.namespace or ""
+                        resourceType = t?.resourceType or "other"
+                    } for t in targets]
+                }
+            }
+
+            items = _objects + [_status]
+    - step: ready
+      functionRef:
+        name: function-auto-ready

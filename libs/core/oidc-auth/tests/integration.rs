@@ -3,6 +3,10 @@
 //! These require the running compose stack (`just reset-db` / `just _docker-up`) and
 //! are `#[ignore]`d so CI without the stack stays green. Run locally with:
 //!   cargo test --package oidc-auth --test integration -- --ignored
+#![allow(
+    clippy::unwrap_used,
+    reason = "integration test: a panic on a broken fixture is the intended failure mode"
+)]
 
 use oidc_auth::{OidcVerifier, RedisSessionStore, SessionRecord, SessionStore, VerifierConfig};
 

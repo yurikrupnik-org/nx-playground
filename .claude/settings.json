@@ -41,6 +41,10 @@
           {
             "type": "command",
             "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-secrets.js\""
+          },
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-git.js\""
           }
         ]
       }

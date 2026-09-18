@@ -1,0 +1,40 @@
+{
+  "name": "todo-e2e",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/todo/e2e/tests",
+  "implicitDependencies": [
+    "todo_api",
+    "todo-web",
+    "todo-astro-web",
+    "todo_web_htmx"
+  ],
+  "targets": {
+    "e2e": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [
+        { "projects": ["@native/field-selector"], "target": "build" }
+      ],
+      "options": {
+        "command": "bun run e2e",
+        "cwd": "{workspaceRoot}/apps/todo/e2e"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run typecheck",
+        "cwd": "{workspaceRoot}/apps/todo/e2e"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run lint",
+        "cwd": "{workspaceRoot}/apps/todo/e2e"
+      }
+    }
+  },
+  "tags": ["scope:todo"]
+}

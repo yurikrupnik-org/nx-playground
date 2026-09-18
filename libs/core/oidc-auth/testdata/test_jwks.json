@@ -1,1 +1,12 @@
-{"keys": [{"kty": "RSA", "use": "sig", "alg": "RS256", "kid": "test-key-1", "n": "sNXaZz7d5Cf6HrV6W399XlwoMWHZi4IqSu_WXlmtxZnTzkGl2azaSYMmc-v5Ot6c98s3W09Bzk715yzqTsOVRi_ZeY28qKOCF6jFJElRihbpFrmXIJ1wdJ2kNsj6hcqULJNHQEuFVAdt-avPLaTEZBptlM31iXrM5LOF31MmSEFNXO_RZoJwBjFc0YGjk85YMT5-taFTC083dNNqKVTO1_I4HfrMUKqECaNkpIplE3PnNLZ7ZehU2uIWKLICUxbTkTwSbRT1D9IL42jLzeBRZxCP7pCZpOElAWRPNu5QXM2VXHKdmjYPquSPyWuksGgo5L8oNJ_WogD92fQ3eQPkdQ", "e": "AQAB"}]}
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "test-key-1",
+      "n": "sNXaZz7d5Cf6HrV6W399XlwoMWHZi4IqSu_WXlmtxZnTzkGl2azaSYMmc-v5Ot6c98s3W09Bzk715yzqTsOVRi_ZeY28qKOCF6jFJElRihbpFrmXIJ1wdJ2kNsj6hcqULJNHQEuFVAdt-avPLaTEZBptlM31iXrM5LOF31MmSEFNXO_RZoJwBjFc0YGjk85YMT5-taFTC083dNNqKVTO1_I4HfrMUKqECaNkpIplE3PnNLZ7ZehU2uIWKLICUxbTkTwSbRT1D9IL42jLzeBRZxCP7pCZpOElAWRPNu5QXM2VXHKdmjYPquSPyWuksGgo5L8oNJ_WogD92fQ3eQPkdQ",
+      "e": "AQAB"
+    }
+  ]
+}

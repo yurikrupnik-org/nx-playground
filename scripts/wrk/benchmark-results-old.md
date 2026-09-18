@@ -1,5 +1,11 @@
 # Tasks API Benchmark Results
 
+> **Historical archive (2025-12-06).** The `/api/tasks-direct` endpoint compared here no
+> longer exists — it was removed when the tasks service boundary was fixed
+> ([`adr-tasks-service-boundary.md`](../../docs/adr-tasks-service-boundary.md)), so the
+> `just bench-tasks-direct*` and `just bench-tasks-compare` recipes quoted below are gone
+> too. Current numbers and reproducible commands live in `benchmark-results.md`.
+
 ## Test Environment
 
 - **Date**: 2025-12-06

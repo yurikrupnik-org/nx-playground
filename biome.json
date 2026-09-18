@@ -9,8 +9,11 @@
       "!**/coverage",
       "!**/.nx/cache",
       "!**/.nx/workspace-data",
-      "!**/libs/rpc/types/apps/v1",
-      "!**/libs/domains/tasks/types"
+      "!**/libs/**/types",
+      "!docs/openapi",
+      "!manifests",
+      "!.claude",
+      "!**/web-htmx/assets"
     ]
   },
   "formatter": {
@@ -46,6 +49,19 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["**/*.astro"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedImports": "off",
+            "noUnusedVariables": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "jsxQuoteStyle": "double",

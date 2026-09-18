@@ -9,6 +9,9 @@ target/
 **/*.md
 **/k8s/
 **/Tiltfile
+# Host-built N-API addons: node.Dockerfile compiles the `.node` for the image's
+# own platform, so the developer's macOS binary must never leak into context.
+**/*.node
 # NOTE: `dist/` is intentionally NOT globally ignored here.
 # Frontend image builds (e.g. zerg-web) need their own dist in context and use a
 # per-build `only=[...]` whitelist. Backend (Rust) builds whitelist `apps/`, so

@@ -116,7 +116,7 @@ async fn test_create_project() {
     let builder = TestDataBuilder::from_test_name("create_project");
 
     let repo = ProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
 
     // Test logic...
 }

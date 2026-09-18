@@ -1,7 +1,7 @@
 use crate::models::{TaskPriority, TaskStatus};
 use core_proc_macros::SeaOrmResource;
-use sea_orm::entity::prelude::*;
 use sea_orm::ActiveValue::Set;
+use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// Sea-ORM Entity for Tasks table
@@ -14,6 +14,10 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub description: String,
     pub completed: bool,
+    #[sea_orm(column_type = "Text")]
+    pub org_ref: String,
+    #[sea_orm(column_type = "Text")]
+    pub user_ref: String,
     pub project_id: Option<Uuid>,
     pub priority: TaskPriority,
     pub status: TaskStatus,
@@ -32,6 +36,8 @@ impl From<Model> for crate::models::Task {
     fn from(model: Model) -> Self {
         Self {
             id: model.id,
+            org_ref: model.org_ref,
+            user_ref: model.user_ref,
             title: model.title,
             description: model.description,
             completed: model.completed,
@@ -45,12 +51,16 @@ impl From<Model> for crate::models::Task {
     }
 }
 
-// Conversion from domain CreateTask to Sea-ORM ActiveModel
-impl From<crate::models::CreateTask> for ActiveModel {
-    fn from(input: crate::models::CreateTask) -> Self {
+// Conversion from tenant scope + domain CreateTask to Sea-ORM ActiveModel.
+// The scope is derived by this service from the caller's verified access token,
+// never from the client payload.
+impl From<(crate::models::TaskScope, crate::models::CreateTask)> for ActiveModel {
+    fn from((scope, input): (crate::models::TaskScope, crate::models::CreateTask)) -> Self {
         let now = chrono::Utc::now();
         ActiveModel {
             id: Set(Uuid::now_v7()),
+            org_ref: Set(scope.org_ref),
+            user_ref: Set(scope.user_ref),
             title: Set(input.title),
             description: Set(input.description),
             completed: Set(false),

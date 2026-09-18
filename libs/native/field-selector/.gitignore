@@ -1,0 +1,4 @@
+# napi build output: the addon plus its generated loader/types
+*.node
+index.js
+index.d.ts

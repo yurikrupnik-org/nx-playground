@@ -1,0 +1,168 @@
+---
+// Landing: DB-driven verdict (which language is the default / cheapest,
+// from Postgres via todo-api) plus the qualitative comparison.
+//
+// Gated on `todo_app_astro`: off ⇒ 503 + the disabled panel (the identity
+// form in the layout stays usable so a demo can switch user).
+import Layout from '../layouts/Layout.astro';
+import { flagContext, listStacks, type StackProfile } from '../lib/api';
+import { renderDisabledPanel } from '../lib/fragments';
+
+const { identity, flags, appEnabled } = await flagContext(Astro.cookies);
+if (!appEnabled) Astro.response.status = 503;
+
+// Reference data lives in the cluster Postgres (stack_profiles); the page
+// degrades to the qualitative table alone when todo-api is unreachable.
+let stacks: StackProfile[] = [];
+let stacksError = false;
+if (appEnabled) {
+  try {
+    stacks = await listStacks(identity); // cheapest first
+  } catch {
+    stacksError = true;
+  }
+}
+const cheapest = stacks[0];
+const defaultStack = stacks.find((s) => s.is_default);
+
+const rows = [
+  [
+    'Client JS',
+    'Solid runtime + island code (bundled per page)',
+    'htmx only, zero app code (~16 kB gzip)',
+  ],
+  [
+    'First paint',
+    'Empty shell → island boots → fetch → render',
+    'Full list server-rendered in the initial HTML',
+  ],
+  [
+    'Mutation round-trip',
+    'JSON mutation + JSON refetch, client re-renders diff',
+    'One request; server returns the new list fragment',
+  ],
+  [
+    'State lives',
+    'In the browser (signals/resources)',
+    'Nowhere — the DOM is the state, server owns truth',
+  ],
+  [
+    'API shape',
+    'Same-origin /api/todos JSON proxy → todo-api',
+    '/partials/* endpoints render todo-api JSON to HTML',
+  ],
+  [
+    'Type safety',
+    'End-to-end via ts-rs DTOs (@domain/todo)',
+    'Server-side only; the wire format is HTML',
+  ],
+  [
+    'Optimistic UI / offline',
+    'Natural fit (client owns state)',
+    'Against the grain; every action needs the server',
+  ],
+  [
+    'Failure mode',
+    'Island error boundary, page shell survives',
+    'Non-2xx → no swap; page keeps last good state',
+  ],
+] as const;
+---
+
+<Layout title="Todos — Solid vs HTML + htmx" identity={identity} flags={flags}>
+  {!appEnabled && <Fragment set:html={renderDisabledPanel(identity)} />}
+  {appEnabled && (
+  <main class="todo-app compare">
+    <header class="todo-app__header">
+      <h1 class="todo-app__title">Solid vs HTML + htmx</h1>
+      <span class="todo-app__subtitle">same API, same DOM, same CSS</span>
+    </header>
+
+    <p>
+      One Astro server, one Rust <code>todo-api</code>, one shared theme
+      (<code>libs/ui/todo-theme</code>). The <a href="/solid">Solid island</a>
+      re-renders JSON in the browser; the <a href="/htmx">htmx page</a> swaps
+      server-rendered HTML fragments. Identical markup — diff the network tab,
+      not the pixels.
+    </p>
+
+    <h2>Verdict — from Postgres</h2>
+    {stacksError ? (
+      <p class="todo-error" role="alert">
+        Stack profiles unavailable (todo-api unreachable) — showing the
+        qualitative comparison only.
+      </p>
+    ) : (
+      <>
+        <p>
+          Default language: <strong>{defaultStack?.language}</strong>. Cheapest
+          output: <strong>{cheapest?.language}</strong> at
+          {' '}{(cheapest ? cheapest.js_kb + cheapest.html_kb : 0).toFixed(1)} kB
+          first-render transfer. Rows come from the{' '}
+          <code>stack_profiles</code> table (cheapest first) and change via
+          migration, not redeploy.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Stack</th><th>Language</th><th>JS kB</th><th>HTML kB</th>
+              <th>Requests</th><th>Total kB</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {stacks.map((s) => (
+              <tr>
+                <th>{s.name}</th>
+                <td>{s.language}</td>
+                <td>{s.js_kb}</td>
+                <td>{s.html_kb}</td>
+                <td>{s.requests}</td>
+                <td>{(s.js_kb + s.html_kb).toFixed(1)}</td>
+                <td>
+                  {s.is_default && <span class="badge badge--medium">default</span>}
+                  {s === cheapest && <span class="badge badge--low">cheapest</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    )}
+
+    <h2>Qualitative</h2>
+
+    <table>
+      <thead>
+        <tr><th></th><th>Solid island</th><th>HTML + htmx</th></tr>
+      </thead>
+      <tbody>
+        {rows.map(([label, solid, htmx]) => (
+          <tr><th>{label}</th><td>{solid}</td><td>{htmx}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  </main>
+  )}
+</Layout>
+
+<style>
+  .compare p {
+    line-height: 1.5;
+  }
+  .compare table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .compare th,
+  .compare td {
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .compare tbody th {
+    white-space: nowrap;
+    font-weight: 600;
+  }
+</style>

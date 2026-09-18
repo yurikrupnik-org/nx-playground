@@ -56,7 +56,7 @@ pub fn uuid_to_bytes(uuid: Uuid) -> Vec<u8> {
 /// assert_eq!(uuid, uuid_back);
 /// ```
 pub fn bytes_to_uuid(bytes: &[u8]) -> Result<Uuid, String> {
-    Uuid::from_slice(bytes).map_err(|e| format!("Invalid UUID bytes: {}", e))
+    Uuid::from_slice(bytes).map_err(|e| format!("Invalid UUID bytes: {e}"))
 }
 
 /// Convert optional UUID to optional protobuf bytes

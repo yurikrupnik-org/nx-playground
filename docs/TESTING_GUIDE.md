@@ -18,7 +18,7 @@ Complete guide to testing in the nx-playground monorepo.
 ```
            /\
           /  \     E2E Tests (few, slow, high confidence)
-         / 10 \    apps/zerg/api/tests/e2e_test.rs
+         /  9 \    apps/todo/e2e (Playwright, whole stack in a browser)
         /──────\
        /        \  Handler Tests (some, medium, domain APIs)
       /   30     \ libs/domains/*/tests/handler_test.rs
@@ -181,57 +181,55 @@ cargo test -p domain_projects --test handler_test
 
 ### 4. E2E Tests
 
-**Location:** `apps/zerg/api/tests/e2e_test.rs`
+**Location:** `apps/todo/e2e` (nx project `todo-e2e`, Playwright)
 
-**What they test:**
-- **Full application** with all domains
-- Application-level routing (`/api/projects`, `/api/cloud-resources`)
-- Authentication/authorization middleware
-- Cross-domain interactions
-- Exactly what users experience
+**What they test:** the todo vertical as a user sees it — a real browser
+against the real processes. Playwright boots the whole stack itself
+(`playwright.config.ts` `webServer`): a throwaway Postgres in docker with the
+migrations applied, `todo_api` (REST + SSE + WebSocket + gRPC on one port), the
+Solid SPA (vite), the Astro SSR server (production build + `@astrojs/node`),
+and the axum + htmx binary — all on dedicated ports so a developer's own
+servers are never reused.
+
+- `tests/frontends.spec.ts` — the same create → complete → delete loop on all
+  four surfaces (SPA, Astro island, Astro htmx, axum htmx) through ONE page
+  object, each step cross-checked against `todo-api`'s REST; plus "server-
+  rendered pages carry the list in the initial HTML, the SPA shell does not".
+- `tests/realtime.spec.ts` — a `psql` INSERT/UPDATE/DELETE reaches the open SPA
+  without a reload (Postgres `NOTIFY` → SSE); a write on the htmx frontend
+  shows up in the SPA in another tab; the `grpc_client` example runs against
+  the same listener the browser is using; the comparison landing page renders
+  the DB-backed `stack_profiles`.
 
 **Example:**
-```rust
-// apps/zerg/api/tests/e2e_test.rs
-
-#[tokio::test]
-async fn e2e_free_tier_limit_enforced() {
-    let app = start_test_app().await;  // Full app with all domains!
-    let token = create_test_jwt(user_id);
-
-    // Create 3 projects via full API
-    for i in 0..3 {
-        let response = app
-            .post("/api/projects")  // Full route with /api prefix
-            .header("Authorization", format!("Bearer {}", token))
-            .json(&project_data)
-            .send()
-            .await;
-        assert_eq!(response.status(), 201);
-    }
-
-    // 4th should fail with proper auth error
-    let response = app
-        .post("/api/projects")
-        .header("Authorization", format!("Bearer {}", token))
-        .json(&project_data)
-        .send()
-        .await;
-    assert_eq!(response.status(), 400);
-}
+```ts
+// apps/todo/e2e/tests/realtime.spec.ts
+const id = await psql(
+  `INSERT INTO todos (id, title, priority) VALUES (gen_random_uuid(), '${title}', 'high') RETURNING id`,
+);
+await expect(todos.row(title)).toBeVisible();        // arrived over SSE
+await psql(`UPDATE todos SET completed = true WHERE id = '${id}'`);
+await todos.expectDone(title, true);                  // checkbox followed
 ```
 
 **Characteristics:**
-- 🐌 **Speed:** ~15-30s (for 10 tests)
-- 🔧 **Dependencies:** Real database + full app stack
-- 🎯 **Scope:** Entire application
-- 📦 **Database:** Yes
-- 🌐 **HTTP:** Yes (full routing + middleware)
+- 🐌 **Speed:** ~10s warm for 9 tests; the first run compiles two Rust
+  binaries and builds the Astro app
+- 🔧 **Dependencies:** docker, cargo, bun, Chromium (`playwright install`)
+- 🎯 **Scope:** browser → frontend → todo-api → Postgres, across processes
+- 📦 **Database:** yes (throwaway container, removed on exit)
+- 🌐 **HTTP:** yes, plus SSE and gRPC
 
 **Run with:**
 ```bash
-cargo test -p zerg_api --test e2e_test
+just e2e                       # installs Chromium if missing, then bun nx e2e todo-e2e
+cd apps/todo/e2e && bun run e2e:ui   # Playwright UI mode
 ```
+
+`just e2e` is part of `just verify` (pre-push), not `just check`.
+
+There is no Rust-level e2e for `zerg_api`; `docs/zerg-e2e-test-plan.md` is an
+unimplemented plan, not a description of existing tests.
 
 ---
 
@@ -275,8 +273,8 @@ cargo test -p domain_projects --test integration_test
 # Handler tests only
 cargo test -p domain_projects --test handler_test
 
-# E2E tests only
-cargo test -p zerg_api --test e2e_test
+# E2E (browser, whole todo stack)
+just e2e
 ```
 
 ### Run Specific Test
@@ -525,9 +523,9 @@ jobs:
       - name: Handler Tests
         run: cargo test --workspace --test handler_test
 
-      # E2E tests (slow, run last)
+      # E2E (browser, whole todo stack; needs docker + Chromium)
       - name: E2E Tests
-        run: cargo test -p zerg_api --test e2e_test
+        run: just e2e
 ```
 
 ---
@@ -539,6 +537,6 @@ jobs:
 | **Unit** | `src/*.rs` | 0.00s | Function | Business logic |
 | **Integration** | `tests/integration_test.rs` | ~10s | Service → DB | DB operations |
 | **Handler** | `tests/handler_test.rs` | ~2-5s | HTTP handlers | API contracts |
-| **E2E** | `apps/*/tests/e2e_test.rs` | ~15-30s | Full app | User journeys |
+| **E2E** | `apps/todo/e2e` (Playwright) | ~10s warm | Browser → stack → DB | User journeys |
 
 **Follow the pyramid:** Many unit tests, some integration/handler tests, few E2E tests.

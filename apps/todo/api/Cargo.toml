@@ -1,23 +1,43 @@
 [package]
 name = "todo_api"
+publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
 version = "0.1.0"
-edition = "2021"
-description = "Standalone Todo REST API: SeaORM Postgres + NATS JetStream event publishing"
+edition.workspace = true
+description = "Standalone Todo API: REST + SSE + WebSocket + gRPC on one port, SeaORM Postgres, NATS JetStream events"
 
 [[bin]]
 name = "todo_api"
 path = "src/main.rs"
 
 [dependencies]
+async-trait = { workspace = true }
 axum = { workspace = true }
 axum-helpers = { workspace = true }
+chrono = { workspace = true }
 core_config = { workspace = true }
 database = { workspace = true, features = ["config"] }
-domain_todo = { path = "../../../libs/domains/todo" }
+domain_todo = { workspace = true }
 eyre = { workspace = true }
+futures = { workspace = true }
 messaging = { workspace = true, features = ["nats"] }
+rpc = { workspace = true }
 sea-orm = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["full", "signal"] }
+tokio-stream = { workspace = true }
+tonic = { workspace = true }
+tonic-health = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+parking_lot = { workspace = true }
+reqwest = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+
+[lints]
+workspace = true

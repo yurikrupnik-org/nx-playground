@@ -2,35 +2,40 @@
 //!
 //! This module handles all server setup:
 //! - Tracing initialization
-//! - Database connection (PostgreSQL for tasks)
-//! - Qdrant connection (for vector service)
+//! - Database connection (PostgreSQL - the tasks-owned database)
+//! - Caller-token verifier (JWKS)
 //! - Service creation
 //! - gRPC server configuration and startup
 //! - Health check service (grpc.health.v1.Health)
 
 use std::sync::Arc;
 
+use contract_projects::{PROJECTS_STREAM, ProjectDeleted};
 use core_config::{Environment, FromEnv};
 use database::postgres::PostgresConfig;
 use domain_tasks::{PgTaskRepository, TaskService};
-use domain_vector::{OpenAIProvider, QdrantConfig, QdrantRepository, VectorService};
 use eyre::{Result, WrapErr};
 use grpc_client::server::{GrpcServer, ServerConfig, create_health_service};
-use rpc::tasks::tasks_service_server::{SERVICE_NAME as TASKS_SERVICE, TasksServiceServer};
-use rpc::vector::v1::vector_service_server::{SERVICE_NAME as VECTOR_SERVICE, VectorServiceServer};
+use messaging::nats::{NatsWorker, StreamConfig, WorkerConfig};
+use oidc_auth::{OidcVerifier, VerifierConfig};
+use rpc::tasks::v1::tasks_service_server::{SERVICE_NAME as TASKS_SERVICE, TasksServiceServer};
+use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
-use tracing::info;
+use tracing::{info, warn};
 
+use crate::auth::CallerAuth;
+use crate::config::TasksAuthConfig;
+use crate::project_events::{ProjectRefsProcessor, ProjectRefsStream};
 use crate::service::TasksServiceImpl;
-use crate::vector_service::VectorServiceImpl;
 
 /// Run the gRPC server
 ///
 /// This is the main entry point for server initialization. It:
 /// 1. Sets up structured logging (env-aware: JSON for prod, pretty for dev)
-/// 2. Connects to PostgreSQL (for tasks)
-/// 3. Connects to Qdrant (for vector service)
+/// 2. Connects to PostgreSQL (the tasks-owned database)
+/// 3. Builds the caller-token verifier
 /// 4. Creates the repository and service layers
 /// 5. Starts the gRPC server with compression enabled
 ///
@@ -39,7 +44,6 @@ use crate::vector_service::VectorServiceImpl;
 /// Returns an error if:
 /// - Database configuration is invalid
 /// - Database connection fails
-/// - Qdrant connection fails
 /// - Server binding fails
 /// - Server runtime encounters an error
 pub async fn run() -> Result<()> {
@@ -59,50 +63,114 @@ pub async fn run() -> Result<()> {
         .wrap_err("Failed to connect to database!")?;
     info!("Connected to PostgreSQL");
 
-    // Connect to Qdrant
-    let qdrant_config = QdrantConfig::from_env().wrap_err("Failed to load Qdrant configuration")?;
-    info!("Connecting to Qdrant...");
-    let qdrant_repository = QdrantRepository::new(qdrant_config)
-        .await
-        .wrap_err("Failed to connect to Qdrant")?;
-    info!("Connected to Qdrant");
+    // Caller authentication: every RPC's bearer token is verified against the IdP's
+    // JWKS before the request reaches a handler, and the tenant scope is derived from
+    // the verified claims rather than the request body.
+    let auth_config = TasksAuthConfig::from_env().wrap_err("Failed to load auth configuration")?;
+    let verifier = Arc::new(OidcVerifier::new(VerifierConfig::workos(
+        &auth_config.workos_client_id,
+        &auth_config.oidc_issuer,
+    )));
+    info!(issuer = %auth_config.oidc_issuer, "Caller token verification enabled");
 
     // Create tasks service
     let task_repository = PgTaskRepository::new(db);
     let task_service = TaskService::new(task_repository);
-    let tasks_grpc = TasksServiceServer::new(TasksServiceImpl::new(task_service))
-        .accept_compressed(CompressionEncoding::Zstd)
-        .send_compressed(CompressionEncoding::Zstd);
+    let tasks_grpc = TasksServiceServer::new(TasksServiceImpl::new(
+        task_service.clone(),
+        CallerAuth::new(verifier),
+    ))
+    .accept_compressed(CompressionEncoding::Zstd)
+    .send_compressed(CompressionEncoding::Zstd);
 
-    // Create vector service (with optional embedding provider)
-    let vector_service = VectorService::new(qdrant_repository);
-    let vector_service = if let Ok(provider) = OpenAIProvider::from_env() {
-        info!("OpenAI embedding provider configured");
-        vector_service.with_embedding_provider(Arc::new(provider))
-    } else {
-        info!("No embedding provider configured");
-        vector_service
-    };
-    let vector_grpc = VectorServiceServer::new(VectorServiceImpl::new(vector_service))
-        .accept_compressed(CompressionEncoding::Zstd)
-        .send_compressed(CompressionEncoding::Zstd);
+    // Consume `projects.>` so a deleted project's id stops dangling in our
+    // tasks (backlog 0.3). Deliberately NOT a boot dependency: this service
+    // must serve RPCs when NATS is down, the same reason `/ready` was ungated
+    // in Phase 5. `PROJECTS` is an EventLog with a durable cursor, so a
+    // consumer that starts late still applies every deletion it missed.
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let refs_worker = spawn_project_refs_worker(task_service, shutdown_rx).await;
 
     // Create health service
     let (health_reporter, health_service) = create_health_service();
-    let services = [TASKS_SERVICE, VECTOR_SERVICE];
+    let services = [TASKS_SERVICE];
     GrpcServer::setup_health_multiple(&health_reporter, &services).await;
     GrpcServer::log_startup_multiple(&server_config, &services);
 
     // Build and start server
     let addr = server_config.socket_addr();
 
-    Server::builder()
-        .add_service(health_service)
-        .add_service(tasks_grpc)
-        .add_service(vector_grpc)
-        .serve(addr)
-        .await
-        .wrap_err("gRPC server failed")?;
+    let served = GrpcServer::serve_with_shutdown(
+        addr,
+        Server::builder()
+            .add_service(health_service)
+            .add_service(tasks_grpc),
+    )
+    .await;
+
+    // The gRPC server owns the process lifetime; once it stops, drain the
+    // consumer rather than dropping it mid-message.
+    let _ = shutdown_tx.send(true);
+    if let Some(handle) = refs_worker {
+        if let Err(e) = handle.await {
+            warn!(error = %e, "project-refs worker did not shut down cleanly");
+        }
+    }
+
+    served.wrap_err("gRPC server failed")?;
 
     Ok(())
+}
+
+/// Start the `ProjectDeleted` consumer, or return `None` when NATS is
+/// unavailable.
+///
+/// Every failure here is logged and swallowed on purpose: a project-reference
+/// correction is eventually consistent, and refusing to serve tasks because a
+/// message broker is unreachable would trade a cosmetic staleness for a total
+/// outage. The read side tolerates an unresolvable `project_id` regardless.
+async fn spawn_project_refs_worker(
+    task_service: TaskService<PgTaskRepository>,
+    shutdown_rx: watch::Receiver<bool>,
+) -> Option<JoinHandle<()>> {
+    let nats_url = core_config::env_or_default("NATS_URL", "nats://localhost:4222");
+
+    let jetstream = match messaging::nats::jetstream(&nats_url).await {
+        Ok(js) => js,
+        Err(e) => {
+            warn!(
+                %nats_url, error = %e,
+                "NATS unavailable: project deletions will not clear task references \
+                 until this service reconnects (tasks RPCs are unaffected)"
+            );
+            return None;
+        }
+    };
+
+    let config = WorkerConfig::from_stream::<ProjectRefsStream>();
+    let worker = match NatsWorker::<ProjectDeleted, _>::new(
+        jetstream,
+        ProjectRefsProcessor::new(task_service),
+        config,
+    )
+    .await
+    {
+        Ok(w) => w,
+        Err(e) => {
+            warn!(error = %e, "failed to create the project-refs consumer");
+            return None;
+        }
+    };
+
+    info!(
+        stream = PROJECTS_STREAM,
+        consumer_group = ProjectRefsStream::CONSUMER_NAME,
+        "consuming project events to clear deleted project references"
+    );
+
+    Some(tokio::spawn(async move {
+        if let Err(e) = worker.run(shutdown_rx).await {
+            warn!(error = %e, "project-refs consumer stopped with an error");
+        }
+    }))
 }

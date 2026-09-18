@@ -16,24 +16,22 @@ just bench-tasks-quick
 **GET endpoints:**
 ```bash
 just bench-tasks-grpc        # gRPC: GET /api/tasks
-just bench-tasks-direct      # Direct: GET /api/tasks-direct
 ```
 
 **POST endpoints:**
 ```bash
 just bench-tasks-grpc-post   # gRPC: POST /api/tasks
-just bench-tasks-direct-post # Direct: POST /api/tasks-direct
 ```
 
 - 4 threads, 50 connections
 - 30 second duration
 - Includes detailed latency distribution
 
-### Full Comparison
+### Full Run
 ```bash
-just bench-tasks-compare
+just bench-tasks-all
 ```
-Runs all four benchmarks sequentially for complete comparison.
+Runs the GET and POST benchmarks sequentially.
 
 ## Benchmark Configuration
 
@@ -44,8 +42,11 @@ Runs all four benchmarks sequentially for complete comparison.
 - Custom Lua reporting script with percentile distribution
 
 **Endpoints tested:**
-- `http://localhost:8080/api/tasks` (via gRPC service)
-- `http://localhost:8080/api/tasks-direct` (direct database)
+- `http://localhost:8080/api/tasks` (via the `zerg_tasks` gRPC service)
+
+> The former `/api/tasks-direct` endpoint (in-process SeaORM access to the same table)
+> was removed — see [`docs/adr-tasks-service-boundary.md`](../../docs/adr-tasks-service-boundary.md).
+> Historical gRPC-vs-direct numbers are kept in `benchmark-results.md`.
 
 ## Customizing Benchmarks
 
@@ -109,7 +110,7 @@ Based on typical results:
 Ensure all services are running:
 ```bash
 # Start database
-just _docker-up
+just docker-up
 
 # Start tasks gRPC service
 cargo run -p zerg_tasks

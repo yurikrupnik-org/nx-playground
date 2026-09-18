@@ -1,31 +1,29 @@
-//! Unified gRPC Service
-//!
-//! A microservice supporting multiple gRPC services (tasks, vector).
+//! Tasks gRPC service.
 //!
 //! ## Architecture
 //!
 //! ```text
-//! Client
-//!   ↓ (gRPC with Zstd compression)
-//! Service Implementations (service.rs, vector_service.rs)
-//!   ↓ (proto ↔ domain conversions via From/TryFrom traits)
-//! Domain Services (domain layer)
-//!   ↓ (business logic)
-//! Repositories (persistence)
+//! Caller (apps/zerg/api)
+//!   ↓ gRPC + `authorization: Bearer <access_token>`
+//! auth.rs          - verifies the token (RS256/JWKS), derives the tenant scope
 //!   ↓
-//! PostgreSQL / Qdrant
+//! service.rs       - proto ↔ domain conversion (contract_tasks)
+//!   ↓
+//! domain_tasks     - TaskService / PgTaskRepository
+//!   ↓
+//! PostgreSQL       - the `tasks` database, owned exclusively by this service
 //! ```
 //!
-//! ## Modules
-//!
-//! - `server`: Server initialization and lifecycle
-//! - `service`: Tasks gRPC service implementation
-//! - `vector_service`: Vector gRPC service implementation
+//! The service authenticates its own callers and derives `org_ref`/`user_ref` from the
+//! verified token, so identity is not something a caller can assert. See
+//! `docs/adr-tasks-service-boundary.md`.
 
+pub mod auth;
+pub mod config;
+pub mod project_events;
 pub mod server;
 pub mod service;
-pub mod vector_service;
 
+pub use project_events::{ProjectRefsProcessor, ProjectRefsStream};
 pub use server::run;
 pub use service::TasksServiceImpl;
-pub use vector_service::VectorServiceImpl;

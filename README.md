@@ -21,7 +21,7 @@ Nx monorepo with Rust backend services, a React frontend, and Kubernetes-native 
 
 - [sccache](https://github.com/mozilla/sccache) - Shared compilation cache (used in CI with GCS backend)
 - [bacon](https://github.com/Canop/bacon) - Background Rust code checker (`just run`)
-- [Istio](https://istio.io/) - Service mesh (for gateway / observability)
+- [Gateway API](https://gateway-api.sigs.k8s.io/) - North–south routing (CRDs installed by `devkit`; the `main-gateway` Gateway itself is owned by the gitops repo). No service mesh is installed by this repo.
 - [Kind](https://kind.sigs.k8s.io/) / [k3d](https://k3d.io/) - Local Kubernetes cluster
 
 ## Quick Start
@@ -37,7 +37,7 @@ just check
 tilt up
 
 # Or run services without k8s
-just _docker-up        # Start Postgres, Redis, NATS via Docker Compose
+just docker-up        # Start Postgres, Redis, NATS via Docker Compose
 cargo run -p api       # Start the API service
 just web               # Start the web frontend
 ```
@@ -105,15 +105,21 @@ manifests/
 tilt up
 ```
 
-Tilt manages port-forwards automatically:
+Tilt forwards each app's container port; the datastores come from
+`just docker-up` (Docker Compose), not from Tilt:
 
-| Service | Port | Notes |
-|---------|------|-------|
-| PostgreSQL | `localhost:5432` | User: `myuser` / DB: `mydatabase` |
-| Redis | `localhost:6379` | |
-| Mailhog | `localhost:8025` | Email testing UI |
-| Istio Gateway | `localhost:8080` | API gateway |
-| Kiali | `localhost:20001` | Service mesh dashboard |
+| Service | Port | Source |
+|---------|------|--------|
+| PostgreSQL | `localhost:5432` | compose (`myuser` / `mydatabase`) |
+| Redis | `localhost:6379` | compose |
+| Mailhog | `localhost:8025` | compose (email testing UI) |
+| zerg-api | `localhost:5221` | Tilt |
+| zerg-web | `localhost:5206` | Tilt |
+| zerg-tasks (gRPC) | `localhost:50051` | Tilt |
+| terran-api | `localhost:5231` | Tilt |
+| terran-web | `localhost:5230` | Tilt |
+| todo-web-astro | `localhost:5252` | Tilt |
+| todo-web-htmx | `localhost:5253` | Tilt |
 
 Tilt also handles schema ConfigMap regeneration, database seeding, and auto-rebuild of all zerg apps on code changes.
 

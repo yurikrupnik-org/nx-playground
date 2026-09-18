@@ -1,4 +1,4 @@
-use axum_helpers::{impl_into_response_via_app_error, AppError};
+use axum_helpers::{AppError, impl_into_response_via_app_error};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -9,6 +9,11 @@ pub enum VectorError {
 
     #[error("Vector not found: {0}")]
     VectorNotFound(Uuid),
+
+    /// Requested resource does not exist for this tenant. Also returned when a
+    /// tenant is denied access, so existence is never leaked.
+    #[error("Not found: {0}")]
+    NotFound(String),
 
     #[error("Invalid input: {0}")]
     Validation(String),
@@ -49,6 +54,7 @@ impl From<VectorError> for tonic::Status {
             VectorError::VectorNotFound(id) => {
                 tonic::Status::not_found(format!("Vector not found: {id}"))
             }
+            VectorError::NotFound(msg) => tonic::Status::not_found(msg),
             VectorError::Validation(msg) => tonic::Status::invalid_argument(msg),
             VectorError::Qdrant(err) => tonic::Status::internal(format!("Qdrant error: {err}")),
             VectorError::Embedding(msg) => {
@@ -75,6 +81,7 @@ impl From<VectorError> for AppError {
                 AppError::NotFound(format!("Collection {name} not found"))
             }
             VectorError::VectorNotFound(id) => AppError::NotFound(format!("Vector {id} not found")),
+            VectorError::NotFound(msg) => AppError::NotFound(msg),
             VectorError::Validation(msg) => AppError::BadRequest(msg),
             VectorError::Qdrant(e) => AppError::InternalServerError(format!("Qdrant error: {e}")),
             VectorError::Embedding(msg) => {

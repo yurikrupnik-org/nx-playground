@@ -11,12 +11,25 @@
 app_namespaces = []
 
 [cluster]
-name = "arus"                 # Kind cluster name
+name = "nx-playground"                 # Kind cluster name
 workers = 2                  # worker node count
 db_workers = 1              # tainted db-dedicated workers
 ingress = true              # expose ports 80/443
 # kcl_package = "oci://.../kcl/cluster"   # OCI url WITHOUT a tag
 # kcl_tag = "0.0.6"                        # version passed to kcl via --tag
+
+[cluster.kcl_args]      # MUST sit directly after [cluster]'s scalar keys
+oidc_bucket = "paidevo-local-oidc"
+oidc_id = "slava"
+
+# Gateway API standard CRDs. The local dev overlay applies HTTPRoute (v1) and
+# ReferenceGrant (v1beta1); Flux/gitops-v1 also ships these CRDs, but Flux
+# bootstraps AFTER the overlays in `devkit up`, so install them up front.
+# Version pinned to match gitops-v1 infrastructure/platform/gateway-api-crds
+# (bundle-version v1.2.1, standard channel) so Flux's later apply is a no-op.
+[[deps]]
+name = "gateway-api-crds"
+manifest = "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml"
 
 [namespaces]
 dbs = "dbs"
@@ -47,14 +60,14 @@ config = "manifests/secrets/.vals.yaml"       # vals config file
 output = ".env"             # generated env file
 
 [external_secrets]
-gcp_credentials = "~/dotconfig/tmp/secret-puller.json"
+#gcp_credentials = "~/dotconfig/tmp/secret-puller.json"
 secret_name = "gcp-sm-credentials"
 
 [flux]
 # owner = "my-org"          # GitHub user/org; leave unset to derive from `gh api user`
-repository = "gitops"
+repository = "gitops-v1"
 branch = "main"
-path = "clusters/local"
+path = "clusters/mgmt"
 personal = true
 
 [tilt]

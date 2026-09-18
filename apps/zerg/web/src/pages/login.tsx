@@ -12,7 +12,7 @@ import {
 } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { useAuth } from '../lib/auth-context';
+import { useAuth } from '../lib/auth';
 
 export function LoginPage() {
   const [email, setEmail] = createSignal('');
@@ -31,7 +31,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await auth.login(email(), password());
+      await auth.passwordLogin(email(), password());
       // Hard redirect on auth success: a full reload gives a clean app/query/router
       // state and avoids the SPA-navigate reactive storm at the auth boundary.
       window.location.href = '/tasks';
@@ -95,7 +95,7 @@ export function LoginPage() {
         <CardFooter class="flex justify-center">
           <p class="text-sm text-muted-foreground">
             Don't have an account?{' '}
-            <Link href="/register" class="text-primary hover:underline">
+            <Link to="/register" class="text-primary hover:underline">
               Sign up
             </Link>
           </p>

@@ -23,16 +23,23 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
         crate::assets::get_asset,
         crate::assets::list_assets_by_user,
         crate::assets::create_asset,
+        crate::inventory::list_cloud_resources,
+        crate::inventory::get_cloud_resource,
     ),
     components(schemas(
         crate::db::CloudAsset,
         crate::assets::CreateAsset,
         crate::auth::PasswordLogin,
+        domain_cloud_resources::observed::ObservedCloudResource,
+        domain_cloud_resources::ResourceType,
+        domain_cloud_resources::ResourceStatus,
+        domain_cloud_resources::Tag,
     )),
     modifiers(&SecurityAddon),
     tags(
         (name = "auth", description = "Authentication / BFF session endpoints"),
-        (name = "assets", description = "Tenant-scoped cloud inventory")
+        (name = "assets", description = "Tenant-scoped cloud inventory"),
+        (name = "cloud-resources", description = "Read-only cluster-observed cloud inventory")
     )
 )]
 pub struct ApiDoc;

@@ -1,0 +1,117 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+resourceDeps = ["zerg-shared-config"]
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.service]` shape
+# already states is omitted, and `image`/`name`/`namespace`/`partOf` are injected
+# by butler from the image facts and this app's path.
+[workload]
+component = "email-worker"
+# A NATS consumer, not an API: 8081 is the HealthServer (probes + /metrics),
+# nothing routes traffic to it. See src/lib.rs `HealthServer::with_metrics`.
+port = 8081
+prometheus = true
+
+# 6 * 5s = up to 30s of startup grace before liveness can restart the container.
+[workload.startupProbe]
+path = "/health"
+port = 8081
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 6
+
+[workload.livenessProbe]
+path = "/health"
+port = 8081
+
+# /ready reports NATS connectivity, so a broker outage drains this pod instead
+# of restarting it.
+[workload.readinessProbe]
+path = "/ready"
+port = 8081
+periodSeconds = 5
+timeoutSeconds = 2
+
+# Leaner than the service kind default: this process holds no connection pool
+# and no HTTP router, it just drains a JetStream consumer.
+[workload.resources]
+requests = { memory = "64Mi", cpu = "100m" }
+limits = { memory = "256Mi" }
+
+[[workload.envFrom]]
+kind = "configMap"
+name = "zerg-shared-config"
+
+# Rendered from the `[config]` table below (the package names it `<name>-config`).
+[[workload.envFrom]]
+kind = "configMap"
+name = "zerg-email-nats-config"
+
+[[workload.envFrom]]
+kind = "secret"
+name = "zerg-email-nats-secrets"
+
+# Carried over verbatim from the base Deployment. SUSPECT: an explicit env wins
+# over envFrom, so this shadows zerg-shared-config's APP_ENV (dev / production)
+# with the string "info" — it reads like a copy of RUST_LOG. Kept so the wave-2
+# render diffs 1:1 against the kustomize base; delete it in a separate change.
+[[workload.env]]
+name = "APP_ENV"
+value = "info"
+
+# → ConfigMap zerg-email-nats-config. Only the keys that hold in every
+# environment; the mail transport differs per env, below.
+[config]
+HEALTH_PORT = "8081"
+
+# Local dev delivers to mailhog in the dbs namespace (port-forwarded to :8025 by
+# the root butler.toml), so no credentials are needed.
+[env.dev.config]
+SMTP_HOST = "mailhog.zerg-dev.svc.cluster.local"
+SMTP_PORT = "1025"
+EMAIL_FROM_ADDRESS = "noreply@zerg.local"
+EMAIL_FROM_NAME = "Zerg Dev"
+
+[env.prod.config]
+SENDGRID_FROM_NAME = "Zerg"
+
+# Prod scales on queue depth, not on CPU: a mail worker with an empty stream
+# should cost nothing, which native HPA cannot express (its floor is 1).
+[env.prod.workload.scaler]
+minReplicas = 0
+maxReplicas = 10
+# Workers react faster than request servers: poll every 5s, cool down after 1m.
+pollingInterval = 5
+cooldownPeriod = 60
+
+[env.prod.workload.scaler.behavior.scaleDown]
+stabilizationWindowSeconds = 60
+policies = [{ type = "Percent", value = 50, periodSeconds = 30 }]
+
+[env.prod.workload.scaler.behavior.scaleUp]
+stabilizationWindowSeconds = 0
+policies = [{ type = "Pods", value = 5, periodSeconds = 15 }]
+
+# Stream/consumer names are the ones EmailNatsStream creates.
+[[env.prod.workload.scaler.triggers]]
+type = "nats-jetstream"
+
+[env.prod.workload.scaler.triggers.metadata]
+natsServerMonitoringEndpoint = "nats.dbs.svc.cluster.local:8222"
+# "$G" is NATS' global account.
+account = "$G"
+stream = "EMAILS"
+consumer = "email-worker"
+# Scale up past 10 pending messages; wake from zero at the first one.
+lagThreshold = "10"
+activationLagThreshold = "1"
+
+# Real SMTP/SendGrid traffic and TLS handshakes need more headroom than the
+# dev mailhog path.
+[env.prod.workload.resources]
+requests = { memory = "128Mi", cpu = "200m" }
+limits = { memory = "512Mi" }

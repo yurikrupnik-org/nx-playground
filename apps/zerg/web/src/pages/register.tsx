@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/card';
-import { login } from '../lib/auth-api';
+import { authApi } from '../lib/auth';
 
 /** Account creation lives on WorkOS's hosted AuthKit (which also owns password
  *  reset and email verification); this page just launches its sign-up screen. */
@@ -24,7 +24,11 @@ export function RegisterPage() {
         </CardHeader>
 
         <CardContent>
-          <Button type="button" class="w-full" onClick={() => login('sign-up')}>
+          <Button
+            type="button"
+            class="w-full"
+            onClick={() => authApi.login('sign-up')}
+          >
             Continue to Sign Up
           </Button>
         </CardContent>
@@ -32,7 +36,7 @@ export function RegisterPage() {
         <CardFooter class="flex justify-center">
           <p class="text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/login" class="text-primary hover:underline">
+            <Link to="/login" class="text-primary hover:underline">
               Sign in
             </Link>
           </p>

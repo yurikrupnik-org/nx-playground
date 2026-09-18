@@ -82,6 +82,25 @@ impl WorkosProvider {
         self
     }
 
+    /// Re-issue the session's tokens scoped to `organization_id` (WorkOS
+    /// org-switching refresh grant). The new access token carries that org's
+    /// `org_id`/`role` claims. Fails with `InvalidCredentials` when the session
+    /// isn't authorized for the org.
+    pub async fn refresh_for_org(
+        &self,
+        refresh_token: &str,
+        organization_id: &str,
+    ) -> Result<TokenSet> {
+        self.authenticate(serde_json::json!({
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "organization_id": organization_id,
+        }))
+        .await
+    }
+
     async fn authenticate(&self, body: serde_json::Value) -> Result<TokenSet> {
         let resp = self
             .http

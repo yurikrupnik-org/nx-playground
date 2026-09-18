@@ -1,0 +1,83 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+hostPort = 50051
+resourceDeps = ["zerg-shared-config"]
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.service]` shape
+# already states is omitted, and `image`/`name`/`namespace`/`partOf` are injected
+# by butler from the image facts and this app's path.
+[workload]
+component = "grpc-server"
+# tonic, not axum: h2c on 50051 and no HTTP surface at all — hence the grpc
+# probes below and no prometheus scrape (apps/zerg/tasks/src has no /metrics).
+port = 50051
+portName = "grpc"
+
+# 6 * 5s = up to 30s of startup grace before liveness can restart the container.
+# grpc.health.v1.Health is registered by src/server.rs, so kubelet's native gRPC
+# prober works and no exec/httpGet shim is needed.
+[workload.startupProbe]
+type = "grpc"
+port = 50051
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 6
+
+[workload.livenessProbe]
+type = "grpc"
+port = 50051
+
+[workload.readinessProbe]
+type = "grpc"
+port = 50051
+periodSeconds = 5
+timeoutSeconds = 2
+
+# cpu 70 / memory 80 are the package's own defaults; the replica floor and
+# ceiling are stated because nothing else in the repo says what they should be.
+[workload.hpa]
+minReplicas = 1
+maxReplicas = 10
+
+[[workload.envFrom]]
+kind = "configMap"
+name = "zerg-shared-config"
+
+# Rendered from the `[config]` table below (the package names it `<name>-config`).
+[[workload.envFrom]]
+kind = "configMap"
+name = "zerg-tasks-config"
+
+# zerg-api-secrets is deliberately NOT mounted here: it carries the zerg
+# database URL and the WorkOS API key, neither of which this service may hold
+# (docs/adr-tasks-service-boundary.md phase 3 makes the tasks database reachable
+# only from this process). zerg-tasks-secrets supplies DATABASE_URL (tasks DB)
+# plus WORKOS_CLIENT_ID for token verification only — no API key.
+# Required, not optional: without its own DATABASE_URL this service cannot serve.
+[[workload.envFrom]]
+kind = "secret"
+name = "zerg-tasks-secrets"
+optional = false
+
+# Redis credentials replicated from dbs/redis-redis-account-default by the
+# sync-redis-creds-secret Kyverno policy (gitops-v1). Optional so local kind
+# (no Kyverno, no KubeBlocks) keeps working.
+[[workload.env]]
+name = "REDIS_USERNAME"
+secretName = "redis-redis-account-default"
+secretKey = "username"
+
+[[workload.env]]
+name = "REDIS_PASSWORD"
+secretName = "redis-redis-account-default"
+secretKey = "password"
+
+# → ConfigMap zerg-tasks-config. Identical in every environment, so there are
+# no [env.<env>.config] overlays.
+[config]
+GRPC_HOST = "0.0.0.0"
+GRPC_PORT = "50051"

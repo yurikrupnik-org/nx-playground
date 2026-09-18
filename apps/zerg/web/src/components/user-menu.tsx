@@ -1,5 +1,5 @@
 import { createSignal, onCleanup, onMount, Show } from 'solid-js';
-import { useAuth } from '../lib/auth-context';
+import { useAuth } from '../lib/auth';
 import { Button } from './ui/button';
 
 export function UserMenu() {
@@ -48,11 +48,13 @@ export function UserMenu() {
                 when={user().avatar_url}
                 fallback={getInitials(user().name)}
               >
-                <img
-                  src={user().avatar_url}
-                  alt={user().name}
-                  class="h-full w-full rounded-full object-cover"
-                />
+                {(avatarUrl) => (
+                  <img
+                    src={avatarUrl()}
+                    alt={user().name}
+                    class="h-full w-full rounded-full object-cover"
+                  />
+                )}
               </Show>
             </div>
             <Show when={window.innerWidth > 640}>
