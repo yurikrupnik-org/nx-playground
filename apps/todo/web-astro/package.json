@@ -8,8 +8,7 @@
     "build": "astro build",
     "serve": "astro preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "biome check --write ."
+    "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
   "dependencies": {

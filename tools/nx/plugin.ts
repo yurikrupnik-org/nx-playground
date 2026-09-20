@@ -11,9 +11,9 @@
  * plugin creates none of its own):
  *
  *   tilt-targets.ts       `tilt-gen` / `tilt-check`  — apps that ship k8s manifests
- *   rust-targets.ts       `build` / `lint` / `test` / `run` / `install` — cargo crates
+ *   rust-targets.ts       `build` / `test` / `run` / `install` — cargo crates
  *   container-targets.ts  `container` / `scan`       — every deployable app
- *   fmt-targets.ts        `fmt`                      — crates and TS packages
+ *   polyglot-targets.ts   `fmt` / `lint`             — crates and TS packages
  *
  * Zero dependencies on purpose: `createNodesV2` is a plain export, so nothing
  * here needs `@nx/devkit` or `@nx/plugin` installed.
@@ -39,8 +39,8 @@ import {
   APP_MARKERS,
   containerTargets,
 } from './container-targets.ts';
-import { fmtTarget, PACKAGE_MANIFESTS } from './fmt-targets.ts';
 import { k8sTargets } from './k8s-targets.ts';
+import { PACKAGE_MANIFESTS, polyglotTargets } from './polyglot-targets.ts';
 import {
   CARGO_MANIFESTS,
   hasPackageScriptGates,
@@ -118,13 +118,13 @@ export const createNodesV2: CreateNodesV2 = [
 
     // One parse per crate manifest: a directory that is both a crate and a TS
     // package (ts-rs bindings, the N-API addons) reaches the cargo branch and
-    // the `fmt` branch below, and either marker file can arrive first.
+    // the `fmt`/`lint` branch below, and either marker file can arrive first.
     const crates = new Map<string, CargoCrate | undefined>();
     const crateAt = (dir: string): CargoCrate | undefined => {
       if (!crates.has(dir)) crates.set(dir, readCargoCrate(workspaceRoot, dir));
       return crates.get(dir);
     };
-    const formatted = new Set<string>();
+    const polyglot = new Set<string>();
 
     for (const file of files) {
       const dir = dirname(file);
@@ -188,24 +188,24 @@ export const createNodesV2: CreateNodesV2 = [
         }
       }
 
-      // `fmt` is the one target both ecosystems answer to, so it is keyed on
-      // either manifest and emitted once per directory — whichever of the two
-      // nx hands us first. No `scope:` tag from here: a TS-only project such as
-      // `apps/todo/e2e` declares its own in project.json, and a second copy
-      // would concat onto it.
+      // `fmt` and `lint` are the names both ecosystems answer to, so they are
+      // keyed on either manifest and emitted once per directory — whichever of
+      // the two nx hands us first. No `scope:` tag from here: a TS-only project
+      // such as `apps/todo/e2e` declares its own in project.json, and a second
+      // copy would concat onto it.
       if (
-        !formatted.has(dir) &&
+        !polyglot.has(dir) &&
         (file.endsWith('/Cargo.toml') || file.endsWith('/package.json'))
       ) {
-        const target = fmtTarget(
+        const targets = polyglotTargets(
           workspaceRoot,
           dir,
           crateAt(dir),
           excludedCrates.has(dir),
         );
-        if (target) {
-          formatted.add(dir);
-          results.push([file, { projects: { [dir]: { targets: target } } }]);
+        if (targets) {
+          polyglot.add(dir);
+          results.push([file, { projects: { [dir]: { targets } } }]);
         }
       }
     }

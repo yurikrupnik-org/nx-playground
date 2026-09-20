@@ -12,6 +12,7 @@ import 'scripts/just/local-env.just'
 import 'scripts/just/platform.just'
 import 'scripts/just/web.just'
 import 'scripts/just/tilt.just'
+import 'scripts/just/zellij.just'
 import 'scripts/just/container.just'
 import 'scripts/just/k8s-apps.just'
 import 'scripts/wrk/bench.just'
@@ -247,3 +248,13 @@ create-nx-project:
     npx create-nx-workspace@latest --e2eTestRunner playwright --unitTestRunner vitest ---aiAgents claude --workspaceType package-based --packageManager bun --ci github --preset @monodon/rust
     bun nx generate @monodon/rust:library --name=rpc --no-interactive
     nx add @nxext/solid
+    devkit config init
+# Show zellij sessions
+[group('z')]
+z:
+  zellij list-sessions --short
+  zellij -s nx-playground action query-tab-names
+  zellij -s nx-playground action list-panes
+  just zj          # attach, or create from manifests/zellij/nx-playground.kdl
+  just zj-kill     # destroy the session (compose + kind survive)
+  cargo run -p cluster_dashboard --bin cluster-dashboard

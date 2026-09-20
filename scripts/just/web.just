@@ -1,7 +1,9 @@
 # Web/node workspace recipes (nx + biome + ncu) — imported by the root justfile.
 # nx handles web: package.json scripts as cached targets, scoped with -p '*-web'.
 
-# Biome (root config) over all JS/TS/JSON/CSS, read-only
+# Biome (root config) over all JS/TS/JSON/CSS, read-only. The per-project
+# `lint` target (tools/nx/polyglot-targets.ts) runs the same `biome ci` scoped
+# to one project root; this is the whole-tree pass.
 [group('quality')]
 lint-web:
     bunx biome ci .
@@ -18,8 +20,9 @@ test-web:
 # unfixable LINT diagnostic remains, which would abort `just fmt` before the
 # markdown and spelling leaves ever run. Lint is `lint-web`'s job (`biome ci .`,
 # which checks formatting too — that is why `fmt-check` has no web leaf).
-# Not routed through nx: one biome process beats N per-app `lint` scripts, and
-# there is no per-app biome config to honour.
+# Not routed through nx: one biome process beats N per-project invocations, and
+# there is no per-project biome config to honour — the inferred `fmt` target is
+# for the affected scope, not for this recipe.
 # Web auto-format: biome over the whole tree
 [group('quality')]
 fmt-web:

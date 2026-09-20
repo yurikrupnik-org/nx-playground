@@ -14,7 +14,10 @@
       "executor": "nx:run-commands",
       "cache": false,
       "dependsOn": [
-        { "projects": ["@native/field-selector"], "target": "build" }
+        {
+          "projects": ["@native/field-selector"],
+          "target": "build"
+        }
       ],
       "options": {
         "command": "bun run e2e",
@@ -25,13 +28,6 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bun run typecheck",
-        "cwd": "{workspaceRoot}/apps/todo/e2e"
-      }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "bun run lint",
         "cwd": "{workspaceRoot}/apps/todo/e2e"
       }
     }

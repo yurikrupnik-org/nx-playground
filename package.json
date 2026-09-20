@@ -19,6 +19,7 @@
     "@napi-rs/cli": "3.9.1",
     "@nx-tools/nx-container": "^7.3.0",
     "@nx/workspace": "23.2.1",
+    "@nxlv/python": "^23.1.1",
     "@types/node": "26.5.1",
     "nx": "23.2.1"
   },

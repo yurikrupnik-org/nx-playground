@@ -64,7 +64,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   cargo argument and fails every task), so the crate list must come from `nx show
   projects` and be handed to `run-many`; the `rust` tag is withheld from a crate
   whose `lint`/`test` come from a package.json script — the N-API addons, whose
-  `lint` is a mutating `biome check --write` and whose gate is `just test-napi`;
+  `test` is vitest and whose gate is `just test-napi`;
   and `test` passes `--no-tests=pass`, because nextest exits 4 on a crate with no
   test binaries, which `--workspace` never hits but a single `--package` often
   does. `lint`/`test` on crates carry `outputs: []` on purpose: cargo writes
@@ -79,8 +79,14 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   testcontainers-modules (0.15.0) requires ^0.27. The `=` is what makes
   `cargo upgrade` skip it. Unpin when modules supports 0.28
   (check: sparse index deps of testcontainers-modules).
-- **Web `lint` scripts are `biome check --write` (mutating)** — gates must use
-  `bunx biome ci .` (read-only, root biome.json). `just lint-web` does this.
+- **`biome ci` is the JS/TS gate, and it is now an inferred nx target.** biome is
+  the only linter and formatter for JS/TS here (no eslint, no prettier) with one
+  root `biome.json`, so `lint` on a package.json project is
+  `bunx biome ci <projectRoot>` — read-only, contributed by
+  `tools/nx/polyglot-targets.ts`. The per-app `"lint": "biome check --write ."`
+  scripts and the `project.json` wrappers that called them are GONE: a mutating
+  formatter must never answer to a gate's name. `just lint-web` (`biome ci .`)
+  stays the whole-tree pass.
 - **Generated files, do not edit or lint**: `libs/**/types` (ts-rs bindings from
   `export_bindings_*` tests), `libs/rpc/src/generated` (buf), `docs/openapi`
   (OpenAPI v1 specs from `export_openapi_*` tests), and every `Tiltfile`
@@ -118,17 +124,23 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   the module globs into one pattern and dispatches on the path;
   `tilt-targets.ts` → `tilt-gen`/`tilt-check`, `rust-targets.ts` → `build`
   (`cargo build --package <crate>`, `production` configuration adds `--release`;
-  a crate with no binary gets `cargo check` and no `production`) plus `lint`,
-  `test` and the `rust` tag on every crate, `run` for crates that have a
+  a crate with no binary gets `cargo check` and no `production`) plus `test`
+  and the `rust` tag on every crate, `run` for crates that have a
   binary and `install` (`cargo install --path <dir> --locked --force`,
   uncached — the binary lands outside the workspace) for a binary crate whose
   `[package] publish` says its binary leaves the repo, today only `butler`,
   `container-targets.ts` → `container`/`scan`,
-  `k8s-targets.ts` → `k8s-gen`/`k8s-check`, `fmt-targets.ts` → `fmt` (rustfmt +
-  `cargo sort` for a crate, `biome check --write --linter-enabled=false` for a
-  package.json project, BOTH composed into the one target where a directory is
-  both; uncached, and NOT a leaf of `just fmt` — the whole-repo pass stays one
-  cargo and one biome process, this target is the `nx affected -t fmt` scope).
+  `k8s-targets.ts` → `k8s-gen`/`k8s-check`, `polyglot-targets.ts` → `fmt` and
+  `lint`, the two names BOTH ecosystems answer to. A crate gets
+  `cargo fmt --package` + `cargo sort` and `cargo clippy … -D warnings`; a
+  package.json project gets `biome check --write --linter-enabled=false <dir>`
+  and `biome ci <dir>`; the three directories that are both
+  (`libs/contracts/tasks`, `libs/domains/todo`, `libs/native/field-selector`)
+  get the commands COMPOSED under the one name, which is why `lint` does not
+  live in `rust-targets.ts`. `lint` is cached with `outputs: []`, `fmt` is
+  never cached (it rewrites the tree) and is NOT a leaf of `just fmt` — the
+  whole-repo pass stays one cargo and one biome process; these targets are the
+  `nx affected -t lint`/`-t fmt` scope.
   App-level targets are keyed on
   `apps/**/butler.toml`, because that file is where an app declares its
   `[workload]` — the manifests it used to be keyed on are now that table's

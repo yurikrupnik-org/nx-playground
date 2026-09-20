@@ -1,6 +1,8 @@
 /**
- * Inferred cargo targets for one crate: `build`, `lint`, `test`, plus `run` for
- * a crate that has a binary and `install` for one that is `publish`able.
+ * Inferred cargo targets for one crate: `build` and `test`, plus `run` for a
+ * crate that has a binary and `install` for one that is `publish`able. `lint`
+ * is next door in `polyglot-targets.ts`, which composes clippy with biome for
+ * the crates that are also TS packages.
  *
  * `@monodon/rust` contributes graph nodes, cargo dependency edges and exactly
  * one target (`nx-release-publish`) — its source still carries a
@@ -16,10 +18,10 @@
  * remain the authoritative gate: ONE cargo process shares the target-dir lock
  * and compiles each shared dependency once. Measured warm on 45 crates: 2m13s
  * that way, against 4m06s (`--parallel=4`) and 10m09s (`--parallel=1`) for the
- * same work as 90 nx tasks. The per-crate `lint`/`test` targets here are for the
- * other scope — the one cargo cannot express: what a diff actually touched, with
- * Nx Cloud caching a crate's clippy/nextest result across CI runs (1 crate, both
- * targets, 2/2 cache hits: 4s).
+ * same work as 90 nx tasks. The per-crate `test` target here — and the `lint`
+ * one next door — are for the other scope, the one cargo cannot express: what a
+ * diff actually touched, with Nx Cloud caching a crate's clippy/nextest result
+ * across CI runs (1 crate, both targets, 2/2 cache hits: 4s).
  *
  * They have exactly one caller, `just check-rust-affected`, which also owns the
  * cutover back: past ~20 affected crates it drops these targets and runs the
@@ -51,13 +53,13 @@ export const CARGO_MANIFESTS = '*/**/Cargo.toml';
 export const RUST_TAG = 'rust';
 
 /**
- * Does a package.json script already own this crate's `lint`/`test`? nx's
- * package.json inference wins over a plugin target, so for the N-API addons —
- * whose deliverable is a JS package (`lint` is a MUTATING
- * `biome check --write`, `test` is vitest) — the cargo gate below never runs.
- * Tagging them `rust` would drag that mutating lint into
- * `nx affected -t lint -p tag:rust`; they are covered by `just test-napi` and,
- * for clippy, by the workspace `just lint-rust`.
+ * Does a package.json script already own this crate's `lint`/`test`? nx's package.json
+ * inference wins over a plugin target, so for the N-API addons — whose
+ * deliverable is a JS package and whose `test` is vitest — the cargo gate never
+ * runs. Tagging them `rust` would hand a vitest run to
+ * `just check-rust-affected`, whose contract is clippy + nextest; they are
+ * covered by `just test-napi` and, for clippy, by the workspace
+ * `just lint-rust` (and by their own composed `lint` target).
  */
 export function hasPackageScriptGates(
   workspaceRoot: string,
@@ -71,37 +73,6 @@ export function hasPackageScriptGates(
     }
   ).scripts;
   return scripts !== undefined && ('lint' in scripts || 'test' in scripts);
-}
-
-/**
- * What invalidates a cargo target: the crate's own files, the files of the
- * crates it depends on (`^default`, resolved over `@monodon/rust`'s cargo
- * dependency edges) and the workspace-level knobs that change how every crate
- * compiles — `rustGlobals` in `nx.json`.
- */
-const INPUTS = ['default', '^default', 'rustGlobals'];
-
-/**
- * A cached gate (`lint`, `test`): cargo writes into the shared `dist/target`,
- * which nx cannot fingerprint per crate, so declaring NO outputs is what keeps
- * the cache honest — an entry means "these inputs passed clippy/nextest", never
- * "an artifact was restored". `nx.json`'s `targetDefaults` set only `cache` for
- * these two names, so the inputs below survive; the `build` default owns
- * `inputs`/`outputs` for its name and would overwrite anything set here, which
- * is why `build` is spelled out separately.
- */
-function cargoGate(
-  command: string,
-  description: string,
-): Record<string, unknown> {
-  return {
-    executor: 'nx:run-commands',
-    cache: true,
-    inputs: INPUTS,
-    outputs: [],
-    options: { command, cwd: '{workspaceRoot}' },
-    metadata: { description, technologies: ['rust'] },
-  };
 }
 
 export function rustTargets(
@@ -126,19 +97,33 @@ export function rustTargets(
         technologies: ['rust'],
       },
     },
-    // Same flags as `just lint-rust`, one crate at a time.
-    lint: cargoGate(
-      `cargo clippy --package ${crate.name} --all-targets -- -D warnings`,
-      `cargo clippy ${crate.name}`,
-    ),
     // `--no-tests=pass`: nextest exits 4 ("no tests to run") on a crate with no
     // test binaries, which is a normal state for a crate in isolation (and the
     // permanent state of the cdylib N-API addons, `[lib] test = false`) even
     // though `--workspace` always finds some.
-    test: cargoGate(
-      `cargo nextest run --package ${crate.name} --no-tests=pass`,
-      `cargo nextest run ${crate.name}`,
-    ),
+    test: {
+      executor: 'nx:run-commands',
+      cache: true,
+      // What invalidates a cargo gate: the crate's own files, the files of the
+      // crates it depends on (`^default`, resolved over `@monodon/rust`'s cargo
+      // dependency edges) and the workspace-level knobs that change how every
+      // crate compiles — `rustGlobals` in `nx.json`.
+      inputs: ['default', '^default', 'rustGlobals'],
+      // NO outputs: cargo writes into the shared `dist/target`, which nx cannot
+      // fingerprint per crate, so an entry means "these inputs passed nextest",
+      // never "an artifact was restored". `nx.json`'s `test` targetDefault sets
+      // only `cache`, so these inputs survive — the `build` default owns
+      // `inputs`/`outputs` for its name, which is why `build` is spelled out.
+      outputs: [],
+      options: {
+        command: `cargo nextest run --package ${crate.name} --no-tests=pass`,
+        cwd: '{workspaceRoot}',
+      },
+      metadata: {
+        description: `cargo nextest run ${crate.name}`,
+        technologies: ['rust'],
+      },
+    },
   };
 
   if (!crate.hasBinary) return targets;

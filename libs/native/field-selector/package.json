@@ -17,8 +17,7 @@
   "scripts": {
     "build": "CARGO=cargo napi build --platform --no-const-enum --profile napi",
     "build:debug": "CARGO=cargo napi build --platform --no-const-enum",
-    "test": "vitest run",
-    "lint": "biome check --write ."
+    "test": "vitest run"
   },
   "license": "MIT",
   "devDependencies": {

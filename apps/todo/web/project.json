@@ -26,13 +26,6 @@
         "command": "bun run test",
         "cwd": "{workspaceRoot}/apps/todo/web"
       }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "bun run lint",
-        "cwd": "{workspaceRoot}/apps/todo/web"
-      }
     }
   },
   "tags": []

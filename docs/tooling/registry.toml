@@ -810,11 +810,11 @@ category = "build"
 status = "adopted"
 cncf = "not-cncf"
 install = "package.json"
-usage = ["biome.json", "scripts/just/web.just", "lefthook.yml"]
+usage = ["biome.json", "scripts/just/web.just", "tools/nx/polyglot-targets.ts", "lefthook.yml"]
 gate = "just lint-web (bunx biome ci .)"
 paid = false
 owner = "scope:infra"
-note = "Per-project `lint` scripts are mutating (--write); gates MUST use `biome ci`."
+note = "One root biome.json, no per-project config; the only JS/TS linter+formatter here. Gates MUST use `biome ci` — the mutating `--write` form is the inferred `fmt` target only, never `lint`."
 
 [[tool]]
 name = "trunk"

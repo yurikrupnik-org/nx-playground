@@ -1,0 +1,21 @@
+"""Sample Hello World application."""
+
+
+def hello():
+    """Return a friendly greeting."""
+    return "Hello test-cli1"
+
+def hello():
+  """Return a friendly greeting."""
+  return "Hello test-cli1"
+
+
+
+
+
+
+
+
+def hello():
+  """Return a friendly greeting."""
+  return "Hello test-cli1"

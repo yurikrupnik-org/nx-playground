@@ -1,0 +1,128 @@
+// Zellij workspace for this repo — `just zj` (or, from the repo root,
+// `zellij --layout manifests/zellij/nx-playground.kdl`).
+//
+// NO absolute paths on purpose: every pane inherits the cwd of the process that
+// launched zellij, so the layout only works when started from the repo root —
+// which is exactly what `just zj` guarantees.
+//
+// Relationship to manifests/mprocs/*.yaml: mprocs is the headless runner behind
+// `just dev`. This layout runs the same process set plus the infra/cluster
+// views, in panes you can scroll, search and detach from.
+//
+// Pane policy:
+//   - read-only / hot-reload panes start immediately
+//   - anything that mutates the cluster, costs a cold cargo build you may not
+//     want, or needs a service that might be down is `start_suspended true`:
+//     zellij prints the command and waits for <Enter>.
+//
+// Prerequisites per tab are listed above each tab.
+
+layout {
+    // Editing + git. `shell` is the pane you land in.
+    tab name="code" focus=true {
+        pane split_direction="vertical" {
+            pane name="shell" size="60%"
+            pane name="git" command="lazygit"
+        }
+    }
+
+    // App processes. `just run <job>` = `vals exec -f manifests/secrets/.vals.yaml
+    // -- bacon <job>`, so these inherit GCP-resolved secrets on top of .env —
+    // same source as `just dev`. Requires: `just docker-up` (postgres, redis,
+    // nats, mailhog) for anything that touches a backing service.
+    tab name="svc" {
+        pane split_direction="vertical" {
+            pane split_direction="horizontal" {
+                // http://localhost:8080
+                pane name="zerg-api" command="just" {
+                    args "run" "zerg-api"
+                }
+                pane name="zerg-tasks" command="just" {
+                    args "run" "zerg-tasks"
+                }
+            }
+            pane split_direction="horizontal" {
+                // JetStream worker — needs nats on :4222, so it waits for you.
+                pane name="zerg-email" command="just" {
+                    args "run" "zerg-email-nats"
+                    start_suspended true
+                }
+                // http://localhost:3000
+                pane name="zerg-web" command="bun" {
+                    args "nx" "dev" "zerg-web"
+                }
+            }
+        }
+    }
+
+    // Docker Compose infra (manifests/dockers/compose.yaml via devkit.toml).
+    // postgres :5432, redis :6379, nats :4222 (monitor :8222), mailhog :8025.
+    tab name="infra" {
+        pane split_direction="horizontal" {
+            pane name="compose-ps" command="devkit" size="40%" {
+                args "dev" "ps"
+            }
+            pane name="compose-logs" command="devkit" {
+                args "dev" "logs" "--follow"
+                start_suspended true
+            }
+        }
+    }
+
+    // Kind cluster `nx-playground` (devkit.toml [cluster].name) — context
+    // kind-nx-playground is passed explicitly so nothing here depends on, or
+    // changes, your current kubectl context.
+    tab name="cluster" {
+        pane split_direction="vertical" {
+            pane name="k9s" command="k9s" size="62%" {
+                args "--context" "kind-nx-playground"
+            }
+            pane split_direction="horizontal" {
+                pane name="status" command="devkit" {
+                    args "status"
+                }
+                // Creates the cluster + namespaces + ingress if it is missing.
+                pane name="devkit-up" command="devkit" {
+                    args "up"
+                    start_suspended true
+                }
+                // Builds images and deploys into the cluster — always manual.
+                pane name="tilt" command="tilt" {
+                    args "up"
+                    start_suspended true
+                }
+            }
+        }
+    }
+
+    // Data shells. No host psql/redis-cli is assumed — these go through the
+    // compose containers. Suspended: they are interactive, not monitors.
+    tab name="data" {
+        pane split_direction="horizontal" {
+            pane name="psql" command="docker" {
+                args "exec" "-it" "dockers-postgres-1" "psql" "-U" "myuser" "-d" "zerg"
+                start_suspended true
+            }
+            pane name="redis" command="docker" {
+                args "exec" "-it" "dockers-redis-1" "redis-cli"
+                start_suspended true
+            }
+            pane name="nats" command="nats" {
+                args "--server" "localhost:4222" "stream" "report"
+                start_suspended true
+            }
+        }
+    }
+
+    // The gates: `bacon clippy-workspace` for the tight loop, a shell for
+    // `just check` / `just verify`.
+    tab name="gate" {
+        pane split_direction="horizontal" {
+            pane name="bacon" command="bacon" {
+                args "clippy-workspace"
+                start_suspended true
+            }
+            pane name="checks"
+        }
+    }
+}

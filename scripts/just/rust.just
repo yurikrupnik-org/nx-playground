@@ -39,8 +39,8 @@ test-rust:
 # Two steps on purpose: `nx affected` has no project filter — it forwards `-p`
 # to the underlying command, where `-p tag:rust` lands as a cargo (or biome)
 # argument — so `nx show projects` picks the crates and `run-many` executes
-# them. The tag also keeps the web `lint` scripts out: those are mutating
-# `biome check --write`, not gates.
+# them. The tag also keeps non-crate projects out: their `lint` is `biome ci`,
+# which `just lint-web` already runs over the whole tree.
 [group('quality')]
 check-rust-affected base=env('NX_BASE', 'origin/main') head=env('NX_HEAD', 'HEAD') max='20':
     #!/usr/bin/env bash

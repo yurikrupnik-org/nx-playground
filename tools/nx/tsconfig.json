@@ -14,7 +14,7 @@
     "plugin.ts",
     "tilt-targets.ts",
     "rust-targets.ts",
-    "fmt-targets.ts",
+    "polyglot-targets.ts",
     "container-targets.ts",
     "k8s-targets.ts",
     "scope-tags.ts",

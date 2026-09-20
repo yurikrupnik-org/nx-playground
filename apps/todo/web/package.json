@@ -8,8 +8,7 @@
     "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "biome check --write ."
+    "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
   "dependencies": {
