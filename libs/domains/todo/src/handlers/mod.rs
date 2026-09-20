@@ -36,7 +36,7 @@ pub use direct::{
         direct::complete_todo,
         direct::uncomplete_todo,
     ),
-    components(schemas(Todo, CreateTodo, UpdateTodo, TodoPriority)),
+    components(schemas(Todo, CreateTodo, UpdateTodo, TodoPriority, axum_helpers::ErrorResponse)),
     tags((name = "todos", description = "Todo CRUD + lifecycle operations"))
 )]
 pub struct TodoApiDoc;
@@ -60,19 +60,38 @@ pub fn router<R: TodoRepository + 'static>(service: TodoService<R>) -> Router {
 
 #[cfg(test)]
 mod tests {
+    use test_utils::openapi;
     use utoipa::OpenApi;
+
+    fn document() -> serde_json::Value {
+        openapi::normalized(
+            serde_json::to_value(super::TodoApiDoc::openapi()).expect("serializable"),
+        )
+    }
 
     /// Regenerates the committed OpenAPI v1 document. Same convention as the
     /// ts-rs `export_bindings_*` tests: running the suite keeps
     /// `docs/openapi/todos.v1.json` in sync with the handler annotations.
+    ///
+    /// It goes through `openapi::normalized` because the handlers are
+    /// annotated `path = ""` so that nesting into `todo_api`'s root document
+    /// yields `/todos` rather than `/todos/`. In THIS document `servers[0].url`
+    /// is already `/api/todos`, so the collection's key must be `/` — an empty
+    /// key is not a legal OpenAPI path.
     #[test]
     fn export_openapi_todos_v1() {
-        let json = super::TodoApiDoc::openapi()
-            .to_pretty_json()
-            .expect("serialize todos openapi doc");
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../docs/openapi/todos.v1.json");
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, json + "\n").unwrap();
+        openapi::export(
+            document(),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/openapi/todos.v1.json"),
+        );
+    }
+
+    /// `x` (`apps/x/cli`) derives its whole command tree from documents shaped
+    /// like this one, so the invariants are asserted here too and not only on
+    /// the root documents that embed it.
+    #[test]
+    fn document_satisfies_cli_invariants() {
+        openapi::assert_invariants(&document());
     }
 }

@@ -116,8 +116,18 @@ function bracketDepth(text: string): number {
   return depth;
 }
 
+/**
+ * Strip TOML string delimiters. Both kinds: every `butler.toml` uses basic
+ * (`"…"`) strings, but the root `Cargo.toml` — read for `[workspace] exclude`
+ * — is written with literal (`'…'`) ones.
+ */
 function unquote(text: string): string {
-  return text.startsWith('"') && text.endsWith('"') ? text.slice(1, -1) : text;
+  const quote = text[0];
+  return (quote === '"' || quote === "'") &&
+    text.length >= 2 &&
+    text.endsWith(quote)
+    ? text.slice(1, -1)
+    : text;
 }
 
 /**
@@ -366,4 +376,28 @@ export function readCargoCrate(
       existsSync(join(workspaceRoot, dir, 'src', 'main.rs')) ||
       existsSync(join(workspaceRoot, dir, 'src', 'bin')),
   };
+}
+
+/**
+ * Directories the root `Cargo.toml` lists in `[workspace] exclude`.
+ *
+ * Such a directory has a `[package]`, so it looks exactly like a crate to the
+ * manifest glob — but it is NOT a member of the cargo workspace, so
+ * `cargo <verb> --package <name>` run from the workspace root cannot see it and
+ * every inferred cargo target would fail. The `rust` tag is worse than a
+ * failing target: it hands the node to `just check-rust-affected`, whose whole
+ * job is to run those targets for a diff.
+ *
+ * Read ONCE per graph build (plugin.ts calls this beside `readRootConfig`), not
+ * per node: nx forks a worker process per registered plugin and that cost is
+ * measured in AGENTS.md.
+ */
+export function readCargoExclusions(workspaceRoot: string): Set<string> {
+  const file = 'Cargo.toml';
+  const raw = parseToml(readFileSync(join(workspaceRoot, file), 'utf8'), file)
+    .get('workspace')
+    ?.get('exclude');
+  return new Set(
+    raw === undefined ? [] : stringArray(raw, file, '[workspace] exclude'),
+  );
 }

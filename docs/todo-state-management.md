@@ -19,13 +19,17 @@ the state.
 
 ## Measured cost
 
-Production build (`bun run build`), transitive static closure per entry, gzipped:
+Production build (`bun run build`), transitive static closure per entry, gzipped
+with `cat <chunks> | gzip -9 -c | wc -c`, measured on Solid `2.0.0-rc.9` /
+`@solidjs/router@2.0.0-next.26`. Always compress from **stdin**: `gzip -9 -c
+FILE` stores an FNAME header and inflates the result by `len(filename)+1`, which
+differs per chunk and so skews a comparison between routes.
 
 | Route | JS (gzip) | Δ vs baseline |
 |---|---:|---:|
-| `/` | 46.2 kB | — |
-| `/xstate` | 62.2 kB | **+16.0 kB** |
-| `/effect` | 103.3 kB | **+57.1 kB** |
+| `/` | 52.1 kB | — |
+| `/xstate` | 67.8 kB | **+15.6 kB** |
+| `/effect` | 109.2 kB | **+57.1 kB** |
 
 Both alternatives are `lazy()`-loaded, so visiting `/` downloads neither. That is
 deliberate and load-bearing: this vertical publishes shipped-JS numbers, and a
@@ -33,7 +37,7 @@ library used by one route must not be charged to the others. `xstate` and `effec
 land in their own chunks (`xstate-route-*.js`, `effect-route-*.js`), which the
 table above reflects.
 
-For scale: the whole baseline app is 46.2 kB gz. Effect alone is larger than that.
+For scale: the whole baseline app is 52.1 kB gz. Effect alone is larger than that.
 
 ## What each approach actually buys
 
@@ -54,7 +58,7 @@ explicit:
   invoking state is exited, so an abandoned load aborts its request. Wired in
   `loadTodos`; parity with Effect here, and easy to forget in both.
 
-Costs: +16 kB gz, a second vocabulary, and `@xstate/solid` is unusable here (it
+Costs: +15.6 kB gz, a second vocabulary, and `@xstate/solid` is unusable here (it
 peers on `solid-js@^1.6`; this app is Solid 2), so the actor→signal bridge is
 hand-written — all 10 lines of it, in `xstate-route.tsx`.
 
@@ -108,9 +112,11 @@ All three SPAs (`todo-web`, `zerg-web`, `terran-web`) set
 `resolve.conditions: ['development', 'browser']` unconditionally, which resolves
 `solid-js` to `dist/dev.js` — the **development** runtime, with reactivity
 warnings and debug hooks — *in production builds*. Now gated on
-`command === 'serve'`. todo-web's baseline dropped from 56.8 kB to 46.2 kB gz
-(**−9.6 kB, −17%**) from that one line; verified by the absence of dev-only
-warning strings in all three bundles.
+`command === 'serve'`, and re-measured on the current dependency state: forcing
+the condition back on takes todo-web's `/` closure from 52.1 kB to 61.3 kB gz
+(**−9.2 kB, −15%** for the guard) and pulls in `web.dev-*.js` instead of
+`web-*.js`; verified by the absence of dev-only warning strings (`"You appear to
+have multiple instances of Solid"`) in all three production bundles.
 
 ## Running it
 

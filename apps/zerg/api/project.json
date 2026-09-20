@@ -10,7 +10,7 @@
       "options": {
         "commands": [
           "cargo test --package zerg_api export_openapi",
-          "git diff --exit-code -- docs/openapi/tasks.v1.json"
+          "git diff --exit-code -- docs/openapi/tasks.v1.json docs/openapi/zerg.v1.json"
         ],
         "parallel": false,
         "cwd": "{workspaceRoot}"

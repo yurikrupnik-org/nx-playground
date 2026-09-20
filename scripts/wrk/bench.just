@@ -80,3 +80,34 @@ test-web-servers dist="apps/todo/web/dist":
 [group('bench')]
 bench-web-compare dist="apps/todo/web/dist" duration="10s" conns="64" threads="4":
     bash {{ wrk_dir }}/web-servers.sh bench {{ dist }} {{ duration }} {{ conns }} {{ threads }}
+
+# ============================================================================
+# Shipped bytes — the repo's ONE byte basis (scripts/bench/).
+# Every kB quoted in docs/ or in the stack_profiles table used to be measured
+# by hand on a different basis (raw transfer here, gzipped transitive closure
+# there), so the numbers could not be compared. These two recipes are that
+# basis: assets.sh = what a client downloads, ops.sh = what one operation
+# moves.
+#
+# `bench-assets` with no argument measures the standard arm set —
+# apps/todo/web/dist (Solid SPA), apps/todo/web-leptos/dist (Leptos WASM,
+# trunk), dist/target/release/x (CLI+TUI) and dist/target/release/todo_web_htmx
+# (.cargo/config.toml puts release binaries in dist/target). An arm that is not
+# built is reported as `not built` with the command that builds it, never
+# silently skipped and never fatal. Arguments override the arm set with any
+# dist directory or compiled binary.
+# ============================================================================
+
+bench_dir := "scripts/bench"
+
+api_origin_local := trim_end_match(api_url_local, "/api")
+
+# First-render bytes (raw/gzip -9/brotli -q 11) + binary size, cold start, peak RSS
+[group('bench')]
+bench-assets *arms:
+    bash {{ bench_dir }}/assets.sh {{ arms }}
+
+# Bytes on the wire per operation (GET+POST+DELETE /api/todos); needs todo-api running
+[group('bench')]
+bench-ops base=api_origin_local runs="5":
+    bash {{ bench_dir }}/ops.sh --base {{ base }} --runs {{ runs }}

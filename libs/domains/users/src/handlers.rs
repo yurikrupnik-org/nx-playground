@@ -81,6 +81,7 @@ pub struct ListUsersResponse {
     path = "",
     tag = "users",
     params(UserFilter),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "List of users with pagination", body = ListUsersResponse),
         (status = 500, response = InternalServerErrorResponse)
@@ -108,6 +109,7 @@ async fn list_users<R: UserRepository>(
     path = "",
     tag = "users",
     request_body = CreateUser,
+    security(("session_cookie" = [])),
     responses(
         (status = 201, description = "User created successfully", body = UserResponse),
         (status = 400, response = BadRequestValidationResponse),
@@ -130,6 +132,7 @@ async fn create_user<R: UserRepository>(
     params(
         ("id" = Uuid, Path, description = "User ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "User found", body = UserResponse),
         (status = 400, response = BadRequestUuidResponse),
@@ -154,6 +157,7 @@ async fn get_user<R: UserRepository>(
         ("id" = Uuid, Path, description = "User ID")
     ),
     request_body = UpdateUser,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "User updated successfully", body = UserResponse),
         (status = 400, response = BadRequestValidationResponse),
@@ -178,6 +182,7 @@ async fn update_user<R: UserRepository>(
     params(
         ("id" = Uuid, Path, description = "User ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 204, description = "User deleted successfully"),
         (status = 400, response = BadRequestUuidResponse),
@@ -201,6 +206,7 @@ async fn delete_user<R: UserRepository>(
     params(
         ("id" = Uuid, Path, description = "User ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Email verified successfully", body = UserResponse),
         (status = 400, response = BadRequestUuidResponse),

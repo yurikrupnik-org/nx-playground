@@ -232,8 +232,11 @@ pub struct OrgInfo {
 
 #[utoipa::path(
     get,
-    path = "/me",
+    // `/me` lives under the `/auth` nest (see `api::mod::routes`), like every
+    // other route in this module; the annotation must name the served path.
+    path = "/auth/me",
     tag = "auth",
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Current user with org context", body = MeResponse),
         (status = 401, description = "Not authenticated")

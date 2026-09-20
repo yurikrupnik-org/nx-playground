@@ -58,3 +58,33 @@ impl Modify for SecurityAddon {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use test_utils::openapi;
+    use utoipa::OpenApi;
+
+    fn document() -> serde_json::Value {
+        openapi::normalized(
+            serde_json::to_value(super::ApiDoc::openapi()).expect("serialize terran openapi doc"),
+        )
+    }
+
+    /// Regenerates the committed OpenAPI v1 document. Same convention as the
+    /// ts-rs `export_bindings_*` tests: running the suite keeps
+    /// `docs/openapi/terran.v1.json` in sync with the handler annotations.
+    #[test]
+    fn export_openapi_terran_v1() {
+        openapi::export(
+            serde_json::to_value(super::ApiDoc::openapi()).expect("serialize terran openapi doc"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/openapi/terran.v1.json"),
+        );
+    }
+
+    /// The `x` CLI derives its command tree from this document alone.
+    #[test]
+    fn document_satisfies_cli_invariants() {
+        openapi::assert_invariants(&document());
+    }
+}

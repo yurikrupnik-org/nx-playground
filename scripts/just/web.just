@@ -51,6 +51,28 @@ boundaries:
 tooling-check:
     bun tools/tooling/check-registry.ts
 
+# Agent skill adapters: render every runtime's copy from the SKILL.md bodies +
+# docs/agents/registry.toml (.gemini commands + context, docs/agents/README.md,
+# docs/agents/skills.html). Contract: tools/agents/gen.ts.
+[group('quality')]
+agents-gen:
+    bun tools/agents/gen.ts --write
+
+# Agent skill drift gate: every registry row still cites paths that exist, has
+# a gate or a declared [[gap]], and every generated adapter matches what the
+# registry would render right now. Run `just agents-gen` when it fails.
+[group('quality')]
+agents-check:
+    bun tools/agents/gen.ts --check
+
+# Hosted-agent export (gitignored dist/agents/): per-skill instruction (capped
+# at Bedrock's 4000-char limit) + knowledge document for AWS Bedrock and GCP
+# Vertex AI, plus the upload commands. Creating the agents costs money and is a
+# human decision — see .claude/skills/cncf-manager/SKILL.md.
+[group('quality')]
+agents-export:
+    bun tools/agents/gen.ts --export
+
 # Freeze the STAGED diff into one review input both pre-commit passes read
 # (file table + class per file + the gates that diff implies + the diff
 # itself). Exits 1 on a hard stop (secret-shaped path). Protocol:

@@ -4,6 +4,7 @@
 //! - `TestDatabase`: PostgreSQL container with automatic cleanup (feature: "postgres")
 //! - `TestRedis`: Redis container with automatic cleanup (feature: "redis")
 //! - `TestNats`: NATS container with JetStream for stream testing (feature: "nats")
+//! - `openapi`: invariant checks for the committed OpenAPI artifacts (feature: "openapi")
 //! - `TestDataBuilder`: Deterministic test data generation (always available)
 //! - `assertions`: Custom assertion helpers (always available)
 //!
@@ -12,6 +13,7 @@
 //! - `postgres` (default): Enables PostgreSQL test infrastructure
 //! - `redis`: Enables Redis test infrastructure
 //! - `nats`: Enables NATS JetStream test infrastructure
+//! - `openapi`: Enables the committed-OpenAPI-document walker (no containers)
 //! - `all`: Enables all test infrastructure
 //!
 //! # Usage
@@ -91,6 +93,9 @@ mod redis;
 
 #[cfg(feature = "nats")]
 mod nats;
+
+#[cfg(feature = "openapi")]
+pub mod openapi;
 
 // Re-export based on enabled features
 #[cfg(feature = "postgres")]

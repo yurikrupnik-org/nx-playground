@@ -1,51 +1,241 @@
 {
-  "openapi": "3.1.0",
+  "components": {
+    "schemas": {
+      "CreateTask": {
+        "description": "DTO for creating a new task",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "due_date": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority"
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "Task": {
+        "description": "Task entity - represents a task",
+        "properties": {
+          "completed": {
+            "description": "Whether the task is completed",
+            "type": "boolean"
+          },
+          "created_at": {
+            "description": "Creation timestamp",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "description": "Task description",
+            "type": "string"
+          },
+          "due_date": {
+            "description": "Optional due date",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Unique identifier",
+            "format": "uuid",
+            "type": "string"
+          },
+          "org_ref": {
+            "description": "Owning tenant, as an identity-provider reference (`org_01…` or\n`personal:{subject}`). Not a foreign key - the tasks service owns its own\ndatabase and never joins against zerg's `organizations` table.",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TaskPriority",
+            "description": "Task priority"
+          },
+          "project_id": {
+            "description": "Optional project association",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus",
+            "description": "Task status"
+          },
+          "title": {
+            "description": "Task title",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last update timestamp",
+            "format": "date-time",
+            "type": "string"
+          },
+          "user_ref": {
+            "description": "Owning user, as an identity-provider reference (`user_01…`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "org_ref",
+          "user_ref",
+          "title",
+          "description",
+          "completed",
+          "priority",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "TaskPriority": {
+        "description": "Task priority levels",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "urgent"
+        ],
+        "type": "string"
+      },
+      "TaskStatus": {
+        "description": "Task status",
+        "enum": [
+          "todo",
+          "in_progress",
+          "done"
+        ],
+        "type": "string"
+      },
+      "UpdateTask": {
+        "description": "DTO for updating an existing task",
+        "properties": {
+          "completed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "due_date": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "project_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TaskStatus"
+              }
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "session_cookie": {
+        "in": "cookie",
+        "name": "zerg_session",
+        "type": "apiKey"
+      }
+    }
+  },
   "info": {
-    "title": "Tasks API",
     "description": "REST facade over the tasks gRPC service (rpc tasks.v1)",
     "license": {
       "name": ""
     },
+    "title": "Tasks API",
     "version": "1.0.0"
   },
-  "servers": [
-    {
-      "url": "/api/tasks",
-      "description": "zerg-api mount path"
-    }
-  ],
+  "openapi": "3.1.0",
   "paths": {
-    "": {
+    "/": {
       "get": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "List tasks",
         "operationId": "list_tasks",
         "parameters": [
           {
-            "name": "mine",
             "in": "query",
+            "name": "mine",
             "required": false,
             "schema": {
               "type": "boolean"
             }
           },
           {
-            "name": "project_id",
             "in": "query",
+            "name": "project_id",
             "required": false,
             "schema": {
+              "format": "uuid",
               "type": [
                 "string",
                 "null"
-              ],
-              "format": "uuid"
+              ]
             }
           },
           {
-            "name": "status",
             "in": "query",
+            "name": "status",
             "required": false,
             "schema": {
               "oneOf": [
@@ -59,8 +249,8 @@
             }
           },
           {
-            "name": "priority",
             "in": "query",
+            "name": "priority",
             "required": false,
             "schema": {
               "oneOf": [
@@ -74,8 +264,8 @@
             }
           },
           {
-            "name": "completed",
             "in": "query",
+            "name": "completed",
             "required": false,
             "schema": {
               "type": [
@@ -85,48 +275,53 @@
             }
           },
           {
-            "name": "limit",
             "in": "query",
+            "name": "limit",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "type": "integer"
             }
           },
           {
-            "name": "offset",
             "in": "query",
+            "name": "offset",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "List of tasks",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/Task"
-                  }
+                  },
+                  "type": "array"
                 }
               }
-            }
+            },
+            "description": "List of tasks"
           },
           "500": {
             "description": "Internal server error"
           }
-        }
-      },
-      "post": {
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List tasks",
         "tags": [
           "tasks"
-        ],
-        "summary": "Create a new task",
+        ]
+      },
+      "post": {
         "operationId": "create_task",
         "requestBody": {
           "content": {
@@ -140,14 +335,14 @@
         },
         "responses": {
           "201": {
-            "description": "Task created successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Task"
                 }
               }
-            }
+            },
+            "description": "Task created successfully"
           },
           "400": {
             "description": "Invalid request"
@@ -155,109 +350,26 @@
           "500": {
             "description": "Internal server error"
           }
-        }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Create a new task",
+        "tags": [
+          "tasks"
+        ]
       }
     },
     "/{id}": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Get a task by ID",
-        "operationId": "get_task",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Task ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Task found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Task"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid task ID"
-          },
-          "404": {
-            "description": "Task not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Update a task",
-        "operationId": "update_task",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Task ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateTask"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Task updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Task"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          },
-          "404": {
-            "description": "Task not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
       "delete": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Delete a task",
         "operationId": "delete_task",
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
             "description": "Task ID",
+            "in": "path",
+            "name": "id",
             "required": true,
             "schema": {
               "type": "string"
@@ -277,207 +389,127 @@
           "500": {
             "description": "Internal server error"
           }
-        }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Delete a task",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "get": {
+        "operationId": "get_task",
+        "parameters": [
+          {
+            "description": "Task ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Task found"
+          },
+          "400": {
+            "description": "Invalid task ID"
+          },
+          "404": {
+            "description": "Task not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get a task by ID",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "put": {
+        "operationId": "update_task",
+        "parameters": [
+          {
+            "description": "Task ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTask"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            },
+            "description": "Task updated successfully"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Task not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update a task",
+        "tags": [
+          "tasks"
+        ]
       }
     }
   },
-  "components": {
-    "schemas": {
-      "CreateTask": {
-        "type": "object",
-        "description": "DTO for creating a new task",
-        "required": [
-          "title"
-        ],
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "due_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "priority": {
-            "$ref": "#/components/schemas/TaskPriority"
-          },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "status": {
-            "$ref": "#/components/schemas/TaskStatus"
-          },
-          "title": {
-            "type": "string"
-          }
-        }
-      },
-      "Task": {
-        "type": "object",
-        "description": "Task entity - represents a task",
-        "required": [
-          "id",
-          "org_ref",
-          "user_ref",
-          "title",
-          "description",
-          "completed",
-          "priority",
-          "status",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "completed": {
-            "type": "boolean",
-            "description": "Whether the task is completed"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          },
-          "description": {
-            "type": "string",
-            "description": "Task description"
-          },
-          "due_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "description": "Optional due date"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Unique identifier"
-          },
-          "org_ref": {
-            "type": "string",
-            "description": "Owning tenant, as an identity-provider reference (`org_01…` or\n`personal:{subject}`). Not a foreign key - the tasks service owns its own\ndatabase and never joins against zerg's `organizations` table."
-          },
-          "priority": {
-            "$ref": "#/components/schemas/TaskPriority",
-            "description": "Task priority"
-          },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "description": "Optional project association"
-          },
-          "status": {
-            "$ref": "#/components/schemas/TaskStatus",
-            "description": "Task status"
-          },
-          "title": {
-            "type": "string",
-            "description": "Task title"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last update timestamp"
-          },
-          "user_ref": {
-            "type": "string",
-            "description": "Owning user, as an identity-provider reference (`user_01…`)."
-          }
-        }
-      },
-      "TaskPriority": {
-        "type": "string",
-        "description": "Task priority levels",
-        "enum": [
-          "low",
-          "medium",
-          "high",
-          "urgent"
-        ]
-      },
-      "TaskStatus": {
-        "type": "string",
-        "description": "Task status",
-        "enum": [
-          "todo",
-          "in_progress",
-          "done"
-        ]
-      },
-      "UpdateTask": {
-        "type": "object",
-        "description": "DTO for updating an existing task",
-        "properties": {
-          "completed": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "due_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "priority": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TaskPriority"
-              }
-            ]
-          },
-          "project_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "status": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TaskStatus"
-              }
-            ]
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      }
+  "servers": [
+    {
+      "description": "zerg-api mount path",
+      "url": "/api/tasks"
     }
-  },
+  ],
   "tags": [
     {
-      "name": "tasks",
-      "description": "Task operations (backed by the tasks gRPC service)"
+      "description": "Task operations (backed by the tasks gRPC service)",
+      "name": "tasks"
     }
   ]
 }

@@ -12,12 +12,13 @@ use axum::routing::get;
 use axum::{Json, Router};
 use sea_orm::{DatabaseConnection, DbBackend, FromQueryResult, Statement};
 use serde::Serialize;
+use utoipa::ToSchema;
 
 /// One frontend stack profile row.
 ///
 /// Mirrored by the `StackProfile` type in
 /// `apps/todo/web-astro/src/lib/api.ts` — keep the two in sync.
-#[derive(Debug, Serialize, FromQueryResult)]
+#[derive(Debug, Serialize, FromQueryResult, ToSchema)]
 pub struct StackProfile {
     pub slug: String,
     pub name: String,
@@ -33,7 +34,21 @@ pub fn router(db: DatabaseConnection) -> Router {
     Router::new().route("/", get(list_stacks)).with_state(db)
 }
 
-async fn list_stacks(
+/// List frontend stack profiles
+///
+/// Rows are returned **cheapest-first**: ordered by `js_kb + html_kb` ascending
+/// (total first-render transfer). Consumers rely on that order — the first row
+/// is the cheapest stack, and `is_default` marks the one the repo ships.
+#[utoipa::path(
+    get,
+    path = "/stacks",
+    tag = "stacks",
+    responses(
+        (status = 200, description = "Stack profiles, cheapest-first", body = Vec<StackProfile>),
+        (status = 500, description = "Database error")
+    )
+)]
+pub async fn list_stacks(
     State(db): State<DatabaseConnection>,
 ) -> Result<Json<Vec<StackProfile>>, (StatusCode, String)> {
     let rows = StackProfile::find_by_statement(Statement::from_string(

@@ -32,6 +32,7 @@ use tracing::{error, info, warn};
 mod config;
 mod events;
 mod grpc;
+mod openapi;
 mod stacks;
 
 /// Embedded schema applied on startup (idempotent).
@@ -121,6 +122,9 @@ async fn main() -> Result<()> {
     // own status codes must not be reshaped by an HTTP-flavoured layer.
     let app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
+        // The document the `x` CLI and the doc UIs read; served here because
+        // this binary builds its own router (see `openapi.rs`).
+        .route("/api-docs/openapi.json", get(openapi::serve_document))
         .nest("/api/todos", domain_todo::router(service))
         .nest("/api/stacks", stacks::router(db))
         .nest("/api/events", events::router(event_tx))

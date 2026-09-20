@@ -14,12 +14,40 @@ use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use oidc_auth::{SessionStore, cookie};
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{OpenApi, ToSchema};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
 use crate::orgs::{self, TenantContext};
 use crate::state::AppState;
+
+/// OpenAPI documentation for the organization routes.
+///
+/// Nested into the root document at `/org`; the paths below are therefore
+/// relative to that mount, exactly like the router built in [`router`].
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Org API",
+        version = "1.0.0",
+        description = "BFF over the WorkOS management API: active org context, members, invitations"
+    ),
+    servers((url = "/api/org", description = "zerg-api mount path")),
+    paths(
+        get_org,
+        create_org,
+        list_members,
+        list_invitations,
+        create_invitation,
+        revoke_invitation,
+    ),
+    components(schemas(OrgResponse, MemberResponse, CreateOrgBody, InviteBody)),
+    tags((
+        name = "org",
+        description = "Organization context, members and invitations (WorkOS is the source of truth)"
+    ))
+)]
+pub struct OrgApiDoc;
 
 pub fn router(state: &AppState) -> Router {
     Router::new()
@@ -81,6 +109,7 @@ pub struct InviteBody {
     get,
     path = "",
     tag = "org",
+    security(("session_cookie" = [])),
     responses((status = 200, description = "Active organization", body = OrgResponse))
 )]
 pub async fn get_org(Extension(tenant): Extension<TenantContext>) -> Json<OrgResponse> {
@@ -95,6 +124,7 @@ pub async fn get_org(Extension(tenant): Extension<TenantContext>) -> Json<OrgRes
     path = "",
     tag = "org",
     request_body = CreateOrgBody,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Organization created; session switched", body = OrgResponse),
         (status = 400, description = "Empty name, or caller already belongs to an organization"),
@@ -189,6 +219,7 @@ fn relogin_err() -> ApiError {
     get,
     path = "/members",
     tag = "org",
+    security(("session_cookie" = [])),
     responses((status = 200, description = "Org members", body = Vec<MemberResponse>))
 )]
 pub async fn list_members(
@@ -243,6 +274,7 @@ pub async fn list_members(
     get,
     path = "/invitations",
     tag = "org",
+    security(("session_cookie" = [])),
     responses((status = 200, description = "Org invitations"))
 )]
 pub async fn list_invitations(
@@ -266,6 +298,7 @@ pub async fn list_invitations(
     path = "/invitations",
     tag = "org",
     request_body = InviteBody,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Invitation created"),
         (status = 400, description = "Personal workspaces cannot invite"),
@@ -298,6 +331,7 @@ pub async fn create_invitation(
     path = "/invitations/{id}/revoke",
     tag = "org",
     params(("id" = String, Path, description = "WorkOS invitation id")),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Invitation revoked"),
         (status = 403, description = "Only org admins can revoke"),

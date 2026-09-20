@@ -64,10 +64,10 @@ output = ".env"             # generated env file
 secret_name = "gcp-sm-credentials"
 
 [flux]
-# owner = "my-org"          # GitHub user/org; leave unset to derive from `gh api user`
-repository = "gitops-v1"
+owner = "yurikrupnik-org"          # GitHub user/org; leave unset to derive from `gh api user`
+repository = "gitops"
 branch = "main"
-path = "clusters/mgmt"
+path = "clusters/manager"
 personal = true
 
 [tilt]

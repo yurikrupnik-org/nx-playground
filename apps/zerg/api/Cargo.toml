@@ -42,6 +42,10 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 async-trait = { workspace = true }
+# `openapi`: the shared invariant walker for `docs/openapi/*.json`. Cargo
+# forbids an inherited dep from disabling the workspace entry's default
+# features, so the `postgres` default comes along.
+test-utils = { workspace = true, features = ["openapi"] }
 
 [lints]
 workspace = true

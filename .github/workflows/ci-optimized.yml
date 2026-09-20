@@ -37,8 +37,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # No toolchain NAME on purpose: rust-toolchain.toml is the pin, and it now
+      # carries `targets` (wasm32-unknown-unknown, for the Leptos arm) as well as
+      # the channel and components. Naming `stable` here installed a SECOND
+      # toolchain that no cargo invocation in this repo ever used — every proxied
+      # cargo/rustc call resolves through the toolchain file — and that toolchain
+      # had neither the pinned version nor the wasm target.
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
+        run: rustup toolchain install
 
       # Authenticate to GCP using a service account key
       - name: Authenticate to Google Cloud
@@ -90,6 +96,16 @@ jobs:
         run: just lint-rust test-rust
 
       - run: just audit
+
+      # The Leptos/WASM delivery-surface arm. It is `[workspace] exclude`d, so
+      # none of the cargo gates above compile it; this is its only CI coverage.
+      # `--locked` so the action installs the version its own lockfile pins
+      # rather than whatever resolves today.
+      - name: Install trunk
+        run: cargo install trunk --locked
+
+      - name: Build the Leptos SPA
+        run: bun nx build todo-web-leptos
 
       # Clean up build artifacts to free space
       - name: Clean up after Rust gates

@@ -29,6 +29,7 @@ import {
   type ProjectContribution,
   type RootConfig,
   readCargoCrate,
+  readCargoExclusions,
   readRootConfig,
 } from './butler-config.ts';
 import {
@@ -97,6 +98,8 @@ export const createNodesV2: CreateNodesV2 = [
   async (files, _options, context) => {
     const workspaceRoot = context.workspaceRoot;
     const root = readRootConfig(workspaceRoot);
+    // Read once per graph build, like the root config above.
+    const excludedCrates = readCargoExclusions(workspaceRoot);
     const results: Entry[] = [];
     const containerApps = new Set<string>();
     const workloadApps = new Set<string>();
@@ -117,15 +120,23 @@ export const createNodesV2: CreateNodesV2 = [
         // A manifest with no `[package]` is a nested workspace, not a crate.
         const crate = readCargoCrate(workspaceRoot, dir);
         if (crate) {
+          // A `[workspace] exclude`d directory is a crate but not a MEMBER, so
+          // `cargo … --package <name>` from the workspace root cannot resolve
+          // it: no cargo targets, and above all no `rust` tag, which would
+          // hand it to `just check-rust-affected`. It still belongs to a
+          // vertical, so it keeps its scope tag. (`apps/todo/web-leptos`: a
+          // wasm32 trunk app whose `build` comes from its own project.json.)
+          const excluded = excludedCrates.has(dir);
           // The tag is what lets a gate address the Rust half of the graph
           // (`-p tag:rust`); nothing else in the graph marks a node as a cargo
           // crate. It is withheld from a crate whose `lint`/`test` come from a
           // package.json script — the N-API addons — because that lint is
           // mutating and those are `just test-napi`'s job.
           const tags = scopeFor(dir);
-          if (!hasPackageScriptGates(workspaceRoot, dir)) tags.push(RUST_TAG);
+          if (!excluded && !hasPackageScriptGates(workspaceRoot, dir))
+            tags.push(RUST_TAG);
           const contribution: ProjectContribution = {
-            targets: rustTargets(crate),
+            targets: excluded ? {} : rustTargets(crate),
           };
           if (tags.length > 0) contribution.tags = tags;
           results.push([file, { projects: { [dir]: contribution } }]);

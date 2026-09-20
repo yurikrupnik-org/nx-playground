@@ -77,6 +77,23 @@ fmt:
 sort-deps: fmt
     cargo sort --workspace
 
+# Regenerate every committed OpenAPI document from the `#[utoipa::path]`
+# annotations. Same convention as the ts-rs `export_bindings_*` tests: the
+# documents in docs/openapi are generated output and are never hand-edited.
+[group('quality')]
+openapi-gen:
+    cargo test --workspace export_openapi
+
+# Drift gate: an annotation changed but the committed document did not. This
+# matters more than a usual generated-file gate because `x` (apps/x/cli) embeds
+# these documents at compile time and derives its entire command tree from
+# them — a stale document is a CLI that addresses routes the server no longer
+# serves. `apps/zerg/api/project.json`'s `openapi-gate` is the same check
+# scoped to one crate for the nx-affected path; this one covers all of them.
+[group('quality')]
+openapi-check: openapi-gen
+    git diff --exit-code -- docs/openapi
+
 # Security and dependency checks
 [group('quality')]
 audit:

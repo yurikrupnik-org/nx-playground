@@ -9,7 +9,10 @@ default = ["postgres"]
 postgres = ["dep:sea-orm"]
 redis = ["dep:redis"]
 nats = ["dep:async-nats", "dep:futures"]
-all = ["postgres", "redis", "nats"]
+# Invariant checks for the committed `docs/openapi/*.json` artifacts. Pure
+# serde_json, no containers: pair it with `default-features = false`.
+openapi = ["dep:serde_json"]
+all = ["postgres", "redis", "nats", "openapi"]
 
 [dependencies]
 # NATS dependencies (optional)
@@ -22,6 +25,9 @@ redis = { workspace = true, optional = true }
 # Postgres dependencies (optional, enabled by default)
 # Note: Uses SQL migrations from manifests/db/zerg/migrations/
 sea-orm = { workspace = true, optional = true }
+
+# OpenAPI document walker (optional, feature "openapi")
+serde_json = { workspace = true, optional = true }
 
 # Testcontainers (always available)
 testcontainers = { workspace = true }

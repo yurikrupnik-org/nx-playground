@@ -36,6 +36,10 @@ axum = { workspace = true }
 core_config = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
+# `openapi`: the shared invariant walker for `docs/openapi/*.json`. Cargo
+# forbids an inherited dep from disabling the workspace entry's default
+# features, so the (unused here) `postgres` default comes along.
+test-utils = { workspace = true, features = ["openapi"] }
 tokio = { workspace = true }
 tower = { workspace = true }
 utoipa = { workspace = true }

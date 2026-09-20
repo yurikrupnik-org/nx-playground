@@ -22,6 +22,7 @@ use contract_tasks::conversions::*;
 use contract_tasks::{CreateTask, Task, TaskFilter, UpdateTask};
 
 use crate::error::ApiResult;
+use crate::openapi::SecurityAddon;
 
 /// Per-call deadline for the tasks service.
 ///
@@ -55,6 +56,7 @@ fn authed<T>(token: &AccessToken, message: T) -> tonic::Request<T> {
     servers((url = "/api/tasks", description = "zerg-api mount path")),
     paths(list_tasks, get_task, create_task, update_task, delete_task,),
     components(schemas(Task, CreateTask, UpdateTask)),
+    modifiers(&SecurityAddon),
     tags((name = "tasks", description = "Task operations (backed by the tasks gRPC service)"))
 )]
 pub struct TasksApiDoc;
@@ -72,6 +74,7 @@ pub fn router(state: crate::state::AppState) -> Router {
     path = "",
     tag = "tasks",
     params(TaskFilter),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "List of tasks", body = Vec<Task>),
         (status = 500, description = "Internal server error")
@@ -108,6 +111,7 @@ pub async fn list_tasks(
     params(
         ("id" = String, Path, description = "Task ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Task found", body = Task),
         (status = 400, description = "Invalid task ID"),
@@ -140,6 +144,7 @@ pub async fn get_task(
     path = "",
     tag = "tasks",
     request_body = CreateTask,
+    security(("session_cookie" = [])),
     responses(
         (status = 201, description = "Task created successfully", body = Task),
         (status = 400, description = "Invalid request"),
@@ -167,6 +172,7 @@ pub async fn create_task(
         ("id" = String, Path, description = "Task ID")
     ),
     request_body = UpdateTask,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Task updated successfully", body = Task),
         (status = 400, description = "Invalid request"),
@@ -197,6 +203,7 @@ pub async fn update_task(
     params(
         ("id" = String, Path, description = "Task ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 204, description = "Task deleted successfully"),
         (status = 400, description = "Invalid request"),
@@ -223,19 +230,25 @@ pub async fn delete_task(
 
 #[cfg(test)]
 mod tests {
+    use test_utils::openapi;
     use utoipa::OpenApi;
 
     /// Regenerates the committed OpenAPI v1 document. Same convention as the
     /// ts-rs `export_bindings_*` tests: running the suite keeps
     /// `docs/openapi/tasks.v1.json` in sync with the handler annotations.
+    ///
+    /// `list_tasks`/`create_task` are annotated `path = ""` because this doc is
+    /// nested at `/tasks` in the root document and axum serves exactly
+    /// `/api/tasks` (0.8 does not redirect the slashed form, so `/tasks/` would
+    /// describe a 404). In *this* standalone document there is no prefix to
+    /// concatenate onto, so `test_utils::openapi::export` rewrites the empty
+    /// key to `"/"` — correct here, because `servers[0].url` is the mount path.
     #[test]
     fn export_openapi_tasks_v1() {
-        let json = super::TasksApiDoc::openapi()
-            .to_pretty_json()
-            .expect("serialize tasks openapi doc");
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../docs/openapi/tasks.v1.json");
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, json + "\n").unwrap();
+        openapi::export(
+            serde_json::to_value(super::TasksApiDoc::openapi()).expect("serialize tasks doc"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/openapi/tasks.v1.json"),
+        );
     }
 }

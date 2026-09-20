@@ -9,6 +9,7 @@ members = [
     'apps/todo/temporal',
     'apps/todo/web-htmx',
     'apps/todo/worker',
+    'apps/x/cli',
     'apps/zerg/api',
     'apps/zerg/email-nats',
     'apps/zerg/tasks',
@@ -50,6 +51,15 @@ members = [
     'libs/rpc',
     'libs/testing/test-utils',
 ]
+
+# `apps/todo/web-leptos` is deliberately NOT a member. Every Rust gate here is
+# a single host-target `cargo --workspace` invocation (scripts/just/rust.just),
+# and a Leptos CSR crate only compiles for wasm32-unknown-unknown. Excluding it
+# makes it its own one-crate workspace with its own Cargo.lock and its own
+# .cargo/config.toml pinning the target, which is what `trunk` builds. It is the
+# ONE crate exempt from the `{ workspace = true }` dependency rule, because an
+# excluded crate cannot resolve workspace dependencies.
+exclude = ['apps/todo/web-leptos']
 
 [workspace.dependencies]
 api_resource = { path = 'libs/core/proc_macros/api_resource', version = '0.1.0' }
@@ -110,6 +120,7 @@ prost = '0.14.4'
 qdrant-client = '1.19.0'
 quote = '1.0.47'
 rand = '0.10.2'
+ratatui = '0.30.2'
 redis = { version = "1.7.0", features = ['aio', 'r2d2', 'tokio-comp', 'connection-manager'] }
 regex = '1.13.1'
 reqwest = { version = "0.13.5", features = ['json', 'rustls'], default-features = false }
@@ -188,6 +199,18 @@ strip = true
 lto = true
 panic = 'abort'
 incremental = false # Explicit: LTO doesn't benefit from incremental
+
+# Build scripts and proc-macro dylibs are HOST artifacts: rustc dlopen()s them
+# during the build and they are never shipped, so stripping them saves nothing
+# in the binary that ships. It also breaks the build. `strip = true` on
+# macOS/arm64 corrupts a large proc-macro dylib — `libsqlx_macros.dylib`
+# (8.3 MB) comes out with a "mis-aligned LINKEDIT string pool" and rustc
+# cannot load it, so `cargo build --release` of ANY sqlx-dependent crate (every
+# API service here) fails locally. CI never saw it because release builds run
+# in Linux containers. Everything about the shipped binary is unchanged: this
+# overrides only host-side build dependencies.
+[profile.release.build-override]
+strip = false
 
 [profile.napi]
 inherits = 'release'

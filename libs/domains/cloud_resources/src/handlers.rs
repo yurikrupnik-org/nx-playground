@@ -90,6 +90,7 @@ where
     path = "",
     tag = "cloud-resources",
     request_body = CreateCloudResource,
+    security(("session_cookie" = [])),
     responses(
         (status = 201, description = "Cloud resource created successfully", body = CloudResource),
         (status = 400, response = BadRequestValidationResponse),
@@ -134,6 +135,7 @@ where
     params(
         ("id" = Uuid, Path, description = "Cloud resource ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Cloud resource found", body = CloudResource),
         (status = 400, response = BadRequestUuidResponse),
@@ -158,6 +160,7 @@ where
     path = "",
     tag = "cloud-resources",
     params(CloudResourceFilter),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "List of cloud resources", body = Vec<CloudResource>),
         (status = 500, response = InternalServerErrorResponse)
@@ -182,6 +185,7 @@ where
     params(
         ("project_id" = Uuid, Path, description = "Project ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "List of cloud resources for project", body = Vec<CloudResource>),
         (status = 400, response = BadRequestUuidResponse),
@@ -208,6 +212,7 @@ where
         ("id" = Uuid, Path, description = "Cloud resource ID")
     ),
     request_body = UpdateCloudResource,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Cloud resource updated successfully", body = CloudResource),
         (status = 400, response = BadRequestValidationResponse),
@@ -235,6 +240,7 @@ where
     params(
         ("id" = Uuid, Path, description = "Cloud resource ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 204, description = "Cloud resource deleted successfully"),
         (status = 400, response = BadRequestUuidResponse),
@@ -274,6 +280,7 @@ where
     params(
         ("id" = Uuid, Path, description = "Cloud resource ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Cloud resource soft deleted successfully", body = MessageResponse),
         (status = 400, response = BadRequestUuidResponse),

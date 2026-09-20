@@ -816,6 +816,19 @@ paid = false
 owner = "scope:infra"
 note = "Per-project `lint` scripts are mutating (--write); gates MUST use `biome ci`."
 
+[[tool]]
+name = "trunk"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (cargo install trunk --locked; the same command installs it locally)"
+key = "cargo install trunk --locked"
+usage = ["apps/todo/web-leptos/Trunk.toml", "apps/todo/web-leptos/index.html", "apps/todo/web-leptos/project.json"]
+gate = "CI rust job (bun nx build todo-web-leptos)"
+paid = false
+owner = "scope:todo"
+note = "WASM bundler for the Leptos CSR arm of the delivery-surface comparison — the ONE thing that builds apps/todo/web-leptos, which is [workspace] exclude'd and therefore invisible to just lint-rust/test-rust. It also downloads its own wasm-bindgen-cli and binaryen; index.html has to pass --enable-bulk-memory to wasm-opt because rustc emits bulk-memory ops that binaryen 123 will not validate by default."
+
 ################################################################################
 # testing
 ################################################################################
@@ -1024,8 +1037,8 @@ category = "build"
 status = "candidate"
 cncf = "not-cncf"
 install = "none — host CLI, NOT authenticated here"
-usage = []
+usage = [".gemini/settings.json", ".gemini/GEMINI.md", ".gemini/commands/skill", ".claude/commands/git/gemini-review.md"]
 gate = "none"
 paid = false
 owner = "scope:infra"
-note = "`.claude/commands/git/gemini-review.md` invokes it, but a non-interactive run prompts for an OAuth code and hangs — the review skill treats it as unavailable until someone signs in. Either authenticate it or delete that command."
+note = "Host CLI (0.22.5 installed, not authenticated). The repo now SERVES it whether or not it is signed in: `.gemini/settings.json` loads AGENTS.md + GEMINI.md as context, and `just agents-gen` renders one `/skill:<name>` command per exported skill into `.gemini/commands/skill/`, gated by `just agents-check`. `.claude/commands/git/gemini-review.md` still invokes the binary, and a non-interactive run prompts for an OAuth code and hangs — the review skill treats it as unavailable until someone signs in."

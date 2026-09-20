@@ -15,3 +15,11 @@ profile = "default"
 # clippy + rustfmt back `just lint` and `just fmt-check`.
 # rust-src is what rust-analyzer needs to resolve std.
 components = ["clippy", "rustfmt", "rust-src"]
+
+# wasm32-unknown-unknown backs the Leptos CSR arm of the delivery-surface
+# comparison (`apps/todo/web-leptos`, built by trunk). That crate is
+# `[workspace] exclude`d, so the host-target gates (`just lint-rust`,
+# `just test-rust`, both `--workspace`) never try to compile it — but the
+# target must be installed for every entrypoint, hence here and not a
+# per-developer `rustup target add`.
+targets = ["wasm32-unknown-unknown"]

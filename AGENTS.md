@@ -284,6 +284,126 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   pass 2 is `reviewer` + `security-reviewer` + the authenticated vendor CLIs,
   blind to pass 1; a claim raised by ≥2 components is blocker-eligible.
   Playbook: `skill://precommit-review` (`/precommit`, `/precommit-quick`).
+- **A skill is written ONCE and exported to every agent runtime.** The procedure
+  lives in `.claude/skills/<name>/SKILL.md` (hand-written, reviewed like code);
+  `docs/agents/registry.toml` adds what that file cannot carry — the failure the
+  skill prevents, the gate that proves it, the runtimes it targets — and
+  `tools/agents/gen.ts` renders every adapter: `.gemini/commands/skill/<name>.toml`
+  (`/skill:<name>`), `.gemini/GEMINI.md`, `docs/agents/README.md` and
+  `docs/agents/skills.html` (the human explainer, "why we have these skills").
+  `just agents-check` (in `verify`) fails on drift, on an evidence path that
+  stopped existing, and on a skill dir with no row; `just agents-gen`
+  regenerates. Same evidence bar as the tool registry: `gate = "none"` is legal
+  only with a declared `[[gap]]` (currently `repo-maintenance`, whose rails ARE
+  Claude Code hooks and therefore do not port). Three traps: a Gemini custom
+  command injects a file with **`@{path}`**, not the bare `@path` of an
+  interactive prompt (a bare one is passed through verbatim and the model
+  silently gets no procedure); a hosted agent has no checkout, so Bedrock/Vertex
+  get a SHORT instruction (capped at Bedrock's 4000-char `instruction` limit,
+  enforced by the generator) plus the SKILL.md as a retrieval document, written
+  to gitignored `dist/agents/` by `just agents-export`; and `.gemini/settings.json`
+  loads `AGENTS.md` itself via `context.fileName`, so this file is never copied
+  into a second always-on context that could drift.
+- **`x` (`apps/x/cli`) has no route table — it reads the committed OpenAPI
+  documents, and that is the only thing a client can honestly share with these
+  servers.** The handlers cannot be reused: four of the six `libs/domains/*`
+  crates hard-depend on sea-orm, sqlx and axum, so linking one into a CLI drags
+  a Postgres driver into a binary that only speaks HTTP. What IS shared is the
+  contract, and it is generated from the same `#[utoipa::path]` annotations
+  that document the live `/api-docs/openapi.json` endpoints. The command tree
+  is therefore built at RUN TIME from JSON, not declared with `#[derive(Parser)]`:
+  a route added to an axum router, annotated, and exported by its
+  `export_openapi_*` test appears in `x --help` with no Rust written in the CLI.
+  **One committed document per API PROCESS**, not per resource —
+  `docs/openapi/{todo,zerg,terran}.v1.json`, each embedded with `include_str!`
+  so the binary is self-contained for a remote worker with no checkout; the
+  older per-resource `todos.v1.json` / `tasks.v1.json` stay as they are and the
+  CLI does not read them. The mapping is mechanical and has exactly one
+  judgement call in it: `operationId` is a snake_case handler name so its first
+  segment is the verb, `tags[0]` is the resource (the tag is plural like the
+  route, the operationId tail is singular — `x get todo` for one verb and
+  `x get todos` for another is unmemorable), and `list` folds into `get` so
+  arity picks the operation (`x get todos` lists, `x get todos <id>` fetches),
+  which is the shape people actually type. Five invariants make the reader in
+  `apps/x/cli/src/spec.rs` able to stay small, and they are asserted by a walker
+  in `test-utils` (feature `openapi`) next to every `export_openapi_*` test:
+  3.1.0, every path key starts with `/`, unique non-empty `operationId`, a
+  non-empty `tags`, and a declared path parameter for every `{placeholder}`.
+  Two of those were live defects when the CLI was written — `todos.v1.json`
+  declared no `{id}` parameter on five operations, and `tasks.v1.json` keyed its
+  collection path as `""`. **`just openapi-check` (in `verify`) is what stops a
+  stale document**, and it matters more than a usual generated-file gate: a
+  stale document is a CLI that addresses routes the server no longer serves.
+  Note `utoipa`'s `nest` is a string concat while axum's `nest` is not, so
+  `nest(path="/todos")` over a handler annotated `path = "/"` yields the key
+  `/todos/` for a route axum serves at `/todos` — the export normalizes the
+  trailing slash, and it must, because axum 0.8 does not redirect.
+- **`x ui` is the same binary, the same registry, the same transport.** An arm
+  of a delivery-surface benchmark that reimplements the data path measures the
+  reimplementation. The TUI browses every operation and executes the ones
+  needing no input; for anything with arguments it prints the `x …` command
+  line instead of growing an input form that is a worse editor than the shell
+  the user is already in. `crossterm` is reached through `ratatui::crossterm`
+  and is NOT a direct dependency — two versions in the tree make the event
+  enums silently incompatible. The dependency list in `apps/x/cli/Cargo.toml`
+  is deliberately short because this binary's size and cold-start time are
+  measured quantities in `docs/delivery-surface-assets.md`.
+- **`x` reads `securitySchemes`, so an operation's `security(...)` annotation is
+  load-bearing for the client, not decoration.** A guarded route answers an
+  anonymous request with 401 and nothing else; the only machine-readable way to
+  say which credential fixes that is the operation's `security` list, resolved
+  against `components.securitySchemes`. `x` therefore refuses the request the
+  document says will fail, naming the credential, and sends one of exactly two
+  things — `--token`/`$X_TOKEN` as `Authorization: Bearer`, or
+  `--session`/`$X_SESSION` as the declared cookie — which are the two ingress
+  paths `auth_required` accepts (`libs/core/oidc-auth/src/middleware.rs`,
+  `extract_credentials`). `just x-token` mints a Keycloak access token from the
+  local realm; `just x-session` logs in through an API's own
+  `POST /api/auth/login/password` and prints the session id. An annotation that
+  omits `security(...)` on a guarded route does not fail a gate — it degrades
+  the CLI to a bare 401, which is exactly how every zerg route looked until the
+  44 guarded operations were annotated.
+- **`apps/todo/web-leptos` is the ONE crate outside the cargo workspace, and
+  that is load-bearing in four places.** Every Rust gate here is a single
+  host-target `cargo --workspace` run (`scripts/just/rust.just`), and a Leptos
+  CSR crate only compiles for `wasm32-unknown-unknown`, so it is in
+  `[workspace] exclude` with its own `Cargo.lock` and its own
+  `.cargo/config.toml` pinning the target. Consequences, all of which look like
+  untidiness and are not: it is exempt from the `{ workspace = true }`
+  dependency rule (an excluded crate cannot resolve workspace deps); its
+  advisories are ignored in `osv-scanner.toml` and NOT mirrored into the
+  justfile `audit` list, because `just scan` reads every `Cargo.lock` while
+  `cargo audit` reads exactly one that does not contain them; `rust-toolchain.toml`
+  carries `targets = ["wasm32-unknown-unknown"]` so every entrypoint installs it
+  rather than each developer; and `tools/nx/plugin.ts` reads the exclude list so
+  the crate gets neither the `rust` tag nor cargo targets — without that,
+  `just check-rust-affected` would run `cargo clippy --package todo_web_leptos`
+  from the root and fail on a crate cargo cannot see. Its `build` is
+  `trunk build --release` from an explicit `project.json`, because the plugin's
+  inferred `cargo build` is wrong for a trunk app.
+- **`[profile.release.build-override] strip = false` is not a style choice.**
+  `strip = true` on the release profile also strips host-side proc-macro
+  dylibs, and on macOS/arm64 that corrupts a large one: `libsqlx_macros.dylib`
+  (8.3 MB) comes out with a "mis-aligned LINKEDIT string pool" and rustc cannot
+  `dlopen` it, so `cargo build --release` of ANY sqlx-dependent crate — every
+  API service here — fails locally. CI never saw it because release builds run
+  in Linux containers. Build scripts and proc macros are never shipped, so
+  stripping them saved nothing in the first place.
+- **`scripts/bench/` is the first thing in this repo that measures bytes.**
+  Every kB figure that predates it (`docs/todo-delivery-options.md`,
+  `docs/todo-state-management.md`, the `stack_profiles` seed) was hand-measured
+  and transcribed, on bases that cannot be compared to each other — raw
+  uncompressed transfer in one place, gzipped per-entry closure in another.
+  `just bench-assets` fixes the basis (first-render closure = `index.html` plus
+  what it references; each file compressed alone, because one file is one
+  response; raw / `gzip -9` / `brotli -q 11`, and brotli is mandatory because
+  it takes another 18% off a wasm module that gzip cannot). `just bench-ops`
+  measures bytes per API call, which is the only number on which a CLI and a
+  browser app are comparable. Two traps it exists to prevent, both hit while
+  writing it: summing a `dist` directory overstates first render by 2.6× (lazy
+  route chunks), and `gzip -9 -c FILE` embeds the filename in the header while
+  `gzip -9 -c < FILE` does not, so hand-measured figures ran `len(name)+1`
+  bytes high. Results: `docs/delivery-surface-assets.md`.
 
 ## Environment gotchas
 
@@ -348,8 +468,15 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   `/` (TanStack Query + signals) is the real app, `/xstate` and `/effect` are
   equivalent implementations of the same loop for comparison. Both alternatives
   MUST stay `lazy()`-loaded so `/` never downloads them — this vertical publishes
-  shipped-JS numbers (`stack_profiles`). Measured: `/` 46.2 kB gz, `+16.0` for
-  xstate, `+57.1` for effect. Neither library has a Solid 2 binding
+  shipped-JS numbers (`stack_profiles`). Measured: `/` 52.1 kB gz, `+15.6` for
+  xstate, `+57.1` for effect — remeasured 2026-09-20 by
+  `scripts/bench/assets.sh`, which is also why `/` moved from the 46.2 kB this
+  file used to claim: `todo-web` could not build at all (solid-js 2.0.0-rc.4
+  declares `@solidjs/signals: ^2.0.0-rc.4`, which floated to rc.9, and rc.9
+  dropped internals rc.4 re-exports), and the fix — advancing the whole Solid 2
+  RC set to its self-consistent head, rc.9 + router next.26 — costs 5.9 kB gz.
+  A prerelease caret on a transitive is the trap; pin the SET, not the
+  transitive. Neither library has a Solid 2 binding
   (`@xstate/solid` and `@effect-atom/atom-solid` both peer on Solid 1), so each
   route hand-writes a ~10-line bridge. See `docs/todo-state-management.md`.
 - **`resolve.conditions` must not include `development` in builds.** All three

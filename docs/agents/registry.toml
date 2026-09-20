@@ -1,0 +1,202 @@
+# Agent skill registry — the source of truth for what this repo teaches an agent
+# and which runtimes get taught. Contract: tools/agents/gen.ts, gate
+# `just agents-check` (inside `just verify`).
+#
+# One row per skill. The PROCEDURE lives in `.claude/skills/<name>/SKILL.md`
+# (that file is the corpus, authored by hand, reviewed like code); this file
+# holds only what a SKILL.md cannot carry: why the skill exists, what breaks
+# without it, which executable gate catches the breakage, and which runtimes
+# the skill is exported to.
+#
+# `why` is prose a human reads in docs/agents/skills.html — it must name the
+# real failure, not restate the description. `evidence` paths must resolve; no
+# line numbers (they rot), cite the file.
+#
+# targets (validated by the generator against the platform table in gen.ts):
+#   claude-code  native `.claude/skills/<name>/SKILL.md`, auto-loaded on match
+#   gemini-cli   `/skill:<name>` in `.gemini/commands/skill/<name>.toml`
+#   bedrock      hosted agent: instruction (<= 4000 chars) + knowledge doc
+#   vertex       hosted ADK agent: instruction + RAG/Search corpus doc
+#
+# status:
+#   adopted  the skill is wired into every target it declares
+#   trial    exported, not yet load-bearing; `review` date set
+#   retired  row kept so the decision is not re-litigated; not exported
+
+################################################################################
+# Declared gaps — the ONLY sanctioned reason an `adopted` row may carry
+# `gate = "none"`. Same rule as docs/tooling/registry.toml: ungated and
+# undeclared is a defect.
+################################################################################
+
+[[gap]]
+name = "hook-enforced-only"
+applies_to = ["repo-maintenance"]
+why = "The invariants that matter (never commit on main, never force-push, no secret material in a diff) are enforced at tool-call time by .claude/hooks/guard-git.js and .claude/hooks/guard-secrets.js, which are Claude Code hooks. No `just` recipe can assert them, and no other runtime has an equivalent — a Gemini/Bedrock/Vertex agent running this playbook is on the honour system."
+closes_when = "the guards are re-implemented as a pre-commit/pre-push hook in git itself, so every runtime inherits them"
+owner = "scope:infra"
+
+################################################################################
+# Skills
+################################################################################
+
+[[skill]]
+name = "cncf-manager"
+status = "adopted"
+owner = "scope:infra"
+targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
+gate = "just tooling-check"
+why = """
+Prose is not proof. README.md listed Istio + Kiali as prerequisites for months \
+while the repo contained no control plane, no CR and no canary — an agent \
+reading that prose would have "kept" a mesh that never existed, or installed \
+one to make the docs true. This skill makes adoption a claim the repo can \
+reproduce (install path + consumer + gate) and makes anything paid stop for a \
+human signature, which is the one decision an agent must never take alone.\
+"""
+evidence = [
+  "docs/tooling/registry.toml",
+  "docs/tooling/service-mesh.md",
+  "tools/tooling/check-registry.ts",
+]
+
+[[skill]]
+name = "db-migration"
+status = "adopted"
+owner = "scope:tasks"
+targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
+gate = "just migrate-validate <db>"
+why = """
+One schema change is four artifacts that must agree: the timestamped `.up.sql`, \
+`schema.sql`, `atlas.sum` and the migrations ConfigMap. Only the first is \
+obvious from the request, and the failure mode of skipping the re-hash is \
+invisible locally — a stale `atlas.sum` breaks the Atlas Operator at apply \
+time, in the cluster, long after the PR went green.\
+"""
+evidence = ["manifests/db/db.just", "manifests/db/terran/migrations", "manifests/db/terran/schema.sql"]
+
+[[skill]]
+name = "deps-maintenance"
+status = "adopted"
+owner = "scope:infra"
+targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
+gate = "just check (post-upkg) + just scan"
+why = """
+`cargo upgrade --incompatible` is the obvious command and the wrong one: it \
+bulldozes deliberate range pins — `testcontainers = \"=0.27.3\"` is exact-pinned \
+precisely so it is skipped — and it runs no OSV scan, no npm cooldown and no \
+post-check. Every update therefore goes through `upkg`, and a failed run prints \
+a diagnosis block that is only actionable if you know how to read it.\
+"""
+evidence = ["justfile", "osv-scanner.toml", "Cargo.toml"]
+
+[[skill]]
+name = "kcl-package"
+status = "adopted"
+owner = "scope:infra"
+targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
+gate = "just k8s-check"
+why = """
+Manifests are rendered by a PINNED KCL package that lives in a SIBLING repo and \
+is consumed as an OCI artifact. The intuitive move — write the `.k` files next \
+to the app — was tried (`apps/terran/*/k8s`) and produced `CannotFindModule`. \
+Publishing and bumping the package is a cross-repo procedure with a registry, \
+a tag and a consumer pin, none of which is discoverable from this repo alone.\
+"""
+evidence = ["butler.toml", "docs/tilt-generators.md"]
+
+[[skill]]
+name = "new-rust-crate"
+status = "adopted"
+owner = "scope:shared"
+targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
+gate = "just lint-rust"
+why = """
+`cargo new` is wrong here in four ways at once: dependency versions live only in \
+the root `[workspace.dependencies]`, `members` is an explicit alphabetical list \
+and not a glob, the layer a crate lands in decides what it may depend on, and a \
+hand-written `project.json` silently SHADOWS the nx targets the local plugin \
+infers — 27 such files were deleted for that reason. A crate scaffolded by \
+instinct compiles and still breaks the graph.\
+"""
+evidence = [
+  "Cargo.toml",
+  "tools/nx/plugin.ts",
+  "tools/nx/scope-tags.ts",
+  "scripts/just/rust.just",
+]
+
+[[skill]]
+name = "precommit-review"
+status = "adopted"
+owner = "scope:shared"
+targets = ["claude-code", "gemini-cli"]
+gate = "just review-bundle"
+why = """
+The model that wrote the code knows the intent and therefore forgives itself. \
+The fix is two passes with different blind spots over ONE frozen input: the \
+staged index, not anyone's memory of the edit. The bundle is also the only \
+thing that stops a secret-shaped path reaching a vendor CLI — `coderabbit` and \
+`codex` transmit the WORKING TREE, not the index.\
+"""
+evidence = ["tools/review/bundle.ts", ".claude/commands/precommit.md"]
+
+[[skill]]
+name = "repo-maintenance"
+status = "adopted"
+owner = "scope:infra"
+targets = ["claude-code"]
+gate = "none"
+why = """
+Scheduled maintenance is the one flow with no human in the loop, across three \
+repos, with a token that can push. Everything in the playbook is a rail: PRs \
+only, never main, never force-push, one branch per task, no gate no PR, and \
+pre-existing failures get reported rather than "fixed" by loosening the gate. \
+It is exported to Claude Code only because the rails themselves are Claude Code \
+hooks — see the `hook-enforced-only` gap.\
+"""
+evidence = [
+  ".github/workflows/claude-maintenance.yml",
+  ".claude/hooks/guard-git.js",
+  ".claude/hooks/guard-secrets.js",
+]
+
+[[skill]]
+name = "rust-architecture-audit"
+status = "adopted"
+owner = "scope:shared"
+targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
+gate = "just boundaries"
+why = """
+Every shortcut in a layered workspace is locally reasonable: one SQL query in a \
+handler, one `if status ==` in a service, one domain crate depending on its \
+neighbour. Each is invisible in review and permanent in effect. The audit turns \
+placement into findings tied to a command that fails when the finding is \
+ignored, so "where should this logic go" has a checkable answer instead of a \
+preference.\
+"""
+evidence = [
+  "docs/modular-monolith-architecture.md",
+  "docs/adr-tasks-service-boundary.md",
+  "tools/nx/check-boundaries.ts",
+]
+
+[[skill]]
+name = "service-transport"
+status = "adopted"
+owner = "scope:shared"
+targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
+gate = "just proto-lint"
+why = """
+"How should A talk to B" is answered by the repo, not by taste: one broker \
+(NATS JetStream), one proto module, one HTTP toolkit, Postgres NOTIFY for \
+browser realtime — Kafka and RabbitMQ are already `status = \"rejected\"`. \
+Without this, an agent adds a second broker or a second gRPC binary over tables \
+an existing service already serves on one port, and the cost is a permanent \
+transport to maintain.\
+"""
+evidence = [
+  "docs/communication-and-consistency.md",
+  "manifests/grpc/proto.just",
+  "docs/todo-delivery-options.md",
+]
