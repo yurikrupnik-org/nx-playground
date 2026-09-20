@@ -8,7 +8,8 @@ Based on benchmarks, serialization accounts for ~5ms latency (current optimized:
 
 ### 1. Protocol Buffers Schema Optimization
 
-#### Before (Current):
+#### Before (Current)
+
 ```protobuf
 message CreateResponse {
   string id = 1;              // "550e8400-e29b-41d4-a716-446655440000" (36 bytes)
@@ -26,7 +27,8 @@ message CreateResponse {
 
 **Total overhead per task: ~161 bytes (just metadata)**
 
-#### After (Optimized):
+#### After (Optimized)
+
 ```protobuf
 enum Priority {
   PRIORITY_UNSPECIFIED = 0;
@@ -82,6 +84,7 @@ TasksServiceClient::new(channel)
 ```
 
 **Impact:**
+
 - Small messages (<1KB): Minimal benefit, adds CPU overhead
 - Large responses (list operations): 60-80% size reduction
 - **Recommended for**: List operations with >10 items
@@ -110,21 +113,24 @@ Prevents memory exhaustion attacks and OOM errors.
 ### List Operation (50 tasks)
 
 **Before optimization:**
-```
+
+```text
 50 tasks × 161 bytes metadata = 8,050 bytes
 + Actual data (title, description) ≈ 20KB
 = ~28KB total payload
 ```
 
 **After optimization:**
-```
+
+```text
 50 tasks × 58 bytes metadata = 2,900 bytes
 + Actual data (same) ≈ 20KB
 = ~23KB total payload (18% smaller)
 ```
 
 **With compression:**
-```
+
+```text
 23KB → ~6KB compressed (gzip ratio ~4:1 for text)
 ```
 
@@ -139,14 +145,17 @@ Prevents memory exhaustion attacks and OOM errors.
 ### Expected Results
 
 **Current:**
+
 - Requests/sec: 5,175
 - Avg latency: 9.66ms
 
 **With schema optimization:**
+
 - Requests/sec: ~5,500-6,000 (6-16% gain)
 - Avg latency: ~8.5-9ms
 
 **With compression (list operations):**
+
 - Requests/sec: ~6,500-7,000 (for large responses)
 - Avg latency: ~7-8ms (for list ops)
 
@@ -168,6 +177,7 @@ just proto-gen
 ### 2. Update Conversion Logic
 
 **Convert UUIDs:**
+
 ```rust
 // String → Bytes
 uuid.as_bytes().to_vec()
@@ -177,6 +187,7 @@ Uuid::from_slice(&bytes)?
 ```
 
 **Convert Enums:**
+
 ```rust
 // String → Enum
 match priority.as_str() {
@@ -193,6 +204,7 @@ match Priority::from_i32(value) {
 ```
 
 **Convert Timestamps:**
+
 ```rust
 // DateTime → Unix timestamp
 datetime.timestamp()
@@ -220,24 +232,28 @@ Similar changes needed in `apps/zerg/tasks/src/main.rs`.
 
 ## When to Use What
 
-### Use Optimized Proto When:
+### Use Optimized Proto When
+
 ✅ High-throughput operations (>1000 req/sec)
 ✅ Large response payloads (lists)
 ✅ Network bandwidth is constrained
 ✅ Binary efficiency matters
 
-### Stick with String Proto When:
+### Stick with String Proto When
+
 ✅ Development/debugging (human-readable)
 ✅ Low traffic (<100 req/sec)
 ✅ Simplicity preferred
 ✅ Multiple language clients need easy integration
 
-### Enable Compression When:
+### Enable Compression When
+
 ✅ List operations (>10 items)
 ✅ Responses >5KB
 ✅ Network is bottleneck, not CPU
 
-### Skip Compression When:
+### Skip Compression When
+
 ❌ Small messages (<1KB)
 ❌ CPU constrained
 ❌ Single-item operations
@@ -260,16 +276,19 @@ just bench-tasks-grpc
 ## Migration Strategy
 
 ### Phase 1: Prepare
+
 - Create optimized proto as `tasks_optimized.proto`
 - Add conversion utilities
 - Test in development
 
 ### Phase 2: Dual Protocol
+
 - Support both v1 (string) and v2 (binary)
 - Use different service paths
 - Gradual client migration
 
 ### Phase 3: Full Migration
+
 - Switch default to optimized
 - Deprecate old proto
 - Remove after grace period
@@ -277,6 +296,7 @@ just bench-tasks-grpc
 ## Summary
 
 **Realistic expectations:**
+
 - Schema optimization: 10-15% improvement
 - Compression (for lists): Additional 20-30%
 - Combined: ~30-45% improvement on list operations

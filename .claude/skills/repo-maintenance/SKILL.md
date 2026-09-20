@@ -83,7 +83,7 @@ version table.
 
 ## Report (final message, also the PR body skeleton)
 
-```
+```text
 repo: <slug>   task: <task>   date: <YYYY-MM-DD>
 gates before: <recipe → pass|fail (reason)>
 changes: <bullets, exact files>

@@ -11,8 +11,9 @@
  * plugin creates none of its own):
  *
  *   tilt-targets.ts       `tilt-gen` / `tilt-check`  — apps that ship k8s manifests
- *   rust-targets.ts       `build` / `lint` / `test` / `run` — every cargo crate
+ *   rust-targets.ts       `build` / `lint` / `test` / `run` / `install` — cargo crates
  *   container-targets.ts  `container` / `scan`       — every deployable app
+ *   fmt-targets.ts        `fmt`                      — crates and TS packages
  *
  * Zero dependencies on purpose: `createNodesV2` is a plain export, so nothing
  * here needs `@nx/devkit` or `@nx/plugin` installed.
@@ -22,6 +23,7 @@ import { dirname } from 'node:path';
 
 import {
   appKind,
+  type CargoCrate,
   type CreateNodesV2,
   derivedImageName,
   hasWorkload,
@@ -37,6 +39,7 @@ import {
   APP_MARKERS,
   containerTargets,
 } from './container-targets.ts';
+import { fmtTarget, PACKAGE_MANIFESTS } from './fmt-targets.ts';
 import { k8sTargets } from './k8s-targets.ts';
 import {
   CARGO_MANIFESTS,
@@ -61,7 +64,7 @@ const APP_CONFIGS = 'apps/**/butler.toml';
  * crate and a deployable app — so the callback dispatches on what the path is,
  * not on which alternative matched.
  */
-const MARKERS = `{${CARGO_MANIFESTS},${APP_MARKERS},${APP_CONFIGS}}`;
+const MARKERS = `{${CARGO_MANIFESTS},${APP_MARKERS},${APP_CONFIGS},${PACKAGE_MANIFESTS}}`;
 
 type Entry = [string, { projects: Record<string, ProjectContribution> }];
 
@@ -113,12 +116,22 @@ export const createNodesV2: CreateNodesV2 = [
       return [scopeTag(dir)];
     };
 
+    // One parse per crate manifest: a directory that is both a crate and a TS
+    // package (ts-rs bindings, the N-API addons) reaches the cargo branch and
+    // the `fmt` branch below, and either marker file can arrive first.
+    const crates = new Map<string, CargoCrate | undefined>();
+    const crateAt = (dir: string): CargoCrate | undefined => {
+      if (!crates.has(dir)) crates.set(dir, readCargoCrate(workspaceRoot, dir));
+      return crates.get(dir);
+    };
+    const formatted = new Set<string>();
+
     for (const file of files) {
       const dir = dirname(file);
 
       if (file.endsWith('/Cargo.toml')) {
         // A manifest with no `[package]` is a nested workspace, not a crate.
-        const crate = readCargoCrate(workspaceRoot, dir);
+        const crate = crateAt(dir);
         if (crate) {
           // A `[workspace] exclude`d directory is a crate but not a MEMBER, so
           // `cargo … --package <name>` from the workspace root cannot resolve
@@ -136,7 +149,7 @@ export const createNodesV2: CreateNodesV2 = [
           if (!excluded && !hasPackageScriptGates(workspaceRoot, dir))
             tags.push(RUST_TAG);
           const contribution: ProjectContribution = {
-            targets: excluded ? {} : rustTargets(crate),
+            targets: excluded ? {} : rustTargets(crate, dir),
           };
           if (tags.length > 0) contribution.tags = tags;
           results.push([file, { projects: { [dir]: contribution } }]);
@@ -172,6 +185,27 @@ export const createNodesV2: CreateNodesV2 = [
           const tags = scopeFor(dir);
           if (tags.length > 0) contribution.tags = tags;
           results.push([file, { projects: { [dir]: contribution } }]);
+        }
+      }
+
+      // `fmt` is the one target both ecosystems answer to, so it is keyed on
+      // either manifest and emitted once per directory — whichever of the two
+      // nx hands us first. No `scope:` tag from here: a TS-only project such as
+      // `apps/todo/e2e` declares its own in project.json, and a second copy
+      // would concat onto it.
+      if (
+        !formatted.has(dir) &&
+        (file.endsWith('/Cargo.toml') || file.endsWith('/package.json'))
+      ) {
+        const target = fmtTarget(
+          workspaceRoot,
+          dir,
+          crateAt(dir),
+          excludedCrates.has(dir),
+        );
+        if (target) {
+          formatted.add(dir);
+          results.push([file, { projects: { [dir]: { targets: target } } }]);
         }
       }
     }

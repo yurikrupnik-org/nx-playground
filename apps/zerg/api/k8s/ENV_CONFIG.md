@@ -7,17 +7,20 @@ All of it is declared in `apps/zerg/api/butler.toml` — `[config]` and `[env.<e
 ## Environment Variables
 
 ### Core Configuration
+
 - `PORT`: Server port (default: 8080)
 - `RUST_LOG`: Logging level configuration
 - `DATABASE_URL`: PostgreSQL connection string
 - `REDIS_HOST`: Redis connection URL
 
 ### CORS & Auth Redirects
-- `CORS_ALLOWED_ORIGIN`: Frontend origin for CORS (e.g., http://localhost:3000)
-- `REDIRECT_BASE_URL`: OAuth callback base URL (e.g., http://localhost:8080); the WorkOS redirect URI is `{REDIRECT_BASE_URL}/api/auth/callback`
+
+- `CORS_ALLOWED_ORIGIN`: Frontend origin for CORS (e.g., <http://localhost:3000>)
+- `REDIRECT_BASE_URL`: OAuth callback base URL (e.g., <http://localhost:8080>); the WorkOS redirect URI is `{REDIRECT_BASE_URL}/api/auth/callback`
 - `FRONTEND_URL`: Frontend application URL for post-auth redirects (login landing, logout `return_to`)
 
 ### Authentication (WorkOS AuthKit via the oidc-auth BFF)
+
 - `WORKOS_CLIENT_ID`: WorkOS environment client id (`client_...`) — required
 - `WORKOS_API_KEY`: WorkOS API key (`sk_...`) — required
 - `WORKOS_ISSUER`: Token issuer override; defaults to `https://api.workos.com/user_management/{WORKOS_CLIENT_ID}` (set only for a custom auth domain)
@@ -26,6 +29,7 @@ All of it is declared in `apps/zerg/api/butler.toml` — `[config]` and `[env.<e
 Google/GitHub social login is brokered by WorkOS — no `GOOGLE_*`/`GITHUB_*` variables are read anymore.
 
 ### Feature Flags (Flagsmith)
+
 - `FLAGSMITH_API_URL`: Flagsmith API endpoint
 - `FLAGSMITH_ENVIRONMENT_KEY`: Flagsmith environment key
 
@@ -42,11 +46,13 @@ See [DEPLOYMENT_SCENARIOS.md](./DEPLOYMENT_SCENARIOS.md) for detailed explanatio
 For local Kubernetes development with Tilt:
 
 **Ports:**
-- Web: http://localhost:5206 (port-forward 5206:8080) — the browser origin; nginx in the
+
+- Web: <http://localhost:5206> (port-forward 5206:8080) — the browser origin; nginx in the
   pod proxies `/api` to `zerg-api:8080`
-- API: http://localhost:5221 (port-forward 5221:8080) — direct, bypassing that proxy
+- API: <http://localhost:5221> (port-forward 5221:8080) — direct, bypassing that proxy
 
 **Configuration (`[env.dev.config]`):**
+
 ```toml
 CORS_ALLOWED_ORIGIN = "http://localhost:5206,https://127.0.0.1.nip.io:8443"
 REDIRECT_BASE_URL = "http://localhost:5206"
@@ -54,6 +60,7 @@ FRONTEND_URL = "http://localhost:5206"
 ```
 
 **Usage:**
+
 ```bash
 tilt up
 ```
@@ -67,6 +74,7 @@ gets — no separate dev overlay to keep in sync.
 For production deployments on Google Kubernetes Engine:
 
 **Configuration (`[env.prod.config]`):**
+
 ```toml
 # ${GATEWAY_SUFFIX} is substituted by Flux (postBuild), not by butler or KCL
 CORS_ALLOWED_ORIGIN = "https://zerg.${GATEWAY_SUFFIX}"
@@ -164,12 +172,14 @@ just k8s-gen                # every app + the aggregate kustomization
 ```
 
 ### Dev (Tilt)
+
 ```bash
 # Tilt re-renders k8s from butler.toml's output on save
 tilt up
 ```
 
 ### Production (kubectl)
+
 ```bash
 # Apply this app alone…
 kubectl apply -f manifests/k8s/apps/zerg-api.yaml
@@ -183,23 +193,27 @@ kubectl logs -n zerg deployment/zerg-api
 ```
 
 ### Production (ArgoCD)
+
 Configuration changes are automatically synchronized when committed to the main branch.
 What is synchronized is the **generated** output under `manifests/k8s/apps`, so a
 `butler.toml` edit committed without `just k8s-gen` deploys nothing.
 
 ## Troubleshooting
 
-### Check environment variables in running pod:
+### Check environment variables in running pod
+
 ```bash
 kubectl exec -n zerg deployment/zerg-api -- env | grep -E "REDIRECT|FRONTEND|CORS|WORKOS"
 ```
 
-### View logs:
+### View logs
+
 ```bash
 kubectl logs -n zerg deployment/zerg-api -f
 ```
 
-### Test the auth flow:
+### Test the auth flow
+
 ```bash
 # Local — expect a 303 redirect to api.workos.com/user_management/authorize
 curl -sI http://localhost:5221/api/auth/login | grep -i location

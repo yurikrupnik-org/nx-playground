@@ -1,5 +1,6 @@
 # Architecture Review — 5 Enterprise Software Killers
-# based on: https://www.youtube.com/watch?v=aGgmY0kgJTA
+
+## based on: <https://www.youtube.com/watch?v=aGgmY0kgJTA>
 
 > **Source:** "5 Terrible Decisions That Kill Enterprise Software" — CodeOpinion (Derek Comartin), YouTube `aGgmY0kgJTA`.
 >
@@ -11,28 +12,31 @@
 
 ---
 
-## Issue 1 — Organizing by technical concern instead of business capability
+### Issue 1 — Organizing by technical concern instead of business capability
 
 **The argument:** Layered/n-tier apps grouped by "what a file *is*" (all controllers, all services, all repos) instead of "what it *does*" (a feature) produce low cohesion and high coupling. A change to one feature touches every layer folder.
 
 **In our system — ✅ mostly good, worth protecting.**
+
 - We slice **vertically at the crate boundary**: each domain (`projects`, `users`, `tasks`, `todo`, `vector`, `cloud_resources`) is its own crate owning its full stack. There is *no* global `handlers/` or `services/` directory. See `libs/domains/projects/src/lib.rs`.
 - Internally each crate is layered (`handlers → service → repository → models`), which is fine — the anti-pattern is layering *across the whole app*, not within a slice.
 
 **Recommended patterns:** Vertical Slice Architecture (keep it), Bounded Context per crate, Screaming Architecture (folder names reveal the domain, not the framework).
 
 **Todos**
+
 - [x] Domains are vertical slices at the crate boundary — no cross-app technical layering.
 - [ ] Add a lint/CI guard (or `deny.toml` / import rule) so no new global `handlers/`-style technical grouping creeps in.
 - [ ] Document the "slice = crate, layers live inside the slice" convention in `docs/modular-monolith-architecture.md` so new domains follow it by default.
 
 ---
 
-## Issue 2 — Anemic Domain Model (logic in the wrong place)
+### Issue 2 — Anemic Domain Model (logic in the wrong place)
 
 **The argument:** When entities are just public-field data bags and all rules live in fat service classes, you have a procedural transaction-script wearing an OO costume. Invariants aren't enforced by the type, so they get duplicated, skipped, or drift.
 
 **In our system — ❌ the most notable smell.**
+
 - `Project` = 13 public fields, no invariants on the type (`libs/domains/projects/src/models.rs:112-140`). `User` = 11 public fields (`libs/domains/users/src/models.rs:42-66`; an earlier revision of this doc said 17).
 - Real domain rules live in services, not the model: the 3-project free-tier limit in `ProjectService::can_user_create_project` (`libs/domains/projects/src/service.rs:62`), and status-transition guards in `activate_project` / `suspend_project`.
 - **Measured 2026-09-03 — the guards do not cover every write.** Guarded status writes: 2 (`activate_project` service.rs:167/171, `suspend_project` :192/196). Unguarded: `archive_project` :219 (no precondition), `Project::apply_update` models.rs:258 (reached by `PUT /{id}` → `update_project` :96, which only runs `validate()`), `postgres.rs:148`. A `PUT` can therefore move a `Deleting` project to `Active`, which `activate_project` refuses. This is the concrete defect the first todo below fixes; its red test is "PUT status=active on a Deleting project → 4xx".
@@ -41,6 +45,7 @@
 **Recommended patterns:** Rich Domain Model / Aggregates, encapsulated invariants (private fields + intent methods), value objects for validated primitives (e.g. `ProjectName`, `EmailAddress`), state as an explicit state machine on the aggregate.
 
 **Todos**
+
 - [ ] Pick **one** reference aggregate (`Project`) and move its rules onto the type: status transitions become `project.activate()? / .suspend()?` returning `Result`, not service branches.
 - [ ] Introduce value objects for the most-validated fields (`ProjectName`, `Email`) so invalid states are unrepresentable rather than regex-checked at the edge.
 - [ ] Encapsulate fields where practical (constructor + intent methods instead of all-`pub`), starting with `Project`, then `User`.
@@ -49,17 +54,19 @@
 
 ---
 
-## Issue 3 — Data/CRUD-centric design instead of behavior (task-based)
+### Issue 3 — Data/CRUD-centric design instead of behavior (task-based)
 
 **The argument:** Exposing entities as raw Create/Update/Delete pushes business decisions up to the caller and loses intent. "Set status = 'suspended'" tells you nothing about *why*; `SuspendProject(reason)` does. CRUD APIs breed anemic models (Issue 2) and put orchestration in the UI/client.
 
 **In our system — [~] partially addressed.**
+
 - Base routers are CRUD: `GET/POST /`, `GET/PUT/DELETE /{id}` (`libs/domains/projects/src/handlers.rs`, same in `tasks`, `todo`).
 - **But** the richer domains already add intent-revealing endpoints: `POST /{id}/activate|suspend|archive` on projects, `POST /{id}/verify-email` on users, `POST /{id}/complete|uncomplete` on todo, `POST /{id}/soft-delete` on cloud_resources (7 command routes across 4 domains, none taking a body), and login/logout/callback in `apps/zerg/api/src/api/auth.rs` (composed at the app layer — `users` has no auth handlers). `tasks` has no handlers crate-side; its HTTP router is `apps/zerg/api/src/api/tasks.rs:63-67`, 5 CRUD / 0 commands. This is the right direction.
 
 **Recommended patterns:** Task-based UI / intent-revealing endpoints, Commands over CRUD, (optionally) CQRS to split write-intent from read-shapes. Keep generic CRUD only for genuinely CRUD-shaped reference data.
 
 **Todos**
+
 - [ ] Audit each domain's `PUT /{id}` — where an update carries business meaning, add a named command endpoint alongside/instead of the generic update.
 - [ ] Define command DTOs that carry *intent + reason*, not just the new field values, for state-changing operations.
 - [ ] Decide per-domain: is this entity genuinely CRUD (config/reference data → keep CRUD) or behavioral (has a lifecycle → task-based)? Record the decision.
@@ -67,11 +74,12 @@
 
 ---
 
-## Issue 4 — Coupling: the synchronous distributed monolith
+### Issue 4 — Coupling: the synchronous distributed monolith
 
 **The argument:** Splitting a system but wiring the pieces with synchronous request/response chains gives you the worst of both — distribution's failure modes plus the monolith's temporal coupling. A → B → C sync calls fail together, scale together, and deploy together.
 
 **In our system — [!] REVISED 2026-07-25. The resilience infra is excellent; the *boundary* is not one. See `docs/adr-tasks-service-boundary.md`.**
+
 - Sync in-process for `projects`, `users`, `cloud_resources` — fine, they're in one process.
 - **What holds up (unchanged):** `apps/zerg/tasks` is a standalone gRPC server binary; `apps/zerg/api` holds a pooled `TasksServiceClient` (`grpc_pool.rs`) that `connect_lazy()`s so the api boots independently, with a tracing interceptor, HTTP/2 keep-alive, 5s connect / 30s request timeouts, and `create_channel_with_retry` (`libs/core/grpc/src/channel/mod.rs`). Contract is versioned (`tasks.v1`) and generated for both sides by buf. This is genuinely good plumbing.
 - **What does not hold up:** the original verdict graded *resilience infrastructure* and never audited *boundary hygiene*. On the three tests that define a service boundary, it fails:
@@ -87,6 +95,7 @@
 **Recommended patterns:** Execute `docs/adr-tasks-service-boundary.md` (contract-only client dep, own database with ID references instead of cross-service FKs, verified-token identity at the hop, decoupled readiness). For *new* cross-boundary flows, prefer events over synchronous hops.
 
 **Todos**
+
 - [x] `tasks` split has independent boot (`connect_lazy`), health gating, pooled client, timeouts, retry helper — resilience infra is in place.
 - [x] Audit boundary hygiene, not just resilience → recorded in `docs/adr-tasks-service-boundary.md`.
 - [x] **Phase 1:** delete `/tasks-direct` and `direct_router` — one door to the data. *(2026-07-25: route returns 404, OpenAPI lists only `/tasks`; `bench-*-direct` recipes removed.)*
@@ -100,11 +109,12 @@
 
 ---
 
-## Issue 5 — Wrong boundaries / premature decomposition (split by entity or layer, not capability)
+### Issue 5 — Wrong boundaries / premature decomposition (split by entity or layer, not capability)
 
 **The argument:** Microservices split along entity lines or technical layers (a "Customer service", an "Order service") force chatty sync calls and shared models. Boundaries should follow **business capabilities**; distribution should be deferred until a real scaling/deployment reason exists. A modular monolith with clean seams beats a premature distributed system.
 
 **In our system — ✅ largely right, one thing to watch.**
+
 - We're a **modular monolith**: domains are independent crates, composed only at `apps/zerg/api` — the recommended starting point. See `docs/modular-monolith-architecture.md`.
 - No shared god-entity; `libs/core` is infra only.
 - **The one cross-domain link:** `cloud_resources` `belongs_to` `projects` via a SeaORM FK (`libs/domains/cloud_resources/src/entity.rs`). It's a persistence-level FK, not a runtime call — mild, but it's the seam that would hurt most if these ever became separate services (shared DB / cross-context FK).
@@ -112,6 +122,7 @@
 **Recommended patterns:** Modular Monolith first (keep it), boundaries by business capability, contexts communicate via IDs + events (not shared FKs across contexts), extract a service only when a concrete scaling/deployment/ownership driver appears — the "monolith-first" rule.
 
 **Todos**
+
 - [~] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call. *(2026-08-31: the edge is now surfaced and pinned — grandfathered in `tools/nx/scope-tags.ts` with a pointer here; `just boundaries` enforces whichever way this is decided, by merging scopes or deleting the exception.)*
 - [x] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.** *(2026-08-31: written down AND executable — `just boundaries` fails a cross-scope import, and backlog 0.3 is the worked example of the other half: an ID reference stays correct via a `ProjectDeleted` event instead of an FK. The `cloud_resources → projects` FK above is the one grandfathered exception, named in `tools/nx/scope-tags.ts`.)*
 - [x] Add a "when do we extract a service?" checklist (scaling, independent deploy, team ownership) so distribution stays a deliberate decision, not a default. *(Already exists: `docs/modular-monolith-architecture.md:772-803` — "First: do you actually need a separate process?" plus the seven-row boundary checklist. The Issue 4 guardrail todo above points at the same section.)*
@@ -119,7 +130,7 @@
 
 ---
 
-## Summary scorecard
+### Summary scorecard
 
 | # | Issue | Our status | Priority |
 |---|-------|-----------|----------|
@@ -133,7 +144,7 @@
 
 ---
 
-## Patterns practice ladder (added 2026-08-31)
+### Patterns practice ladder (added 2026-08-31)
 
 The repo's stated goal is to *feel* coding styles and patterns, basic through advanced —
 the way `todo-web` already compares state management per route (`/` vs `/xstate` vs
@@ -144,7 +155,7 @@ from the state-management vertical: a pattern earns its place by a **measured or
 demonstrated delta** (LOC, compile-time enforcement, test count, kB shipped), not by
 being interesting.
 
-### Basic — language-level, one PR each
+#### Basic — language-level, one PR each
 
 - [ ] **Newtype / value objects**: `ProjectName`, `Email` (Issue 2 todo). Parse, don't
   validate — invalid states unrepresentable. First taste of the "make the type carry the
@@ -154,7 +165,7 @@ being interesting.
 - [ ] **Task-based endpoint next to CRUD**: one named command endpoint with an
   intent+reason DTO (Issue 3). Compare the handler diff against the generic `PUT /{id}`.
 
-### Intermediate — API and boundary design
+#### Intermediate — API and boundary design
 
 - [ ] **Generic library extraction**: promote `CallerAuth` into `libs/core/grpc`
   (backlog **1.1**) — practice designing a generic-over-scope-type API that two services
@@ -172,7 +183,7 @@ being interesting.
   written** (`.git` resolved relative to the cwd), so the rule had a gate, a doc and a
   policy while checking nothing. An unrun gate is indistinguishable from no gate.)*
 
-### Advanced — type-system and distributed patterns
+#### Advanced — type-system and distributed patterns
 
 - [ ] **Typestate**: encode `Project` status transitions so an illegal transition does
   not compile (`Project<Active>::suspend() -> Project<Suspended>`), as a comparison

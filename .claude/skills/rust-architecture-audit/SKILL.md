@@ -176,7 +176,7 @@ row.
 One entry per finding, in the `docs/architecture-backlog.md` shape, ordered by
 blast radius (data integrity → boundary → placement → duplication):
 
-```
+```text
 ### <n>. <one-line problem> · S|M|L
 **Problem.** <what and where — file:line, plus the probe output that shows it>
 **Rule.** <invariant number above, or the doc section it comes from>

@@ -280,6 +280,7 @@ Testcontainers automatically assigns random ports, so conflicts are rare. If you
 ### Slow Tests
 
 Tests using real databases are slower than unit tests with mocks:
+
 - Unit tests (mocked): 0.00s
 - Integration tests (real DB): ~3s
 - Handler tests (real DB + HTTP): ~2-5s

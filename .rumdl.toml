@@ -1,0 +1,35 @@
+# Markdown formatter/linter config — `just fmt` (rewrite) / `just fmt-check` (gate).
+#
+# rumdl owns markdown NORMALISATION for the whole workspace. `monodocs lint`
+# (scripts/just/docs.just) owns the things rumdl cannot know: link/anchor
+# resolution against the rendered document, fence languages the renderer can
+# actually highlight, and per-project README coverage. Two formatters over one
+# file fight, so `monodocs fmt` is no longer wired into any recipe.
+
+[global]
+# MD013 line length: .editorconfig sets `max_line_length = off` for *.md on
+#   purpose — these documents are read in an editor with soft wrap and diffed
+#   per sentence, not per column.
+# MD033 inline HTML: `<br>` inside tables is the only way to get a line break
+#   in a cell, and monodocs deliberately resolves hand-written `id=`/`name=`
+#   anchors in raw HTML.
+# MD036 emphasis-as-heading: **We accept** / **Todos** are ADR-style labels,
+#   not sections. Promoting them to headings would add them to the monodocs
+#   sidebar and mint new anchors.
+disable = ["MD013", "MD033", "MD036"]
+
+exclude = [
+    ".git",
+    ".github",
+    "node_modules",
+    "vendor",
+    "dist",
+    "build",
+
+    # Deliberately broken markdown: apps/monodocs' lint tests assert on dead
+    # links, unknown fences and missing READMEs in this tree. Formatting it
+    # would rewrite the fixtures out from under the assertions.
+    "apps/monodocs/cli/tests/fixtures",
+]
+
+respect-gitignore = true

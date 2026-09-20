@@ -8,7 +8,7 @@ gRPC is a high-performance RPC framework using HTTP/2 and Protocol Buffers.
 
 Single request → Single response. Like a function call.
 
-```
+```text
 Client                     Server
   │                          │
   │──── Request ────────────►│
@@ -18,6 +18,7 @@ Client                     Server
 ```
 
 **Proto definition:**
+
 ```protobuf
 rpc GetById(GetByIdRequest) returns (GetByIdResponse);
 rpc Create(CreateRequest) returns (CreateResponse);
@@ -25,17 +26,20 @@ rpc Delete(DeleteRequest) returns (DeleteResponse);
 ```
 
 **Use for:**
+
 - CRUD operations
 - Simple queries
 - Most API calls
 - Authentication/authorization checks
 
 **Rust client example:**
+
 ```rust
 let response = client.get_by_id(GetByIdRequest { id: "123".into() }).await?;
 ```
 
 **Rust server example:**
+
 ```rust
 async fn get_by_id(&self, request: Request<GetByIdRequest>) -> Result<Response<GetByIdResponse>, Status> {
     let id = request.into_inner().id;
@@ -50,7 +54,7 @@ async fn get_by_id(&self, request: Request<GetByIdRequest>) -> Result<Response<G
 
 Single request → Multiple responses. Server pushes data over time.
 
-```
+```text
 Client                     Server
   │                          │
   │──── Request ────────────►│
@@ -62,6 +66,7 @@ Client                     Server
 ```
 
 **Proto definition:**
+
 ```protobuf
 rpc ListStream(ListRequest) returns (stream TaskResponse);
 rpc Subscribe(SubscribeRequest) returns (stream Event);
@@ -69,6 +74,7 @@ rpc DownloadFile(FileRequest) returns (stream ChunkResponse);
 ```
 
 **Use for:**
+
 - Large result sets (memory efficient)
 - Real-time feeds/notifications
 - Log streaming
@@ -76,6 +82,7 @@ rpc DownloadFile(FileRequest) returns (stream ChunkResponse);
 - File downloads
 
 **Rust client example:**
+
 ```rust
 let mut stream = client.list_stream(ListRequest {}).await?.into_inner();
 
@@ -85,6 +92,7 @@ while let Some(task) = stream.message().await? {
 ```
 
 **Rust server example:**
+
 ```rust
 type ListStreamStream = Pin<Box<dyn Stream<Item = Result<TaskResponse, Status>> + Send>>;
 
@@ -103,7 +111,7 @@ async fn list_stream(&self, request: Request<ListRequest>) -> Result<Response<Se
 
 Multiple requests → Single response. Client pushes data, server responds once.
 
-```
+```text
 Client                     Server
   │                          │
   │──── Request 1 ──────────►│
@@ -116,6 +124,7 @@ Client                     Server
 ```
 
 **Proto definition:**
+
 ```protobuf
 rpc UploadFile(stream ChunkRequest) returns (UploadResponse);
 rpc BatchCreate(stream CreateRequest) returns (BatchResponse);
@@ -123,12 +132,14 @@ rpc RecordMetrics(stream MetricPoint) returns (AckResponse);
 ```
 
 **Use for:**
+
 - File uploads
 - Batch inserts
 - Aggregations (avg, sum, count)
 - Collecting metrics/telemetry
 
 **Rust client example:**
+
 ```rust
 let chunks = vec![
     ChunkRequest { data: chunk1 },
@@ -141,6 +152,7 @@ println!("Uploaded {} bytes", response.into_inner().total_bytes);
 ```
 
 **Rust server example:**
+
 ```rust
 async fn upload_file(&self, request: Request<tonic::Streaming<ChunkRequest>>) -> Result<Response<UploadResponse>, Status> {
     let mut stream = request.into_inner();
@@ -161,7 +173,7 @@ async fn upload_file(&self, request: Request<tonic::Streaming<ChunkRequest>>) ->
 
 Multiple requests ↔ Multiple responses. Full duplex communication.
 
-```
+```text
 Client                     Server
   │                          │
   │──── Request 1 ──────────►│
@@ -174,6 +186,7 @@ Client                     Server
 ```
 
 **Proto definition:**
+
 ```protobuf
 rpc Chat(stream ChatMessage) returns (stream ChatMessage);
 rpc Sync(stream SyncRequest) returns (stream SyncResponse);
@@ -181,6 +194,7 @@ rpc GameLoop(stream PlayerInput) returns (stream GameState);
 ```
 
 **Use for:**
+
 - Chat applications
 - Real-time gaming
 - Collaborative editing
@@ -188,6 +202,7 @@ rpc GameLoop(stream PlayerInput) returns (stream GameState);
 - Interactive sessions
 
 **Rust client example:**
+
 ```rust
 let outbound = async_stream::stream! {
     yield ChatMessage { text: "Hello".into() };
@@ -204,6 +219,7 @@ while let Some(msg) = inbound.message().await? {
 ```
 
 **Rust server example:**
+
 ```rust
 type ChatStream = Pin<Box<dyn Stream<Item = Result<ChatMessage, Status>> + Send>>;
 
@@ -236,7 +252,7 @@ async fn chat(&self, request: Request<tonic::Streaming<ChatMessage>>) -> Result<
 
 ## When to Use Each Pattern
 
-```
+```text
 Need immediate single response?
 ├── Yes → Unary
 └── No → Who sends multiple messages?
@@ -425,21 +441,25 @@ service on this transport, all of these must hold — see the full checklist in
 ## This Project
 
 ### Proto Location
-```
+
+```text
 manifests/grpc/proto/apps/v1/tasks.proto
 ```
 
 ### Generated Code
-```
+
+```text
 libs/rpc/src/generated/tasks/v1/tasks.v1.rs        # Message types
 libs/rpc/src/generated/tasks/v1/tasks.v1.tonic.rs  # Client & Server
 ```
+
 Regenerate with `just proto` (buf: format → lint → build → generate → `cargo check -p rpc`).
 Hand-maintained `mod.rs` files wire the generated files into the crate.
 
 ### Services
 
 **tasks.v1.TasksService** (`manifests/grpc/proto/apps/v1/tasks.proto`):
+
 ```protobuf
 service TasksService {
   rpc Create(CreateRequest) returns (CreateResponse);           // Unary

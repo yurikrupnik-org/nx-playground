@@ -352,10 +352,12 @@ export function derivedImageName(appDir: string): string {
   return trimmed.replace(/\//g, '-');
 }
 
-/** A cargo crate's package name and whether it produces a binary. */
+/** A cargo crate's package name, whether it produces a binary, and `publish`. */
 export interface CargoCrate {
   name: string;
   hasBinary: boolean;
+  /** `[package] publish` says this binary is meant to leave the repo. */
+  publish: boolean;
 }
 
 /** undefined for a virtual manifest (a workspace root with no `[package]`). */
@@ -363,18 +365,32 @@ export function readCargoCrate(
   workspaceRoot: string,
   dir: string,
 ): CargoCrate | undefined {
+  const file = `${dir}/Cargo.toml`;
   const path = join(workspaceRoot, dir, 'Cargo.toml');
   if (!existsSync(path)) return undefined;
-  const tables = parseToml(readFileSync(path, 'utf8'), `${dir}/Cargo.toml`);
-  const name = tables.get('package')?.get('name');
+  const tables = parseToml(readFileSync(path, 'utf8'), file);
+  const pkg = tables.get('package');
+  const name = pkg?.get('name');
   if (name === undefined) return undefined;
   const declaresBin = [...tables.keys()].some((t) => t.startsWith('bin['));
+  // `publish = true`, or the allow-list of registries that is cargo's other way
+  // of saying yes. An ABSENT key reads as false here where cargo reads it as
+  // true, deliberately: this flag gates `install`, which writes into
+  // `~/.cargo/bin` outside the workspace, so it is opt-in. Every crate in this
+  // repo spells the flag out anyway, and the dozen that do not are libraries
+  // with no binary to install.
+  const publish = pkg?.get('publish')?.trim();
   return {
     name: unquote(name),
     hasBinary:
       declaresBin ||
       existsSync(join(workspaceRoot, dir, 'src', 'main.rs')) ||
       existsSync(join(workspaceRoot, dir, 'src', 'bin')),
+    publish:
+      publish !== undefined &&
+      (publish.startsWith('[')
+        ? stringArray(publish, file, '[package] publish').length > 0
+        : publish === 'true'),
   };
 }
 

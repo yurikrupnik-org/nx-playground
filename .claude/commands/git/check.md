@@ -29,5 +29,5 @@ just verify
 just check-quick
 ```
 
-**Critical**: Stop if any gate fails. `just fix` auto-formats (rust fmt +
-cargo sort + proto + biome --write) and re-runs the full gate.
+**Critical**: Stop if any gate fails. `just fix` auto-formats (`just fmt`: rust
+fmt + cargo sort + buf + biome --write + rumdl + typos) and re-runs the full gate.

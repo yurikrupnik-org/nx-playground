@@ -71,7 +71,7 @@ Postgres (extra DBs created by `manifests/dockers/postgres-init/10-create-extra-
 
 ## Target folder structure
 
-```
+```text
 apps/terran/
   api/
     Cargo.toml                 # package "terran_api", edition 2024
@@ -157,6 +157,7 @@ The provider-agnostic seam from the ADR. Dependencies already in the workspace:
   raw claims → `AuthIdentity`. This is the one piece of load-bearing security code; it gets the most
   unit tests.
 - **`IdentityProvider` trait** (login/acquisition, the only divergent layer):
+
   ```rust
   #[async_trait]
   pub trait IdentityProvider: Send + Sync {
@@ -168,6 +169,7 @@ The provider-agnostic seam from the ADR. Dependencies already in the workspace:
       fn issuer(&self) -> &str;
   }
   ```
+
   - `KeycloakProvider`: standard OIDC — `authorize_url` supports `kc_idp_hint` (direct Google/GitHub);
     `exchange_code`/`refresh` hit the realm's `/token`; `logout_url` hits `/protocol/openid-connect/logout`.
   - `WorkosProvider`: deferred stub; documents the proprietary `POST /user_management/authenticate`

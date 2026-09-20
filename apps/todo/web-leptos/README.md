@@ -11,7 +11,7 @@ The point of the crate is the measurement. A byte comparison against a
 claim this app has to defend, and everything it deliberately does **not** do is
 listed with it.
 
-```
+```text
 trunk build --release        # -> dist/
 bun nx build todo-web-leptos # the same thing, cached, from the repo root
 trunk serve                  # :3410, proxying /api to 127.0.0.1:8080
@@ -77,7 +77,7 @@ browser (add / toggle / delete / SSE / WS / flag gates / identity switch).
       `EventSource`, so identity travels as the query param todo-api also
       accepts), one listener for all five named events.
 - [x] WebSocket `/api/events/ws?identity=…` with `wss:` on HTTPS, plus the
-      bidirectional `echo: ` round trip.
+      bidirectional `echo:` round trip.
 - [x] Merge rules: `deleted` removes by id, every other kind upserts the
       snapshot; upsert is idempotent and keeps `created_at DESC`.
 - [x] SSE open ⇒ refetch the list (`NOTIFY` has no backlog, so a reconnect owes

@@ -130,7 +130,8 @@ kubectl get hpa -n zerg
 ```
 
 Example output:
-```
+
+```text
 NAME         REFERENCE               TARGETS                       MINPODS   MAXPODS   REPLICAS   AGE
 zerg-api     Deployment/zerg-api     cpu: 0%/70%, memory: 7%/80%   1         10        1          25m
 zerg-tasks   Deployment/zerg-tasks   cpu: 0%/70%, memory: 7%/80%   1         10        1          25m
@@ -172,6 +173,7 @@ wrk -t4 -c100 -d60s http://localhost:5221/api/tasks
 ### Observe Scaling
 
 In a separate terminal:
+
 ```bash
 watch -n 2 'kubectl get pods -n zerg && echo "---" && kubectl get hpa -n zerg'
 ```
@@ -181,11 +183,13 @@ watch -n 2 'kubectl get pods -n zerg && echo "---" && kubectl get hpa -n zerg'
 ### HPA Shows `<unknown>` for Metrics
 
 1. Check if metrics-server is running:
+
    ```bash
    kubectl get deployment metrics-server -n kube-system
    ```
 
 2. Check metrics-server logs:
+
    ```bash
    kubectl logs -n kube-system deployment/metrics-server
    ```
@@ -195,6 +199,7 @@ watch -n 2 'kubectl get pods -n zerg && echo "---" && kubectl get hpa -n zerg'
 ### Pods Not Scaling Up
 
 1. Check HPA events:
+
    ```bash
    kubectl describe hpa -n zerg
    ```
@@ -233,6 +238,7 @@ When using HPA with database-connected services, be aware of connection pool lim
 ### Problem
 
 With default PostgreSQL `max_connections=100`:
+
 - 10 pods × 20 connections/pod = 200 connections (exceeds limit!)
 
 ### Solution

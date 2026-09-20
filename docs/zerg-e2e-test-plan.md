@@ -12,6 +12,7 @@ End-to-End (E2E) tests verify the **entire application** from HTTP request to da
 ## What E2E Tests Cover
 
 Unlike domain handler tests, E2E tests include:
+
 - ✅ **Full application routing** (`/api/projects`, `/api/cloud-resources`, etc.)
 - ✅ **Authentication middleware** (JWT validation, token extraction)
 - ✅ **Authorization** (user can only access their own resources)
@@ -23,7 +24,7 @@ Unlike domain handler tests, E2E tests include:
 
 This plan lives in `docs/`; the tests it describes belong in the crate:
 
-```
+```text
 apps/zerg/api/tests/
 ├── common/
 │   └── mod.rs                ← Test helpers (start_app, create_auth_token, etc.)
@@ -33,7 +34,9 @@ apps/zerg/api/tests/
 ## Implementation Checklist
 
 ### Phase 1: Basic Setup
+
 - [ ] Add test dependencies to `apps/zerg/api/Cargo.toml`
+
   ```toml
   [dev-dependencies]
   test-utils = { workspace = true }
@@ -43,6 +46,7 @@ apps/zerg/api/tests/
   ```
 
 - [ ] Create `tests/common/mod.rs` with helpers:
+
   ```rust
   pub async fn start_test_app() -> Router {
       let db = TestDatabase::new().await;
@@ -58,6 +62,7 @@ apps/zerg/api/tests/
 ### Phase 2: Critical User Journeys
 
 #### Journey 1: New User Onboarding
+
 ```rust
 #[tokio::test]
 async fn e2e_new_user_creates_first_project() {
@@ -111,6 +116,7 @@ async fn e2e_new_user_creates_first_project() {
 ```
 
 #### Journey 2: Free Tier Limit
+
 ```rust
 #[tokio::test]
 async fn e2e_free_tier_limit_enforced() {
@@ -149,6 +155,7 @@ async fn e2e_free_tier_limit_enforced() {
 ```
 
 #### Journey 3: Authorization
+
 ```rust
 #[tokio::test]
 async fn e2e_users_cannot_access_others_projects() {
@@ -183,6 +190,7 @@ async fn e2e_users_cannot_access_others_projects() {
 ```
 
 #### Journey 4: Cross-Domain Operations
+
 ```rust
 #[tokio::test]
 async fn e2e_create_project_and_cloud_resources() {
@@ -261,6 +269,7 @@ async fn e2e_invalid_json_returns_400() {
 ## Test Execution Strategy
 
 ### Local Development
+
 ```bash
 # Run only E2E tests
 cargo test -p zerg_api --test e2e_test
@@ -273,6 +282,7 @@ cargo test -p zerg_api --test e2e_test e2e_free_tier_limit_enforced
 ```
 
 ### CI/CD Pipeline
+
 ```yaml
 # .github/workflows/test.yml
 - name: Run E2E Tests
@@ -292,6 +302,7 @@ cargo test -p zerg_api --test e2e_test e2e_free_tier_limit_enforced
 ## When to Add E2E Tests
 
 Add E2E tests for:
+
 - ✅ Critical user journeys (signup, login, create resources)
 - ✅ Cross-domain operations
 - ✅ Authentication/authorization flows
@@ -299,6 +310,7 @@ Add E2E tests for:
 - ✅ Complex business rules that span domains
 
 **Don't add E2E tests for:**
+
 - ❌ Simple CRUD (handler tests cover this)
 - ❌ Validation logic (unit tests cover this)
 - ❌ Database queries (integration tests cover this)

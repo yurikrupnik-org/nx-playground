@@ -12,7 +12,7 @@ These environment variables contain URLs that the **user's browser** needs to ac
 
 ### How It Works
 
-```
+```text
 ┌─────────────────────┐
 │  Developer Machine  │
 │                     │
@@ -43,11 +43,13 @@ FRONTEND_URL = "http://localhost:5206"
 5. After the callback establishes the session cookie, it redirects to `http://localhost:5206/tasks`
 
 ### Pros
+
 - ✅ Simple - just `tilt up`
 - ✅ No DNS configuration needed
 - ✅ Works on any machine
 
 ### Cons
+
 - ❌ Only one developer can use these ports at a time
 - ❌ Port conflicts if running multiple projects
 - ❌ Doesn't work for pod-to-pod communication
@@ -66,7 +68,7 @@ tilt up
 
 ### How It Works
 
-```
+```text
 ┌─────────────────────┐
 │  Developer Machine  │
 │                     │
@@ -97,11 +99,13 @@ This repo already ships the Gateway API version of this scenario —
 ingress-nginx path below is the alternative if you want your own hostnames.
 
 **1. Install Ingress Controller:**
+
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
 ```
 
 **2. Add to `/etc/hosts`:**
+
 ```bash
 echo "127.0.0.1 zerg.local api.zerg.local" | sudo tee -a /etc/hosts
 ```
@@ -145,17 +149,20 @@ spec:
 ```
 
 **4. Port-forward Ingress Controller:**
+
 ```bash
 kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 80:80 443:443
 ```
 
 ### Pros
+
 - ✅ Real domain names (easier to understand)
 - ✅ Multiple developers can use different domains
 - ✅ Closer to production setup
 - ✅ Can add TLS easily
 
 ### Cons
+
 - ❌ Requires ingress controller
 - ❌ Need to edit /etc/hosts
 - ❌ Still need port-forward for ingress controller
@@ -179,7 +186,7 @@ kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 80:80
 
 ### How It Works
 
-```
+```text
 ┌──────────────┐
 │   Internet   │
 │      ↓       │
@@ -205,7 +212,8 @@ FRONTEND_URL = "https://zerg.${GATEWAY_SUFFIX}"
 ### Setup Required
 
 **1. Configure DNS:**
-```
+
+```text
 zerg.yourdomain.com     → Load Balancer IP
 api.zerg.yourdomain.com → Load Balancer IP
 ```
@@ -263,12 +271,14 @@ WorkOS dashboard's **Redirects** tab register
 the one path the API builds (`apps/zerg/api/src/config.rs::callback_url`).
 
 ### Pros
+
 - ✅ Production-ready
 - ✅ TLS/HTTPS
 - ✅ Real domain names
 - ✅ Auto-scaling with GKE
 
 ### Cons
+
 - ❌ Costs money (load balancer, etc.)
 - ❌ Need real domain
 - ❌ DNS propagation time
@@ -278,6 +288,7 @@ the one path the API builds (`apps/zerg/api/src/config.rs::callback_url`).
 ## Scenario 4: In-Cluster Communication
 
 ### Use Case
+
 If the API needs to make HTTP calls to the frontend (unlikely but possible).
 
 ### Configuration
@@ -328,6 +339,7 @@ FRONTEND_URL_INTERNAL = "http://zerg-web.zerg.svc.cluster.local"  # For pod-to-p
 ### For Development (Tilt)
 
 **Option A: Keep it simple (current)**
+
 ```toml
 # Use port-forwards and localhost
 [env.dev.config]
@@ -337,6 +349,7 @@ FRONTEND_URL = "http://localhost:5206"
 ```
 
 **Option B: Use local ingress**
+
 ```toml
 # Set up ingress with local DNS
 [env.dev.config]
@@ -374,20 +387,26 @@ INTERNAL_API_URL = "http://zerg-api.zerg.svc.cluster.local:8080"
 ## Common Pitfalls
 
 ### 1. Using cluster DNS for browser URLs
+
 ```toml
 ❌ FRONTEND_URL = "http://zerg-web.zerg.svc.cluster.local"
 ```
+
 Browser can't resolve this!
 
 ### 2. Using localhost in production
+
 ```toml
 ❌ REDIRECT_BASE_URL = "http://localhost:8080"  # in prod
 ```
+
 Users' browsers aren't on the same machine as your cluster!
 
 ### 3. Wrong redirect URI registered with WorkOS
+
 The sign-in redirect URI is always `{REDIRECT_BASE_URL}/api/auth/callback` — there is no
 `/oauth/<provider>/callback` route. Register both:
+
 - Dev: `http://localhost:5206/api/auth/callback`
 - Prod: `https://zerg.yourdomain.com/api/auth/callback`
 

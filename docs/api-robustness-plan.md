@@ -68,6 +68,7 @@ realtime bus makes (b) **more** likely, not less: every browser has a live list
 and an edit box over the same rows.
 
 **Fix.**
+
 1. Migration: `ALTER TABLE todos ADD COLUMN version BIGINT NOT NULL DEFAULT 1;`
    (Atlas versioned mode — use the `db-migration` skill). Bump it in the same
    `UPDATE … WHERE id = $1 AND version = $2` statement so the check is atomic in
@@ -304,7 +305,8 @@ after the HTTP layers.
 
 Then: `init_metrics()` before the first metric, layer `track_metrics`, merge
 `metrics_router` **after** (so `/metrics` is not tracked), merge `health_router`
-+ a `/ready` that checks the pool (model: `apps/zerg/api/src/api/mod.rs:156`),
+
+- a `/ready` that checks the pool (model: `apps/zerg/api/src/api/mod.rs:156`),
 and apply `rate_limit_middleware` with an `Extension(RateLimitTier)` on the
 sub-router (`api/mod.rs:27-46`). The limiter already emits `Retry-After` and
 `X-RateLimit-Limit/Remaining/Reset` and **fails open** when Redis errors

@@ -141,7 +141,7 @@ Clean cutover, no compatibility alias. This alone removes the isolation-bypass c
 Today the caller's HTTP→gRPC handlers ship *inside the callee's* crate. Split
 `domain_tasks` in two:
 
-```
+```text
 libs/contracts/tasks          NEW — the published contract
   ├─ Task, CreateTask, UpdateTask, TaskFilter   (ts-rs export → web)
   └─ proto ↔ DTO conversions
@@ -289,6 +289,7 @@ internals, the service authenticates its own callers and derives tenancy from a 
 token, and either side can deploy or fail without the other.
 
 **We accept**
+
 - No referential integrity between tasks and users/orgs. Orphan rows are possible.
 - A second database to operate (already routine — `terran` is one).
 - Cross-service joins are gone: rendering "task owner name" needs the caller to resolve

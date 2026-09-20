@@ -69,7 +69,7 @@ Each domain follows a **4-layer architecture**:
 
 ### Layer Structure
 
-```
+```text
 libs/domains/<domain>/
 ├── models/         # Layer 1: Data structures
 ├── repository/     # Layer 2: Data access
@@ -79,7 +79,7 @@ libs/domains/<domain>/
 
 ### Dependency Flow
 
-```
+```text
 Handlers
    ↓ depends on
 Service
@@ -90,6 +90,7 @@ Models
 ```
 
 **Rules:**
+
 - Higher layers can depend on lower layers
 - Lower layers cannot depend on higher layers
 - Each layer has a single responsibility
@@ -113,6 +114,7 @@ pub enum CloudProvider { Aws, Gcp, Azure }
 ```
 
 **Characteristics:**
+
 - No business logic
 - Serialization/deserialization
 - Data validation attributes
@@ -134,10 +136,12 @@ pub trait ProjectRepository: Send + Sync {
 ```
 
 **Implementations:**
+
 - `InMemoryRepository` - for testing/development
 - `PgRepository` - for PostgreSQL production use
 
 **Characteristics:**
+
 - Database agnostic interface
 - CRUD operations only
 - No business rules
@@ -167,12 +171,14 @@ impl<R: ProjectRepository> ProjectService<R> {
 ```
 
 **Responsibilities:**
+
 - Input validation
 - Business rule enforcement
 - Orchestration of repository calls
 - Domain event emission (future)
 
 **Characteristics:**
+
 - Generic over repository implementation
 - Pure business logic
 - No HTTP/transport concerns
@@ -193,12 +199,14 @@ pub fn router<R: ProjectRepository + 'static>(
 ```
 
 **Responsibilities:**
+
 - HTTP request/response mapping
 - Status code selection
 - Error transformation
 - Route definition
 
 **Characteristics:**
+
 - Thin layer (delegate to service)
 - Framework-specific (Axum)
 - No business logic
@@ -212,6 +220,7 @@ pub fn router<R: ProjectRepository + 'static>(
 **Purpose**: Manage cloud infrastructure projects
 
 **Schema**:
+
 ```sql
 CREATE TABLE projects (
     id UUID PRIMARY KEY,
@@ -232,7 +241,8 @@ CREATE TABLE projects (
 ```
 
 **Endpoints**:
-```
+
+```text
 GET    /projects              # List with filters
 POST   /projects              # Create
 GET    /projects/{id}         # Get by ID
@@ -244,6 +254,7 @@ POST   /projects/{id}/archive
 ```
 
 **Example Usage**:
+
 ```bash
 curl -X POST http://localhost:3000/projects \
   -H "Content-Type: application/json" \
@@ -269,6 +280,7 @@ curl -X POST http://localhost:3000/projects \
 **Purpose**: User management and authentication
 
 **Schema**:
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY,
@@ -283,7 +295,8 @@ CREATE TABLE users (
 ```
 
 **Endpoints**:
-```
+
+```text
 GET    /users                 # List
 POST   /users                 # Register
 GET    /users/{id}            # Get by ID
@@ -295,12 +308,14 @@ POST   /users/login           # Authenticate
 ```
 
 **Security Features**:
+
 - Argon2 password hashing
 - Email uniqueness enforcement
 - Role-based access control
 - Password strength validation (min 8 chars)
 
 **Example Usage**:
+
 ```bash
 # Register
 curl -X POST http://localhost:3000/users \
@@ -407,7 +422,7 @@ pub struct InMemoryProjectRepository {
 
 ### Complete Endpoint Map
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                   zerg_api:3000                     │
 ├─────────────────────────────────────────────────────┤
@@ -505,12 +520,14 @@ just reset-db
 ### Adding a New Domain
 
 1. **Create domain structure**:
+
 ```bash
 mkdir -p libs/domains/my_domain/src
 cd libs/domains/my_domain
 ```
 
 2. **Create Cargo.toml**:
+
 ```toml
 [package]
 name = "domain_my_domain"
@@ -526,7 +543,8 @@ sqlx = { workspace = true }
 ```
 
 3. **Create layer files**:
-```
+
+```text
 src/
 ├── models.rs      # Define entities and DTOs
 ├── error.rs       # Domain-specific errors
@@ -538,6 +556,7 @@ src/
 ```
 
 4. **Add to workspace**:
+
 ```toml
 # In root Cargo.toml
 [workspace]
@@ -551,6 +570,7 @@ domain_my_domain = { path = "libs/domains/my_domain" }
 ```
 
 5. **Create migration**:
+
 ```sql
 -- manifests/migrations/postgres/NNNN_my_domain.sql
 BEGIN;
@@ -566,6 +586,7 @@ COMMIT;
 ```
 
 6. **Integrate into API**:
+
 ```rust
 // In apps/zerg/api/src/main.rs
 use domain_my_domain::{handlers, PgMyDomainRepository, MyDomainService};
@@ -663,11 +684,13 @@ impl IntoResponse for ProjectError {
 ### 1. Repository Pattern
 
 **✅ DO:**
+
 - Keep repositories simple (CRUD only)
 - Use traits for abstraction
 - Provide in-memory implementation for tests
 
 **❌ DON'T:**
+
 - Put business logic in repositories
 - Make repositories domain-aware
 - Directly expose database types
@@ -675,12 +698,14 @@ impl IntoResponse for ProjectError {
 ### 2. Service Layer
 
 **✅ DO:**
+
 - Validate all inputs
 - Enforce business rules
 - Keep services pure (no side effects visible to callers)
 - Use clear method names (`create_project`, not `create`)
 
 **❌ DON'T:**
+
 - Access database directly
 - Handle HTTP concerns
 - Return database-specific errors
@@ -688,11 +713,13 @@ impl IntoResponse for ProjectError {
 ### 3. Handlers
 
 **✅ DO:**
+
 - Keep handlers thin
 - Map domain errors to HTTP status codes
 - Use extractors for validation
 
 **❌ DON'T:**
+
 - Put business logic in handlers
 - Call repositories directly
 - Expose internal error details
@@ -700,11 +727,13 @@ impl IntoResponse for ProjectError {
 ### 4. Models
 
 **✅ DO:**
+
 - Use strong types (newtypes, enums)
 - Separate entities from DTOs
 - Implement `From`/`Into` for conversions
 
 **❌ DON'T:**
+
 - Put business logic in models
 - Expose database implementation details
 - Use stringly-typed fields
@@ -712,12 +741,14 @@ impl IntoResponse for ProjectError {
 ### 5. Migrations
 
 **✅ DO:**
+
 - Use sequential numbering
 - Include rollback strategy
 - Test migrations locally first
 - Add indexes for foreign keys
 
 **❌ DON'T:**
+
 - Modify existing migrations
 - Use DROP TABLE in production
 - Skip migration testing
@@ -725,12 +756,14 @@ impl IntoResponse for ProjectError {
 ### 6. Testing
 
 **✅ DO:**
+
 - Test business logic in service layer
 - Use in-memory repositories for unit tests
 - Use testcontainers for integration tests
 - Test error cases
 
 **❌ DON'T:**
+
 - Test implementation details
 - Use production database for tests
 - Skip edge cases
@@ -885,7 +918,7 @@ dependency direction, data ownership, and authentication; the plumbing is table 
 
 #### Current state
 
-```
+```text
 Monolith                    Status
 ├── domain_projects    →    in-process (no extraction reason yet)
 ├── domain_users       →    in-process (no extraction reason yet)

@@ -17,7 +17,7 @@ to tooling already wired into the workspace — no new tools, no generic advice.
 | Outdated preview | cargo-outdated | `just outdated-rust` (read-only); `just outdated` covers every ecosystem |
 | License policy | cargo-deny `[licenses]` allowlist | `.cargo/deny.toml` — MIT, Apache-2.0 (+ LLVM-exception), BSD-2/3-Clause, ISC, Zlib, 0BSD, Unicode-3.0, CC0-1.0, MPL-2.0, BSL-1.0, OpenSSL, CDLA-Permissive-2.0 |
 | Registry sources | cargo-deny `[sources]` | `.cargo/deny.toml` — `unknown-registry = "deny"`, only the crates.io index allowed; unknown git sources warn |
-| Dep table hygiene | cargo-sort | `just sort-deps` (runs `cargo fmt` first, then `cargo sort --workspace`) |
+| Dep table hygiene | cargo-sort | `just fmt-rust` (`cargo fmt --all`, then `cargo sort --workspace`); gated by `just fmt-check-rust` with `--check --check-format` |
 | Cadence | just aggregates | `just check` (everyday gate) · `just verify` (pre-push) · `just weekly` (paranoid update + remaining cross-major preview) |
 
 ## Standing policies

@@ -151,7 +151,7 @@ a second reader exists.
 entry justifies itself on precisely this ground — an *event*, not a `queue_embedding_job`
 command, "because search indexing and thumbnailing will want it later". Its shape:
 
-```
+```text
 DOCUMENTS (EventLog)
   ├── group "vector-indexer"  -> fetch, chunk, embed, upsert to Qdrant
   ├── group "thumbnailer"     -> render a preview

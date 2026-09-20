@@ -1,6 +1,6 @@
 /**
  * Inferred cargo targets for one crate: `build`, `lint`, `test`, plus `run` for
- * a crate that has a binary.
+ * a crate that has a binary and `install` for one that is `publish`able.
  *
  * `@monodon/rust` contributes graph nodes, cargo dependency edges and exactly
  * one target (`nx-release-publish`) — its source still carries a
@@ -104,7 +104,10 @@ function cargoGate(
   };
 }
 
-export function rustTargets(crate: CargoCrate): Record<string, unknown> {
+export function rustTargets(
+  crate: CargoCrate,
+  dir: string,
+): Record<string, unknown> {
   // A library has no artifact worth linking, so `check` is the cheap answer to
   // "does this still compile"; a binary crate is built for real.
   const verb = crate.hasBinary ? 'build' : 'check';
@@ -140,8 +143,38 @@ export function rustTargets(crate: CargoCrate): Record<string, unknown> {
 
   if (!crate.hasBinary) return targets;
 
+  // `cargo install` for a crate whose binary is meant to leave this repo:
+  // `[package] publish`, today only `butler`, the CLI every k8s/tilt target and
+  // half the just recipes shell out to. NOT cached: the artifact lands in
+  // `~/.cargo/bin`, outside anything nx fingerprints, so a cache hit would
+  // report success while the machine still has the old binary — or none at
+  // all, after a `rm ~/.cargo/bin/<bin>`.
+  //
+  // `--force` because without it cargo REFUSES to overwrite an install of the
+  // same version, which is the normal state here: the version only moves when
+  // the release workflow bumps it, while the source moves every commit.
+  // `--locked` pins the committed Cargo.lock, so the installed binary is built
+  // from the dependency set CI resolved, not a fresh one.
+  const install: Record<string, unknown> = crate.publish
+    ? {
+        install: {
+          executor: 'nx:run-commands',
+          cache: false,
+          options: {
+            command: `cargo install --path ${dir} --locked --force`,
+            cwd: '{workspaceRoot}',
+          },
+          metadata: {
+            description: `cargo install ${crate.name} into ~/.cargo/bin`,
+            technologies: ['rust'],
+          },
+        },
+      }
+    : {};
+
   return {
     ...targets,
+    ...install,
     build: {
       ...(targets.build as Record<string, unknown>),
       configurations: {

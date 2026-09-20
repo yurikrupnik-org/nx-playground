@@ -4,7 +4,7 @@ A Crossplane-based dev-environment manager. One claim provisions an isolated
 namespace with **postgres (CNPG) + redis + NATS/JetStream** on the local kind
 cluster; SDKs in **rust, python, and node** create and consume environments.
 
-```
+```text
 DevEnvironment claim ──► XDevEnvironment ──► function-kcl pipeline
                                               ├─ Namespace            devenv-<name>
                                               ├─ CNPG Cluster         <name>-pg   (operator CR)
@@ -72,7 +72,7 @@ a read-only inventory. Every composed resource is created with
 `managementPolicies: ["Observe"]`, so Crossplane never creates, patches, adopts
 or deletes the target — deleting the claim leaves it untouched.
 
-```
+```text
 CloudInventory claim ──► XCloudInventory ──► function-kcl ──► Object (Observe) per target
                                                               └─ status.atProvider.manifest = live resource
 ```

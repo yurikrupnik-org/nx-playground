@@ -3,6 +3,7 @@
 resolver = '2'
 members = [
     'apps/butler/cli',
+    'apps/monodocs/cli',
     'apps/terran/api',
     'apps/todo/api',
     'apps/todo/cli',
@@ -117,6 +118,7 @@ parking_lot = '0.12.5'
 pluralizer = '0.5.0'
 proc-macro2 = '1.0.107'
 prost = '0.14.4'
+pulldown-cmark = { version = '0.13.4', default-features = false, features = ['html'] }
 qdrant-client = '1.19.0'
 quote = '1.0.47'
 rand = '0.10.2'

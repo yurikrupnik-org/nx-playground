@@ -7,6 +7,11 @@ proto_dir := "manifests/grpc"
 proto-fmt:
     cd {{ proto_dir }} && buf format -w
 
+# Fail when that formatting would change a file (aggregated by `just fmt-check`)
+[group('proto')]
+proto-fmt-check:
+    cd {{ proto_dir }} && buf format -d --exit-code
+
 # Lint proto files
 [group('proto')]
 proto-lint:

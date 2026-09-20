@@ -33,11 +33,13 @@ identifies a durable consumer **by name**, so every process creates its own and 
 the full subject stream — fan-out semantics where a work queue was intended.
 
 What fires **today** at `replicas: 1`:
+
 - a new consumer is created on every restart/deploy; the old one **leaks server-side**
 - the previous consumer's offset is abandoned; the new one starts from `DeliverPolicy`
 
 What fires the moment there is more than one pod (**including the overlap window of a
 rolling deploy**):
+
 - **every email is sent once per replica**
 
 **Reproduced 2026-07-25.** Two extra worker replicas are wired into
@@ -46,7 +48,7 @@ distinct health ports). With three durable consumers registered on `EMAILS`, pub
 **one** job delivered **three** emails to MailHog — `delivered == consumer count`, which
 is the definition of fan-out:
 
-```
+```text
   jobs published    : 1
   durable consumers : 3
   emails delivered  : 3
@@ -77,14 +79,14 @@ a `JobQueue` or an `EventLog`, and stream creation sets retention from it.
 `JobQueue` makes the bug **structurally impossible**, not merely fixed — NATS rejects a
 second overlapping consumer:
 
-```
+```text
 $ nats consumer add EMAILS rogue-worker --filter 'emails.>'
 nats: error: Consumer creation failed: filtered consumer not unique on workqueue stream (10100)
 ```
 
 **Verified.** Three worker processes, one consumer group, one delivery:
 
-```
+```text
   jobs published    : 1
   durable consumers : 1
   emails delivered  : 1
@@ -359,7 +361,7 @@ it looked for `manifests/grpc/.git` and died with
 the repo root with the module as the input and `subdir` aiming the historical side at the
 same `buf.yaml`:
 
-```
+```text
 buf breaking manifests/grpc --against '.git#branch=main,subdir=manifests/grpc'
 ```
 

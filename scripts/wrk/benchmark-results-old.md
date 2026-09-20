@@ -24,7 +24,8 @@
 ### GET /api/tasks - List Tasks (Release Mode)
 
 #### Run 1
-```
+
+```text
 gRPC Endpoint:
   Requests:      386,030
   Duration:      30.01s
@@ -51,7 +52,8 @@ Direct DB Endpoint:
 ```
 
 #### Run 2
-```
+
+```text
 gRPC Endpoint:
   Requests:      382,465
   Duration:      30.10s
@@ -80,7 +82,8 @@ Direct DB Endpoint:
 ### POST /api/tasks - Create Task (Release Mode)
 
 #### Run 1
-```
+
+```text
 gRPC Endpoint:
   Requests:      305,548
   Duration:      30.01s
@@ -105,7 +108,8 @@ Direct DB Endpoint:
 ```
 
 #### Run 2
-```
+
+```text
 gRPC Endpoint:
   Requests:      294,638
   Duration:      30.03s
@@ -172,12 +176,15 @@ Direct DB Endpoint:
 ## Key Optimizations Applied
 
 ### 1. Removed RwLock Bottleneck
+
 **Before:**
+
 ```rust
 Arc<RwLock<TasksServiceClient<Channel>>>  // Serialized all requests
 ```
 
 **After:**
+
 ```rust
 TasksServiceClient<Channel>  // Cloneable, concurrent
 ```
@@ -187,6 +194,7 @@ TasksServiceClient<Channel>  // Cloneable, concurrent
 ### 2. Optimized Protocol Buffer Schema
 
 **Before (String-based):**
+
 ```protobuf
 string id = 1;              // 36 bytes
 string priority = 6;        // 6 bytes
@@ -195,6 +203,7 @@ string created_at = 9;      // 24 bytes
 ```
 
 **After (Binary):**
+
 ```protobuf
 bytes id = 1;               // 16 bytes (56% smaller)
 Priority priority = 6;      // 1 byte (83% smaller)
@@ -217,6 +226,7 @@ Endpoint::from_shared(addr)?
 ### 4. Release Mode Compilation
 
 **Impact:**
+
 - gRPC: 2.48x faster (5,186 → 12,786 req/sec)
 - Direct DB: 1.68x faster (7,333 → 12,570 req/sec)
 - Latency: 61% reduction (9.68ms → 3.78ms)
@@ -234,6 +244,7 @@ Endpoint::from_shared(addr)?
 ### When to Use gRPC
 
 ✅ **Use gRPC when:**
+
 - Type safety and schema validation required
 - Cross-language/cross-service communication needed
 - Streaming capabilities beneficial
@@ -241,6 +252,7 @@ Endpoint::from_shared(addr)?
 - Microservices architecture
 
 ✅ **Use Direct DB when:**
+
 - Simple monolithic architecture
 - Internal-only APIs
 - Rapid prototyping/development
@@ -249,6 +261,7 @@ Endpoint::from_shared(addr)?
 ### The Winner
 
 **gRPC with optimized binary proto is the clear winner** for production use cases:
+
 - Better throughput on average
 - Competitive latency (within 1ms)
 - Additional benefits: type safety, streaming, cross-language support

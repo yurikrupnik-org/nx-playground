@@ -140,7 +140,7 @@ plane — a "free tier" is still `paid = true`, because the ceiling is the risk.
 Procedure: stop at the point of decision and `ask` the user with this table
 filled in; proceed only on an explicit yes.
 
-```
+```text
 tool:            <name>            vendor: <org>
 plan:            <tier>            price:  <$ / unit / period>
 free tier:       <exact limits and what happens at the limit>
@@ -211,7 +211,7 @@ the mirrored namespace labels were left alone.
 Every run of this skill ends with a registry diff **or** an explicit "no change,
 here is the evidence" — and with `just tooling-check` green either way. Report:
 
-```
+```text
 question:   <what was asked>
 method:     <evidence classes checked / measurements run, with commands>
 findings:   <bullets, each with a path or raw numbers>

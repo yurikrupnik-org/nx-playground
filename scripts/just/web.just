@@ -13,10 +13,17 @@ lint-web:
 test-web:
     bun nx run-many -t build test typecheck -p '*-web' web-auth
 
-# Web auto-fix: biome check --write via each app's lint script
+# Formatter + assists (organizeImports) only — `--linter-enabled=false`. A
+# formatting pass must never gate: `biome check --write` exits 1 when an
+# unfixable LINT diagnostic remains, which would abort `just fmt` before the
+# markdown and spelling leaves ever run. Lint is `lint-web`'s job (`biome ci .`,
+# which checks formatting too — that is why `fmt-check` has no web leaf).
+# Not routed through nx: one biome process beats N per-app `lint` scripts, and
+# there is no per-app biome config to honour.
+# Web auto-format: biome over the whole tree
 [group('quality')]
-web-fix:
-    bun nx run-many -t lint -p '*-web'
+fmt-web:
+    bunx biome check --write --linter-enabled=false .
 
 # Native N-API addons (libs/native/*): cargo build via napi-cli + their node tests.
 # nx-driven (unlike plain Rust crates) because the deliverable is a JS package:

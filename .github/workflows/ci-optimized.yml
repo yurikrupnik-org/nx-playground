@@ -21,7 +21,7 @@ permissions:
 # PR (`just check-rust-affected` -> the inferred per-crate `lint`/`test` targets,
 # Nx Cloud-cached), while a push to main always gates the whole workspace.
 jobs:
-  # cargo gates: `just fmt-check audit` always, plus either the affected crates
+  # cargo gates: `just fmt-check-rust audit` always, plus either the affected
   # (PR) or the whole workspace (main).
   rust:
     runs-on: ubuntu-latest
@@ -77,7 +77,10 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: nrwl/nx-set-shas@v5
 
-      - run: just fmt-check
+      # The cargo-only formatting leaf, NOT the `fmt-check` aggregate: that one
+      # also runs rumdl and typos, which this job does not install. Web
+      # formatting is gated by `bunx biome ci .` in the `web` job.
+      - run: just fmt-check-rust
 
       # PR: clippy + nextest for the crates this diff touches and their cargo
       # dependents, each task cached by Nx Cloud across runs. A Cargo.lock,

@@ -5,20 +5,24 @@ Performance benchmarks comparing gRPC-based and direct database access endpoints
 ## Available Commands
 
 ### Quick Benchmarks (10s, light load)
+
 ```bash
 just bench-tasks-quick
 ```
+
 - 2 threads, 10 connections
 - Good for quick testing during development
 
 ### Individual Endpoint Benchmarks (30s, moderate load)
 
 **GET endpoints:**
+
 ```bash
 just bench-tasks-grpc        # gRPC: GET /api/tasks
 ```
 
 **POST endpoints:**
+
 ```bash
 just bench-tasks-grpc-post   # gRPC: POST /api/tasks
 ```
@@ -28,20 +32,24 @@ just bench-tasks-grpc-post   # gRPC: POST /api/tasks
 - Includes detailed latency distribution
 
 ### Full Run
+
 ```bash
 just bench-tasks-all
 ```
+
 Runs the GET and POST benchmarks sequentially.
 
 ## Benchmark Configuration
 
 **Default settings:**
+
 - Threads: 4
 - Connections: 50
 - Duration: 30s
 - Custom Lua reporting script with percentile distribution
 
 **Endpoints tested:**
+
 - `http://localhost:8080/api/tasks` (via the `zerg_tasks` gRPC service)
 
 > The former `/api/tasks-direct` endpoint (in-process SeaORM access to the same table)
@@ -51,18 +59,23 @@ Runs the GET and POST benchmarks sequentially.
 ## Customizing Benchmarks
 
 ### Change load parameters
+
 Edit the justfile recipes to adjust:
+
 - `-t<N>`: Number of threads
 - `-c<N>`: Number of connections
 - `-d<TIME>`: Duration (e.g., `10s`, `1m`, `2h`)
 
 Example:
+
 ```bash
 wrk -t8 -c100 -d60s --latency -s scripts/wrk/report.lua http://localhost:8080/api/tasks-direct
 ```
 
 ### Modify POST payload
+
 Edit `scripts/wrk/post-task.lua` to change the request body:
+
 ```lua
 wrk.body = '{"title":"Custom Task","priority":"urgent"}'
 ```
@@ -72,16 +85,19 @@ wrk.body = '{"title":"Custom Task","priority":"urgent"}'
 ### Key Metrics
 
 **Throughput:**
+
 - `Requests/sec`: Higher is better
 - Direct DB typically 5-10x higher than gRPC
 
 **Latency:**
+
 - `Avg latency`: Mean response time
 - `50%/75%/90%/99%`: Percentile distribution
 - Direct DB typically 85-90% faster than gRPC
 
 ### Example Output
-```
+
+```text
 Requests:      228017
 Duration:      30.02s
 Requests/sec:  7594.90
@@ -108,6 +124,7 @@ Based on typical results:
 ## Prerequisites
 
 Ensure all services are running:
+
 ```bash
 # Start database
 just docker-up

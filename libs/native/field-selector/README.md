@@ -55,7 +55,7 @@ is the one ordered view — it follows schema declaration order.
 
 ## Build / test
 
-```
+```text
 just test-napi                 # every addon: build + node tests
 bun nx run @native/field-selector:build
 cd libs/native/field-selector && bun run test

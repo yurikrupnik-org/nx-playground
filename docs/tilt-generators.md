@@ -10,7 +10,8 @@ the one thing it is good at:
 | `tools/nx/tilt-targets.ts` | decides **which projects are Tilt apps** — an app that declares a `[workload]` in its own `butler.toml` plus a recognizable kind (`Cargo.toml` → service, `vite.config.ts` → web, `astro.config.mjs` → node) — and gives each a cached `tilt-gen` / `tilt-check` target. `nx show projects --with-target tilt-gen` *is* the app set. |
 | `tools/nx/k8s-targets.ts` | same predicate, one track over: a cached `k8s-gen` / `k8s-check` target on every app that declares a `[workload]`. `nx show projects --with-target k8s-gen` *is* the manifest set — 11 apps. |
 | `tools/nx/container-targets.ts` | gives every **deployable app** a `container` / `scan` target, derived from the same `butler.toml` facts. `nx show projects --with-target scan` *is* the image set CI matrixes over. |
-| `tools/nx/rust-targets.ts` | gives every cargo crate its `build` (+`production`), `lint` (clippy), `test` (nextest) and the `rust` tag, plus `run` for a crate with a binary — `@monodon/rust` infers nodes and dep edges but only the `nx-release-publish` target. The `lint`/`test` pair exists for ONE caller, `just check-rust-affected`: nx scopes a diff to crates, cargo still owns the full-workspace gate. |
+| `tools/nx/rust-targets.ts` | gives every cargo crate its `build` (+`production`), `lint` (clippy), `test` (nextest) and the `rust` tag, plus `run` for a crate with a binary and `install` for one whose `[package] publish` is set (`cargo install --path <dir> --locked --force`, uncached, today only `butler`) — `@monodon/rust` infers nodes and dep edges but only the `nx-release-publish` target. The `lint`/`test` pair exists for ONE caller, `just check-rust-affected`: nx scopes a diff to crates, cargo still owns the full-workspace gate. |
+| `tools/nx/fmt-targets.ts` | gives every crate and every `{apps,libs}/**/package.json` project an uncached `fmt`: `cargo fmt --package <crate>` + `cargo sort <dir>` for a crate (an excluded one is formatted through `--manifest-path`, which is the only formatter that reaches `apps/todo/web-leptos`), `biome check --write --linter-enabled=false <dir>` for a TS project, both where a directory is both. `just fmt-rust`/`fmt-web` stay the whole-repo pass; this is the affected-scoped one. |
 | `butler tilt gen` (Rust) | derives and renders the Tiltfile content — image inputs, k8s backend, and the tight `docker_build(only=...)` |
 | `butler k8s gen` (Rust) | merges the workload payload, injects the facts an app must never hand-type, writes `<app>/k8s/values*.yaml`, and renders them through the pinned KCL package into `manifests/k8s/apps/` |
 | `butler container verify` (Rust) | re-resolves the image facts and diffs them against the inferred nx targets, so the TS mirror cannot drift |
@@ -68,7 +69,7 @@ graph, and `tilt-gen` and `k8s-gen` land on the same set.
 
 Result today — 11 apps:
 
-```
+```text
 $ nx show projects --with-target tilt-gen     # identical to --with-target k8s-gen
 terran-web terran_api todo-astro-web todo-web todo_api todo_web_htmx todo_worker
 zerg-web zerg_api zerg_email_nats zerg_tasks
@@ -134,7 +135,7 @@ extra = ["apps/zerg/vector"]
 
 That is 12 apps — the 11 Tilt apps plus `apps/zerg/vector`:
 
-```
+```text
 $ nx show projects --with-target scan
 terran-web terran_api todo-astro-web todo-web todo_api todo_web_htmx todo_worker
 zerg-web zerg_api zerg_email_nats zerg_tasks zerg_vector
@@ -247,7 +248,7 @@ YAML 1:1 and models none of the package's schema, so KCL's typed `Release`
 schema is the thing that validates it — and publishing a new package version
 needs no butler change at all. Merge order, deep and right-wins:
 
-```
+```text
 [workloadDefaults.<kind>]  <  <app> [workload]  <  [env.<env>.workload]
 ```
 
@@ -387,7 +388,7 @@ For a service, `only=` has three groups:
 Group 2 is not optional. Pruning a member to its manifest alone breaks the whole
 workspace:
 
-```
+```text
 error: failed to load manifest for workspace member `/…/apps/terran/api`
   no targets specified in the manifest
   either src/lib.rs, src/main.rs, a [lib] section, or [[bin]] section must be present
@@ -436,7 +437,7 @@ human would write:
 
 Proven sufficient, not assumed — a tree containing *only* the generated paths:
 
-```
+```text
 $ cargo metadata --offline                      → 0
 $ cargo check --offline --locked -p zerg_api    → Finished in 33.43s   (79 paths, 2.5 MB)
 $ cargo check --offline --locked -p terran_api  → Finished in 1.40s    (85 paths)
@@ -503,12 +504,12 @@ hand-maintained config lines bought nothing except the blanket build context and
 a missed `index.html` watch. Findings that came out of that comparison and are
 worth keeping:
 
-* the `FROM scratch` / `live_update` bug above (both generators emitted it,
+- the `FROM scratch` / `live_update` bug above (both generators emitted it,
   copied from the pre-existing `apps/terran/api/Tiltfile`);
-* `apps/zerg/vector/project.json` declared a Tilt port-forward `50051:50051` —
+- `apps/zerg/vector/project.json` declared a Tilt port-forward `50051:50051` —
   colliding with `zerg-tasks` — for an app with no k8s manifests at all; the
   derivation failed loudly, the static config silently disagreed with the tree;
-* `apps/zerg/email-nats/project.json` carried an `extraResources` mailhog
+- `apps/zerg/email-nats/project.json` carried an `extraResources` mailhog
   port-forward duplicating the infra one.
 
 ## Known unrelated breakage — resolved

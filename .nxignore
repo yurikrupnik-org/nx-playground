@@ -1,0 +1,8 @@
+# Test fixtures that LOOK like projects. `monodocs` discovers projects by
+# manifest (Cargo.toml / package.json / kcl.mod / nupm.nuon), so its tests ship
+# a miniature polyglot workspace. Those manifests are data, not projects: nx's
+# crate inference (tools/nx/rust-targets.ts, glob `*/**/Cargo.toml`) otherwise
+# turns them into graph nodes and `nx show projects` fails outright, and a
+# `rust`-tagged node would hand `cargo --package rust-app` — not a workspace
+# member — to `just check-rust-affected`.
+apps/monodocs/cli/tests/fixtures

@@ -1,0 +1,2 @@
+schema Empty:
+    id: str

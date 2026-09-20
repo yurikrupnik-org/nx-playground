@@ -8,8 +8,14 @@ cargo manages Rust builds. Task runner is `just`.
 Root `justfile` holds cross-ecosystem flows and aggregates; domain recipes are
 imported (flat namespace, `just -l` shows everything):
 
-- `scripts/just/rust.just` — all cargo commands (lint-rust, test-rust, fmt, audit, crates-*)
-- `scripts/just/web.just` — nx/biome/ncu (lint-web, test-web, web-fix, outdated-node)
+- `scripts/just/rust.just` — all cargo commands (lint-rust, test-rust, fmt-rust, audit, crates-*)
+- `scripts/just/web.just` — nx/biome/ncu (lint-web, test-web, fmt-web, outdated-node)
+- `scripts/just/docs.just` — `monodocs` (apps/monodocs/cli): docs-html/-api/-open,
+  docs-list, docs-lint, plus the rumdl leaves fmt-docs/fmt-check-docs. Renders every
+  project README + docs/*.md into one self-contained `dist/docs/index.html`.
+  `docs-lint` is NOT in `verify`: 36 of 60 projects have no README, so it is the
+  worklist, not yet a gate. Markdown formatting is rumdl's (`.rumdl.toml`), not
+  `monodocs fmt`'s — one formatter per file.
 - `scripts/just/platform.just` — DevEnvironment manager (Crossplane): platform-install,
   env-create/status/delete. XRD+KCL composition in `platform/dev-env/`, SDKs in
   `libs/platform/devenv-sdk` (rust) and `platform/sdk/{python,node}` — see `platform/README.md`.
@@ -19,10 +25,14 @@ imported (flat namespace, `just -l` shows everything):
   `scripts/wrk/bench.just`, `apps/zerg/email-nats/email.just`
 
 Flows: `just check` (everyday gate) · `just verify` (pre-push: check + proto-lint
-+ Tiltfile/container-target/k8s-manifest drift + OSV scan) · `just fix`
+
+- Tiltfile/container-target/k8s-manifest drift + OSV scan) · `just fix`
 (auto-format all, then verify) · `just weekly` (upkg-paranoid + outdated).
-Aggregates `lint`/`test` fan out to `lint-rust lint-web` / `test-rust test-web test-napi`;
-new ecosystems (go/py) add a leaf + append to the aggregate.
+Aggregates `fmt`/`fmt-check`/`lint`/`test` fan out to their leaves —
+`fmt-rust proto-fmt fmt-web fmt-docs fmt-spell` / `lint-rust lint-web` /
+`test-rust test-web test-napi`; new ecosystems (go/py) add a leaf + append to the
+aggregate. `just fmt` is the ONLY formatting entry point: rustfmt + cargo-sort,
+buf, biome, rumdl (markdown), typos (spelling, whole tree).
 
 ## Hard-won rules
 
@@ -101,7 +111,7 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   because that target is itself inferred from these same butler.toml facts. The
   root file also locates the workspace (walk-up markers are `butler.toml`, then
   `nx.json`), so the CLI works in repos without nx.
-- **ONE registered local nx plugin, `tools/nx/plugin.ts`, FOUR inference
+- **ONE registered local nx plugin, `tools/nx/plugin.ts`, FIVE inference
   modules behind it.** nx forks an isolated worker process per REGISTERED
   plugin, so three entries in `nx.json` cost three node boots per graph build
   (measured: 1.45s vs 1.20s user CPU) for identical output. `plugin.ts` braces
@@ -109,9 +119,17 @@ new ecosystems (go/py) add a leaf + append to the aggregate.
   `tilt-targets.ts` → `tilt-gen`/`tilt-check`, `rust-targets.ts` → `build`
   (`cargo build --package <crate>`, `production` configuration adds `--release`;
   a crate with no binary gets `cargo check` and no `production`) plus `lint`,
-  `test` and the `rust` tag on every crate, and `run` for crates that have a
-  binary, `container-targets.ts` → `container`/`scan`,
-  `k8s-targets.ts` → `k8s-gen`/`k8s-check`. App-level targets are keyed on
+  `test` and the `rust` tag on every crate, `run` for crates that have a
+  binary and `install` (`cargo install --path <dir> --locked --force`,
+  uncached — the binary lands outside the workspace) for a binary crate whose
+  `[package] publish` says its binary leaves the repo, today only `butler`,
+  `container-targets.ts` → `container`/`scan`,
+  `k8s-targets.ts` → `k8s-gen`/`k8s-check`, `fmt-targets.ts` → `fmt` (rustfmt +
+  `cargo sort` for a crate, `biome check --write --linter-enabled=false` for a
+  package.json project, BOTH composed into the one target where a directory is
+  both; uncached, and NOT a leaf of `just fmt` — the whole-repo pass stays one
+  cargo and one biome process, this target is the `nx affected -t fmt` scope).
+  App-level targets are keyed on
   `apps/**/butler.toml`, because that file is where an app declares its
   `[workload]` — the manifests it used to be keyed on are now that table's
   output. Zero deps (`createNodesV2` needs neither `@nx/devkit` nor

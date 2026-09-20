@@ -155,7 +155,7 @@ deterministic net.
 
 ## Report
 
-```
+```text
 bundle:     dist/review/bundle.md — <N> files, +<a>/-<d>, classes <…>
 gates:      <recipe → pass|fail> (+ proof gates for generated output)
 pass 1:     <n blockers, n warnings, n nits>

@@ -60,7 +60,7 @@ direnv allow
 
 ## Project Structure
 
-```
+```text
 apps/zerg/
   api/              # REST + gRPC API service (Axum)
   tasks/            # Background task processor
@@ -155,7 +155,7 @@ bun nx run kcl_ci:build      # Generate CI pipeline output
 ```bash
 just check          # Full: fmt + lint + test + audit
 just check-quick    # Compile + lint only (no tests)
-just fmt            # Format all Rust code
+just fmt            # Format everything: rust + Cargo.toml + proto + web + markdown + spelling
 just lint           # Run Clippy
 just test           # Run tests with nextest
 just audit          # Security audit + cargo deny
@@ -166,7 +166,7 @@ just outdated       # Show outdated dependencies
 
 The backend follows a **modular monolith** pattern with 4 layers per domain:
 
-```
+```text
 Models -> Repository -> Service -> Handlers
 ```
 

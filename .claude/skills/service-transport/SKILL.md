@@ -18,7 +18,7 @@ One broker (NATS JetStream), one proto module (`manifests/grpc`), one HTTP toolk
 | Typed call between two of OUR processes, low latency, streaming | **gRPC** | §2 |
 | Browsers, third parties, anything with a URL a human types | **HTTP/REST** | §3 |
 | "Every committed write reaches every open browser, whoever wrote it" | **Postgres NOTIFY** | §1b |
-| Both sides in the SAME process | none — call the function |
+| Both sides in the SAME process | none — call the function |  |
 
 Decision prose: `docs/communication-and-consistency.md` §2/§4, `docs/grpc.md`
 ("gRPC is a wire contract, not a boundary"), `docs/todo-delivery-options.md`
@@ -271,7 +271,7 @@ generated (AGENTS.md).
 
 ## 5. Gates
 
-```
+```text
 cargo check -p <crate>            # fastest loop
 cargo nextest run -p <crate>      # docker up for testcontainers
 just check                        # fmt-check lint test audit — no proto, no drift gates

@@ -62,20 +62,37 @@ check-rust-affected base=env('NX_BASE', 'origin/main') head=env('NX_HEAD', 'HEAD
     echo "check-rust-affected: $count crates — $crates"
     bun nx run-many -t lint test -p "$crates" --parallel=4
 
-# Check formatting without modifying files
+# CI's cargo job runs this leaf directly instead of the `fmt-check` aggregate,
+# so it must stay cargo-only — no bun, rumdl or typos.
+# Rust formatting gate: rustfmt + Cargo.toml dependency-table order
 [group('quality')]
-fmt-check:
+fmt-check-rust:
+    #!/usr/bin/env bash
+    set -euo pipefail
     cargo fmt --all --check
+    # cargo-sort has no --quiet: it narrates two lines per crate (50 crates,
+    # 100 lines) whether or not anything is wrong. Hold the output and print it
+    # only when the check actually fails.
+    if ! out=$(cargo sort --workspace --check --check-format 2>&1); then
+        printf '%s\n' "$out"
+        exit 1
+    fi
 
-# Format all Rust code
+# Sorting belongs here rather than in its own recipe: a `cargo fmt` that leaves
+# the manifests unsorted just makes `fmt-check-rust` fail on the next line.
+# Format Rust and sort every Cargo.toml dependency table
 [group('quality')]
-fmt:
+fmt-rust:
+    #!/usr/bin/env bash
+    set -euo pipefail
     cargo fmt --all
-
-# Format + sort Cargo.toml dependency tables
-[group('quality')]
-sort-deps: fmt
-    cargo sort --workspace
+    # Same noise, same treatment: only the crates cargo-sort REWROTE are worth
+    # printing — "is sorted already" for 50 crates is not output, it is scroll.
+    if ! out=$(cargo sort --workspace 2>&1); then
+        printf '%s\n' "$out"
+        exit 1
+    fi
+    printf '%s\n' "$out" | grep -v 'sorted already' | grep '^Finished' || true
 
 # Regenerate every committed OpenAPI document from the `#[utoipa::path]`
 # annotations. Same convention as the ts-rs `export_bindings_*` tests: the

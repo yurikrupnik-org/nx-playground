@@ -1,0 +1,21 @@
+[package]
+name = "monodocs"
+publish = false
+version.workspace = true
+edition.workspace = true
+description = "Render every project README in this monorepo into one self-contained HTML document"
+
+[[bin]]
+name = "monodocs"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+color-eyre = { workspace = true }
+eyre = { workspace = true }
+pulldown-cmark = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[lints]
+workspace = true

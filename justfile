@@ -3,6 +3,7 @@
 import 'manifests/db/db.just'
 
 import 'scripts/just/rust.just'
+import 'scripts/just/docs.just'
 import 'apps/zerg/email-nats/email.just'
 import 'manifests/grpc/proto.just'
 import 'scripts/just/k8s.just'
@@ -21,14 +22,32 @@ import 'scripts/wrk/bench.just'
 set dotenv-load
 
 default:
-    # just sort-deps
+    # just fmt
     # just proto-lint
     just -l
 
 slava:
   cargo install --path apps/butler --force
   kopium gitrepositories.source.toolkit.fluxcd.io -A > prometheusrule.rs
-
+  typos
+  rumdl
+  ls ~/.cargo/bin
+  # check what they do and how we use them
+  iac-cli
+  zesh
+  butler
+  dashboard-tui
+  dashboard-api
+  monodocs
+  nufmt
+  nx-schema
+  typos
+  rust-gdbgui
+  rust-gdb
+  rumdl
+  rls
+  pg-cli
+  protoc-gen-rs
 lol:
   devkit up --skip-dbs --skip-tilt --gitops --flux --skip-secrets
 events:
@@ -38,7 +57,7 @@ events:
     kubectl get events -A --field-selector reason=FailedCreate -w
 
 [group('dev')]
-prepare: sort-deps proto-lint
+prepare: fmt-rust proto-lint
     # just -l
 
 [group('dev')]
@@ -51,6 +70,7 @@ gen-ci:
 
 # ============================================================================
 # Flows — composite gates. Layered:
+#   fmt / fmt-check = ALL ecosystems (aggregate the fmt-*/fmt-check-* leaves)
 #   lint / test = ALL ecosystems (aggregate the lint-*/test-* leaves)
 #   check  = fmt + lint + test + audit                -> the everyday gate
 #   verify = check + proto lint + OSV scan            -> run before push
@@ -77,9 +97,9 @@ gen-ci:
 verify: check proto-lint proto-breaking openapi-check tilt-check container-check k8s-check tooling-check agents-check scan boundaries e2e
     @echo "verify: all gates passed"
 
-# Auto-fix formatting (rust fmt + Cargo.toml sort + proto + web), then run the full gate
+# Auto-format everything (`just fmt`), then run the full gate
 [group('flow')]
-fix: sort-deps proto-fmt web-fix verify
+fix: fmt verify
 
 # Weekly maintenance: paranoid dep update + preview of remaining cross-major bumps
 [group('flow')]
@@ -89,6 +109,35 @@ weekly: upkg-paranoid outdated
 [group('quality')]
 scan:
     osv-scanner --recursive .
+
+# Every ecosystem's native formatter, invoked once: rustfmt + cargo-sort
+# (fmt-rust), buf (proto-fmt), biome (fmt-web), rumdl (fmt-docs), typos
+# (fmt-spell). typos runs last on purpose — it rewrites words inside files the
+# others have already reflowed. Adding an ecosystem = a new fmt-<eco> leaf
+# appended here, same rule as `lint`/`test`.
+# Format every ecosystem — the ONE formatting entry point
+[group('quality')]
+fmt: fmt-rust proto-fmt fmt-web fmt-docs fmt-spell
+
+# No web leaf on purpose: `lint-web` is `biome ci .`, which already fails on
+# unformatted JS/TS/JSON/CSS, and a second biome process in the same gate would
+# only double the wall time. CI's cargo job runs `fmt-check-rust` directly
+# because it installs neither rumdl nor typos.
+# Read-only formatting gate over every ecosystem (used by `check`)
+[group('quality')]
+fmt-check: fmt-check-rust proto-fmt-check fmt-check-docs fmt-check-spell
+
+# The allowlist that keeps `--write-changes` from renaming an identifier is
+# _typos.toml — read its header before adding a word.
+# Fix spelling across every tracked file, not just markdown
+[group('quality')]
+fmt-spell:
+    typos --write-changes
+
+# Fail on a misspelling anywhere in the tree
+[group('quality')]
+fmt-check-spell:
+    typos
 
 # Lint every ecosystem (read-only) — extend with lint-go/lint-py when they exist
 [group('quality')]
