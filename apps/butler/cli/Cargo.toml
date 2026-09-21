@@ -5,6 +5,7 @@ publish = true
 # sed-bumps this literal line for every project with a container target.
 version = "0.1.0"
 edition.workspace = true
+license.workspace = true
 description = "Monorepo task compiler: reads nx-compatible config, builds the project/task graph itself, and executes plans with hashing, caching, and cargo batching."
 
 [[bin]]

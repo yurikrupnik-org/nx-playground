@@ -1,5 +1,9 @@
 [package]
 name = "lols"
+# publish = false: scratch crate, never shipped to crates.io. Also what keeps it
+# out of the cargo-deny license check (`[licenses.private] ignore = true`) —
+# without it the missing `license` field is a hard `unlicensed` error.
+publish = false
 version = "0.1.0"
 edition = "2021"
 

@@ -36,7 +36,7 @@ pre-push:
 
     # Security audit — must load the workspace policy (ignores + license allowlist)
     cargo-deny:
-      run: cargo deny check --config .cargo/deny.toml
+      run: cargo deny --config .cargo/deny.toml check
 
 # Post-checkout: Sync after switching branches
 post-checkout:

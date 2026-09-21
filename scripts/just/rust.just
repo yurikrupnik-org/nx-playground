@@ -154,10 +154,13 @@ openapi-check: openapi-gen
 # root Cargo.lock get fixed. Per-lockfile OSV ignores (for locks cargo-audit
 # never opens, e.g. apps/todo/web-leptos) live in an osv-scanner.toml NEXT TO
 # that lock — mirroring them here yields ignores cargo-audit reports as unused.
+# `--config` goes BEFORE the subcommand: cargo-deny 0.20 moved the graph
+# options (config/manifest-path/features/...) to the root, so
+# `deny check --config` is now "unexpected argument". Needs cargo-deny >= 0.20.
 [group('quality')]
 audit:
     cargo audit
-    cargo deny check --config .cargo/deny.toml
+    cargo deny --config .cargo/deny.toml check
 
 # Show crates behind their latest versions (read-only preview)
 [group('deps')]

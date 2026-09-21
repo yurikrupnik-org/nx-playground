@@ -52,7 +52,7 @@ to tooling already wired into the workspace — no new tools, no generic advice.
 
 - [ ] Pick a transitive dependency and run `cargo tree -i <crate> -e all --target all` to
       learn exactly why it is in the graph.
-- [ ] Run `cargo deny check --config .cargo/deny.toml` and read one advisory finding and one
+- [ ] Run `cargo deny --config .cargo/deny.toml check` and read one advisory finding and one
       license finding end-to-end, including which config section decided the outcome.
 - [ ] Contrast ecosystems: `bun nx graph` for the web side vs. cargo's dependency graph for
       the Rust side.

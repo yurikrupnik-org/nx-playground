@@ -11,6 +11,13 @@ target-dir = 'dist/target'
 # and what `publish-crates` / `claude-maintenance` would hit next.
 # sccache is an accelerator: opt in via RUSTC_WRAPPER — the `rust` CI job sets
 # it, .envrc exports it when the binary is present.
+#
+# Note the dev builds get no cache either way: [profile.dev] sets
+# incremental = true and sccache refuses incremental compilation outright
+# (`Non-cacheable reasons: incremental`). That trade is deliberate — incremental
+# reuse beats a cache round-trip for the local edit/build loop. sccache earns
+# its keep on --release and in CI, which sets CARGO_INCREMENTAL=0. Do NOT drop
+# incremental to chase a local hit rate.
 
 [env]
 # Clippy only reads clippy.toml from the crate/workspace root, so point it here
