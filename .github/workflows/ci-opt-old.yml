@@ -199,11 +199,11 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-machete,protoc
-      - name: Install trunk
-        run: cargo install trunk --locked
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
+          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-machete,protoc,trunk
+#      - name: Install trunk
+#        run: cargo install trunk --locked
+#      - name: Install wasm-pack
+#        run: cargo install wasm-pack --locked
       # Authenticate to GCP using a service account key
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
