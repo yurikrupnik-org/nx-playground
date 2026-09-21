@@ -70,15 +70,29 @@ deps-unused:
 # is exactly right, since a dep bump does change every crate.
 #
 # Two steps on purpose: `nx affected` has no project filter — it forwards `-p`
-# to the underlying command, where `-p tag:rust` lands as a cargo (or biome)
-# argument — so `nx show projects` picks the crates and `run-many` executes
-# them. The tag also keeps non-crate projects out: their `lint` is `biome ci`,
-# which `just lint-web` already runs over the whole tree.
+# to the underlying command, where `-p tag:lang:rust` lands as a cargo (or
+# biome) argument — so `nx show projects` picks the crates and `run-many`
+# executes them. The tag also keeps non-crate projects out: their `lint` is
+# `biome ci`, which `just lint-web` already runs over the whole tree.
+#
+# The selector MUST stay spelled the same as `RUST_TAG` in
+# tools/nx/rust-targets.ts. It is a string on both sides, so a rename there is
+# invisible here: `-p tag:rust` kept resolving to an empty set after the tag
+# became `lang:rust`, and the `count -eq 0` branch below reported "no crate
+# affected" and exited 0 — every PR's clippy, nextest, doctest, rustdoc and
+# OpenAPI gate silently skipped. Hence the assertion: an empty AFFECTED set is
+# legitimate (a docs-only diff), an empty set for the tag across the WHOLE
+# graph is a broken selector, and this repo always has crates.
 [group('quality')]
 check-rust-affected base=env('NX_BASE', 'origin/main') head=env('NX_HEAD', 'HEAD') max='20':
     #!/usr/bin/env bash
     set -euo pipefail
-    affected=$(bun nx show projects --affected -p tag:rust \
+    tag=tag:lang:rust
+    if [ "$(bun nx show projects -p "$tag" --json | jq -r 'length')" -eq 0 ]; then
+        echo "check-rust-affected: '$tag' matches no project — the selector is stale against RUST_TAG in tools/nx/rust-targets.ts" >&2
+        exit 1
+    fi
+    affected=$(bun nx show projects --affected -p "$tag" \
         --base="{{ base }}" --head="{{ head }}" --json)
     count=$(jq -r 'length' <<<"$affected")
     if [ "$count" -eq 0 ]; then

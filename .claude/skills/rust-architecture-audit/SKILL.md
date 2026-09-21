@@ -84,7 +84,7 @@ models`. Lower never imports higher.
 - **A diff**: `git diff --name-only <base>` filtered to `*.rs` and
   `Cargo.toml`, then widen to the crates those files belong to.
 
-Never run these probes through nx (`nx run-many … tag:rust`); everything here
+Never run these probes through nx (`nx run-many … tag:lang:rust`); everything here
 is cargo-direct or plain grep, per AGENTS.md.
 
 ### 1. Mechanical probes — run all, paste raw output into the report

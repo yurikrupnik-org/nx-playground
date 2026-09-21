@@ -42,7 +42,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
 ## Hard-won rules
 
 - **Never run a WHOLE-WORKSPACE Rust task through nx** (`nx run-many -t lint test
-  -p tag:rust`). Re-measured while adding the per-crate targets, warm target dir,
+  -p tag:lang:rust`). Re-measured while adding the per-crate targets, warm target dir,
   45 crates / 90 tasks: `just lint-rust` + `just test-rust` (one cargo process
   each) **2m13s** (20s + 1m53s, 488 tests), the same work as nx tasks **4m06s**
   at `--parallel=4` and **10m09s** at `--parallel=1` — per-crate cargo processes
@@ -51,7 +51,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   and they are what `just check` and a push to main run.
 - **The one Rust path that DOES go through nx is affected-scoped**:
   `just check-rust-affected` (the CI PR path) asks nx which crates a diff touched
-  (`nx show projects --affected -p tag:rust`) and runs the inferred per-crate
+  (`nx show projects --affected -p tag:lang:rust`) and runs the inferred per-crate
   `lint` (`cargo clippy --package X --all-targets -- -D warnings`), `test`
   (`cargo nextest run --package X --no-tests=pass`), `doc`, `doc-test` and
   `openapi-gate` targets for exactly those,
@@ -69,9 +69,12 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   ALSO what makes nx treat a dep bump as touching all 45 crates (`sharedGlobals`
   does NOT drive `affected` — only `{workspaceRoot}/...` globs reachable from a
   target's `inputs` do, via `getImplicitlyTouchedProjects`); `nx affected` has NO
-  project filter, it FORWARDS `-p` to the command (`-p tag:rust` arrives as a
+  project filter, it FORWARDS `-p` to the command (`-p tag:lang:rust` arrives as a
   cargo argument and fails every task), so the crate list must come from `nx show
-  projects` and be handed to `run-many`; the `rust` tag is withheld from a crate
+  projects` and be handed to `run-many`; the `lang:rust` tag (`RUST_TAG` in
+  `tools/nx/rust-targets.ts` — the selector in `scripts/just/rust.just` is a
+  string on both sides, so that recipe asserts the tag still matches something
+  rather than reporting an empty affected set) is withheld from a crate
   whose `lint`/`test` come from a package.json script — the N-API addons, whose
   `test` is vitest and whose gate is `just test-napi`;
   and `test` passes `--no-tests=pass`, because nextest exits 4 on a crate with no

@@ -27,7 +27,7 @@
  * They have exactly one caller, `just check-rust-affected`, which also owns the
  * cutover back: past ~20 affected crates it drops these targets and runs the
  * workspace gate instead. Do not invoke them over the whole graph
- * (`nx run-many -t lint test -p tag:rust` is the 10-minute path by construction).
+ * (`nx run-many -t lint test -p tag:lang:rust` is the 10-minute path by construction).
  *
  * `plugin.ts` owns the nx registration; this file is imported into that single
  * plugin worker rather than registered as a plugin of its own.
@@ -47,7 +47,7 @@ export const CARGO_MANIFESTS = '*/**/Cargo.toml';
 
 /**
  * Tag on every crate node, so a gate can address the Rust half of the graph:
- * `nx affected -t lint test -p tag:rust`. Without the filter that command would
+ * `nx affected -t lint test -p tag:lang:rust`. Without the filter that command would
  * also fire the web `lint` scripts, which are mutating `biome check --write`
  * (see AGENTS.md) and therefore not gates.
  */

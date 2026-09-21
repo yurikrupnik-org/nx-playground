@@ -147,7 +147,7 @@ export const createNodesV2: CreateNodesV2 = [
           // wasm32 trunk app whose `build` comes from its own project.json.)
           const excluded = excludedCrates.has(dir);
           // The tag is what lets a gate address the Rust half of the graph
-          // (`-p tag:rust`); nothing else in the graph marks a node as a cargo
+          // (`-p tag:lang:rust`); nothing else in the graph marks a node as a cargo
           // crate. It is withheld from a crate whose `lint`/`test` come from a
           // package.json script — the N-API addons — because that lint is
           // mutating and those are `just test-napi`'s job.
