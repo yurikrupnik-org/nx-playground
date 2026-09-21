@@ -8,9 +8,7 @@
       "versionActions": "@nxlv/python/release/version-actions"
     }
   },
-  "tags": [
-    "python"
-  ],
+  "tags": ["python"],
   "targets": {
     "lock": {
       "executor": "@nxlv/python:lock",
@@ -36,9 +34,7 @@
     },
     "build": {
       "executor": "@nxlv/python:build",
-      "outputs": [
-        "{projectRoot}/dist"
-      ],
+      "outputs": ["{projectRoot}/dist"],
       "cache": true,
       "options": {
         "outputPath": "{projectRoot}/dist",
@@ -52,10 +48,7 @@
       "outputs": [],
       "cache": true,
       "options": {
-        "lintFilePatterns": [
-          "test_cli1",
-          "tests"
-        ]
+        "lintFilePatterns": ["test_cli1", "tests"]
       }
     },
     "format": {
@@ -63,10 +56,7 @@
       "outputs": [],
       "cache": true,
       "options": {
-        "filePatterns": [
-          "test_cli1",
-          "tests"
-        ]
+        "filePatterns": ["test_cli1", "tests"]
       }
     },
     "test": {

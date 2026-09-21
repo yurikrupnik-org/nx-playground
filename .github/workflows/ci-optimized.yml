@@ -58,11 +58,12 @@ jobs:
 
       - uses: extractions/setup-just@v3
 
-      # Binaries the recipes below invoke: nextest for tests, audit + deny for
-      # `audit`, machete for `deps-unused`
+      # Binaries the recipes below invoke: nextest for tests, cargo-sort for the
+      # dependency-table half of `fmt-check-rust`, audit + deny for `audit`,
+      # machete for `deps-unused`
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest,cargo-audit,cargo-deny,cargo-machete
+          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-machete
 
       # nx drives the affected-crate path below; it needs the workspace's node deps
       - uses: oven-sh/setup-bun@v2

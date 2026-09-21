@@ -39,7 +39,9 @@
       });
       paintExpand();
     });
-    details.forEach((d) => d.addEventListener('toggle', paintExpand));
+    details.forEach((d) => {
+      d.addEventListener('toggle', paintExpand);
+    });
   }
 
   /* copy buttons -------------------------------------------------------- */
@@ -65,7 +67,7 @@
     el,
     nav: $(`.nav-item[data-slug="${el.dataset.slug}"]`),
     // textContent, not innerText: a name inside a collapsed <details> is still searchable.
-    haystack: (el.dataset.name + ' ' + el.textContent).toLowerCase(),
+    haystack: `${el.dataset.name} ${el.textContent}`.toLowerCase(),
   }));
 
   const applyFilter = () => {
@@ -131,8 +133,12 @@
       entries
         .filter((entry) => entry.isIntersecting)
         .forEach((entry) => {
-          navLinks.forEach((link) => link.classList.remove('active'));
-          $$('.nav-item').forEach((item) => item.classList.remove('active'));
+          navLinks.forEach((link) => {
+            link.classList.remove('active');
+          });
+          $$('.nav-item').forEach((item) => {
+            item.classList.remove('active');
+          });
           const link = navLinks.get(entry.target.id);
           if (!link) return;
           link.classList.add('active');
@@ -142,5 +148,7 @@
     },
     { rootMargin: '0px 0px -75% 0px', threshold: 0 },
   );
-  headings.forEach((heading) => observer.observe(heading));
+  headings.forEach((heading) => {
+    observer.observe(heading);
+  });
 })();

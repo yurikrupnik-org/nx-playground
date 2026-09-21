@@ -16,12 +16,6 @@ name = "zerg_email_nats"
 path = "src/main.rs"
 
 [dependencies]
-# NATS client
-#async-nats = { workspace = true }
-
-# HTTP server for health
-#axum = { workspace = true }
-
 # Core configuration
 core_config = { workspace = true }
 

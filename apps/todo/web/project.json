@@ -14,9 +14,7 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "outputs": [
-        "{projectRoot}/dist"
-      ],
+      "outputs": ["{projectRoot}/dist"],
       "options": {
         "command": "bun run build",
         "cwd": "{workspaceRoot}/apps/todo/web"

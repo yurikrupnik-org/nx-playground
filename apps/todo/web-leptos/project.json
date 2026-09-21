@@ -14,9 +14,7 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "outputs": [
-        "{projectRoot}/dist"
-      ],
+      "outputs": ["{projectRoot}/dist"],
       "options": {
         "command": "trunk build --release",
         "cwd": "{workspaceRoot}/apps/todo/web-leptos"
