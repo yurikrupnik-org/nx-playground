@@ -66,9 +66,16 @@ jobs:
       # and panics with "Could not find `protoc`" without it. It only surfaced
       # once a diff widened the affected set past the 20-crate cutover to the
       # workspace gate — every dev machine has protoc from the buf/grpc work.
+      # trunk is here, NOT `cargo install trunk --locked` further down, because
+      # that command COMPILES trunk from source on every run: measured at
+      # 4m10s-4m39s across runs 35592579179 / 35594858501 / 35597483189, on the
+      # critical path of the whole workflow, for a binary upstream already
+      # publishes. sccache does not help — `cargo install` builds in a scratch
+      # dir whose link step dominates. This action downloads that published
+      # release instead (~3s; ci-opt-old.yml installed it the same way).
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-machete,protoc
+          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-machete,protoc,trunk
 
       # nx drives the affected-crate path below; it needs the workspace's node deps
       - uses: oven-sh/setup-bun@v2
@@ -116,11 +123,7 @@ jobs:
 
       # The Leptos/WASM delivery-surface arm. It is `[workspace] exclude`d, so
       # none of the cargo gates above compile it; this is its only CI coverage.
-      # `--locked` so the action installs the version its own lockfile pins
-      # rather than whatever resolves today.
-      - name: Install trunk
-        run: cargo install trunk --locked
-
+      # trunk itself comes from the taiki-e/install-action step above.
       - name: Build the Leptos SPA
         run: bun nx build todo-web-leptos
 

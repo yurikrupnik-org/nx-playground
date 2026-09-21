@@ -51,7 +51,7 @@ export const CARGO_MANIFESTS = '*/**/Cargo.toml';
  * also fire the web `lint` scripts, which are mutating `biome check --write`
  * (see AGENTS.md) and therefore not gates.
  */
-export const RUST_TAG = 'rust';
+export const RUST_TAG = 'lang:rust';
 
 /**
  * Does a package.json script already own this crate's `lint`/`test`? nx's package.json
