@@ -150,12 +150,13 @@ openapi-gen:
 openapi-check: openapi-gen
     git diff --exit-code -- docs/openapi
 
-# Security and dependency checks
+# Security and dependency checks. No --ignore list: advisories that reach the
+# root Cargo.lock get fixed. Per-lockfile OSV ignores (for locks cargo-audit
+# never opens, e.g. apps/todo/web-leptos) live in an osv-scanner.toml NEXT TO
+# that lock — mirroring them here yields ignores cargo-audit reports as unused.
 [group('quality')]
 audit:
-    # RUSTSEC-2026-0235: rkyv 0.7 — lockfile-only optional dep of rust_decimal,
-    #   never compiled (cargo tree -i rkyv: not in graph); no semver-compatible fix
-    cargo audit --ignore RUSTSEC-2026-0235
+    cargo audit
     cargo deny check --config .cargo/deny.toml
 
 # Show crates behind their latest versions (read-only preview)

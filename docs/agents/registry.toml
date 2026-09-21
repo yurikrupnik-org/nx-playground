@@ -88,7 +88,7 @@ precisely so it is skipped — and it runs no OSV scan, no npm cooldown and no \
 post-check. Every update therefore goes through `upkg`, and a failed run prints \
 a diagnosis block that is only actionable if you know how to read it.\
 """
-evidence = ["justfile", "osv-scanner.toml", "Cargo.toml"]
+evidence = ["justfile", "apps/todo/web-leptos/osv-scanner.toml", "Cargo.toml"]
 
 [[skill]]
 name = "kcl-package"

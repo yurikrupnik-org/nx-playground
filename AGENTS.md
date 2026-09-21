@@ -298,11 +298,15 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `.bun` store of symlinks and a later `bun install --production` is a no-op, so
   the builder walks `dist` for bare specifiers and materialises only that
   closure — 5.0 MB for web-astro (`@native/field-selector` + `solid-js`).
-- **Known-unactionable advisories** are ignored in two synced places:
-  justfile `audit` recipe (cargo-audit) and `osv-scanner.toml` (OSV). Currently
-  only RUSTSEC-2026-0235 (rkyv 0.7, lockfile-only optional dep of rust_decimal,
-  never compiled). The old rsa ignore (RUSTSEC-2023-0071) was dropped: rsa is no
-  longer in `Cargo.lock`.
+- **Advisory ignore lists are per-lockfile, and all three root-lock lists are
+  now empty.** `cargo audit`, `cargo deny` (`.cargo/deny.toml` `ignore = []`)
+  and the root `Cargo.lock` carry no ignores: rkyv (RUSTSEC-2026-0235),
+  rustls-pemfile (RUSTSEC-2025-0134) and proc-macro-error2 (RUSTSEC-2026-0173)
+  all left the graph, and both scanners report a dead ignore (`unused ignores`,
+  `advisory-not-detected`). The only surviving ignores are the two build-time
+  proc-macro advisories of `apps/todo/web-leptos`, and they live in
+  `apps/todo/web-leptos/osv-scanner.toml` — osv-scanner resolves its config
+  per scanned file, so a root config never filters a nested lockfile.
 - **Binaries that link `kube` must install a rustls provider.** `kube` turns on
   rustls' `aws-lc-rs` while `hyper-rustls` turns on `ring`; with both linked
   rustls refuses to guess and *panics at first TLS use*. `terran_api::build_state`
@@ -436,8 +440,10 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `.cargo/config.toml` pinning the target. Consequences, all of which look like
   untidiness and are not: it is exempt from the `{ workspace = true }`
   dependency rule (an excluded crate cannot resolve workspace deps); its
-  advisories are ignored in `osv-scanner.toml` and NOT mirrored into the
-  justfile `audit` list, because `just scan` reads every `Cargo.lock` while
+  advisories are ignored in its OWN `apps/todo/web-leptos/osv-scanner.toml`
+  (osv-scanner loads the config sitting next to each scanned lockfile — a root
+  one is reported as `unused ignores` here) and NOT mirrored into the justfile
+  `audit` list, because `just scan` reads every `Cargo.lock` while
   `cargo audit` reads exactly one that does not contain them; `rust-toolchain.toml`
   carries `targets = ["wasm32-unknown-unknown"]` so every entrypoint installs it
   rather than each developer; and `tools/nx/plugin.ts` reads the exclude list so

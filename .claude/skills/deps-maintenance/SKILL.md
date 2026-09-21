@@ -28,9 +28,14 @@ On failure upkg prints JSON between `BEGIN-UPKG-DIAGNOSIS`/`END-UPKG-DIAGNOSIS`:
 - `checks.failed` → post-update build/lint/test broke; run the named `just`
   recipe, fix code against new APIs. Pre-existing WIP breakage surfaces here too.
 - `post_scan.ok == false` → vulnerabilities remain. Direct deps: bump. Transitive
-  pinned by a parent: root package.json `overrides` (see brace-expansion
-  precedent). Never-compiled lockfile-only deps: add to BOTH `osv-scanner.toml`
-  and the justfile `audit` ignore list, with reason (rkyv precedent).
+  pinned by a parent: root package.json `overrides` (brace-expansion, uuid
+  precedents). Second resolution fork keeping an old version alive: raise
+  `requires-python` / the range floor that creates the fork (pytest precedent).
+  Never-compiled lockfile-only deps: ignore it in the `osv-scanner.toml` sitting
+  NEXT TO the lockfile osv-scanner cited — config is resolved per scanned file,
+  so a root config never filters `apps/todo/web-leptos/Cargo.lock`. Mirror into
+  the justfile `audit` / `.cargo/deny.toml` ignore lists ONLY if `cargo audit` /
+  `cargo deny` report it too; both flag unmatched ignores as dead.
 - `socket.ok == false` → usually auth: needs an API token for org `yuri`
   (`socket login`; scopes full-scans:create + repo:create). A non-empty
   `SOCKET_CLI_API_TOKEN` env var (shell or .env via dotenv-load) overrides the

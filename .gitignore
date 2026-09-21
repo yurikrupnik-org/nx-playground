@@ -33,6 +33,10 @@ node_modules
 /.sass-cache
 /connect.lock
 /coverage
+# pytest addopts in apps/test-cli1/pyproject.toml write both of these on every
+# `nx test test-cli1`; /coverage above is the other half of the same output.
+/reports
+**/.coverage
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log

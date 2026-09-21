@@ -49,8 +49,10 @@ Never edit generated trees by hand (`libs/**/types`, `libs/rpc/src/generated`,
 - `testcontainers = "=0.27…"` unpin condition: `curl -s
   https://index.crates.io/te/st/testcontainers-modules | tail -1` requires
   `^0.28` → unpin per the `deps-maintenance` skill; else leave.
-- `osv-scanner.toml` / justfile `audit` ignores: for each RUSTSEC id, if
-  `cargo audit` no longer reports it without the ignore, drop it from BOTH.
+- advisory ignores: for each RUSTSEC id in `.cargo/deny.toml`, the justfile
+  `audit` recipe and any `osv-scanner.toml`, drop it if the scanner that owns it
+  reports it unused (`cargo audit`/`cargo deny` = `advisory-not-detected`,
+  osv-scanner = `unused ignores`). Ignores are per-lockfile, not global.
 - kcl-packages: every `composition.yaml` `source: …?tag=` equals its package's
   `kcl.mod` version (`just mod-check` covers name; check the tag too);
   `packages/providers/registry.yaml` images vs the `crossplane-contrib` latest

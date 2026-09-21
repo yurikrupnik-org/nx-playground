@@ -1,0 +1,17 @@
+# Advisories acknowledged as not actionable for THIS crate's lockfile.
+#
+# This crate is in the root Cargo.toml `[workspace] exclude` list, which is what
+# gives it a second, separate Cargo.lock. `cargo audit` (the `just audit`
+# recipe) only ever opens the root lock, so these ids must NOT be added to its
+# --ignore list: cargo-audit would report them as unused and someone would later
+# delete them as noise. `just scan` (osv-scanner --recursive) does read this
+# lock, and osv-scanner resolves its config per scanned file — the root
+# osv-scanner.toml does not apply here, hence this second file.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+reason = "paste 1.0.15 is unmaintained with no successor release; it is a BUILD-TIME proc-macro pulled in transitively by leptos/tachys/reactive_graph (cargo tree -i paste), so nothing of it ships in the wasm. Drops when leptos stops depending on it."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0173"
+reason = "proc-macro-error2 2.0.1 is unmaintained with no semver-compatible fix; another BUILD-TIME proc-macro, reached only through leptos_macro / reactive_stores_macro / syn_derive (cargo tree -i proc-macro-error2). Drops when leptos_macro migrates off it."

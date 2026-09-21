@@ -8,7 +8,7 @@
       "versionActions": "@nxlv/python/release/version-actions"
     }
   },
-  "tags": ["python"],
+  "tags": ["python", "lang:python"],
   "targets": {
     "lock": {
       "executor": "@nxlv/python:lock",
