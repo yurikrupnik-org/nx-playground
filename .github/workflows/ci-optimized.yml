@@ -184,9 +184,20 @@ jobs:
         with:
           tool: osv-scanner
 
-#      - uses: bufbuild/buf-setup-action@v1
+      # setup_only on purpose: buf-action is NOT a drop-in for buf-setup-action.
+      # Left to its defaults it runs build/lint/format/breaking ITSELF, with
+      # `input` = the repo root — where there is no buf.yaml. buf then falls back
+      # to the default config (every STANDARD rule on, none of the `except:` list
+      # in manifests/grpc/buf.yaml) over every .proto in the tree, including
+      # docs/tasks_legacy_backup.proto, which is not part of any module. That is
+      # what produced the PACKAGE_DIRECTORY_MATCH / PACKAGE_VERSION_SUFFIX /
+      # RPC_* / ENUM_VALUE_PREFIX wall plus a format diff on the docs backup.
+      # Its pr_comment default also needs `pull-requests: write`, which this
+      # workflow does not grant ("Resource not accessible by integration").
+      # The gates stay the `just` recipes below, which cd into manifests/grpc.
       - uses: bufbuild/buf-action@v1
         with:
+          setup_only: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - run: just scan
