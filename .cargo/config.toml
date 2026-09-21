@@ -2,7 +2,15 @@
 
 [build]
 target-dir = 'dist/target'
-rustc-wrapper = "sccache"
+
+# NO `rustc-wrapper = "sccache"` here, deliberately. A wrapper in this file is
+# not optional: cargo execs it for the very first `rustc -vV` probe, so every
+# cargo invocation on a host without sccache dies with
+# `could not execute process 'sccache …' (never executed)` — which is what the
+# CI `web` job hit on `just test-napi` (only the `rust` job installs sccache),
+# and what `publish-crates` / `claude-maintenance` would hit next.
+# sccache is an accelerator: opt in via RUSTC_WRAPPER — the `rust` CI job sets
+# it, .envrc exports it when the binary is present.
 
 [env]
 # Clippy only reads clippy.toml from the crate/workspace root, so point it here

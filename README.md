@@ -20,7 +20,7 @@ Nx monorepo with Rust backend services, a React frontend, and Kubernetes-native 
 
 ### Optional
 
-- [sccache](https://github.com/mozilla/sccache) - Shared compilation cache (used in CI with GCS backend)
+- [sccache](https://github.com/mozilla/sccache) - Shared compilation cache, opt-in via `RUSTC_WRAPPER=sccache` (exported by `.envrc` when installed; the CI Rust job sets it with a GCS backend). Deliberately not in `.cargo/config.toml` — a wrapper declared there is mandatory for every cargo run.
 - [bacon](https://github.com/Canop/bacon) - Background Rust code checker (`just run`)
 - [Gateway API](https://gateway-api.sigs.k8s.io/) - North–south routing (CRDs installed by `devkit`; the `main-gateway` Gateway itself is owned by the gitops repo). No service mesh is installed by this repo.
 - [Kind](https://kind.sigs.k8s.io/) / [k3d](https://k3d.io/) - Local Kubernetes cluster
