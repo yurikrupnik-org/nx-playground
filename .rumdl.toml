@@ -25,11 +25,6 @@ exclude = [
     "vendor",
     "dist",
     "build",
-
-    # Deliberately broken markdown: apps/monodocs' lint tests assert on dead
-    # links, unknown fences and missing READMEs in this tree. Formatting it
-    # would rewrite the fixtures out from under the assertions.
-    "apps/monodocs/cli/tests/fixtures",
 ]
 
 respect-gitignore = true

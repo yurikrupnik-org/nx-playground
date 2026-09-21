@@ -20,8 +20,6 @@ extend-ignore-re = [
     '\bmis-[a-z]+',
     # `DELETEs it again`: verbed HTTP method, tokenised as DELET + s.
     '\bDELETEs\b',
-    # A base64 test vector in apps/monodocs: assert_eq!(base64(b"fo"), "Zm8=").
-    'base64\(b"fo"\)',
 ]
 
 [default.extend-words]

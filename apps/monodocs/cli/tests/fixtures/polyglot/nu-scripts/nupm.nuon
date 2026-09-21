@@ -1,5 +1,0 @@
-{
-  name: "nu-scripts",
-  version: "0.4.1",
-  description: "Fixture Nushell module"
-}

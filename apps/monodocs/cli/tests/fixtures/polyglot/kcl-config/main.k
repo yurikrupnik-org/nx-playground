@@ -1,2 +1,0 @@
-schema Server:
-    name: str

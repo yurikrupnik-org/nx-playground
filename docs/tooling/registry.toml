@@ -52,6 +52,13 @@ why = "A miss only slows CI; there is no correctness claim a gate could defend."
 closes_when = "never — accepted (revisit if a cache poisoning path appears)"
 owner = "scope:infra"
 
+[[gap]]
+name = "docs-not-gated"
+applies_to = ["monodocs"]
+why = "`docs-lint` is red by construction — 36 of 60 discovered projects have no README — and the rendered document goes to gitignored `dist/`, so no recipe in `check`/`verify` runs monodocs at all."
+closes_when = "the README backlog closes and `docs-lint` joins `just verify`, or a document is committed and gated with `monodocs build --check` (what the tool's home repo does)"
+owner = "scope:infra"
+
 ################################################################################
 # cluster / dev loop
 ################################################################################
@@ -114,6 +121,19 @@ usage = ["bacon.toml", "justfile"]
 gate = "none"
 paid = false
 owner = "scope:shared"
+
+[[tool]]
+name = "monodocs"
+category = "dev-loop"
+status = "adopted"
+cncf = "not-cncf"
+install = "scripts/just/docs.just (`just docs-install` → `cargo install monodocs`, version pinned in the recipe file)"
+key = "monodocs_version"
+usage = ["scripts/just/docs.just", "AGENTS.md"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Home repo is yurikrupnik/wasm-and-k8s, published to crates.io. It WAS vendored here as apps/monodocs/cli and had already drifted in four files; the copy is gone on purpose — bump the pin instead."
 
 [[tool]]
 name = "lefthook"

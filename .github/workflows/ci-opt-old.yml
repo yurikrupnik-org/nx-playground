@@ -64,9 +64,11 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      #      - name: Install KCL CLI
-      #        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
-
+      - name: Install KCL CLI
+        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+      - name: Install uv with all available options
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --all-groups
       #      # Free up disk space before linting
       #      - name: Clean up disk space
       #        run: |
@@ -137,9 +139,11 @@ jobs:
 
       - run: bun install --no-cache
 
-      #      - name: Install KCL CLI
-      #        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
-
+      - name: Install KCL CLI
+        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+      - name: Install uv with all available options
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --all-groups
       #       Free up disk space before testing
       #      - name: Clean up disk space
       #        run: |
@@ -208,9 +212,11 @@ jobs:
 
       - run: bun install --no-cache
 
-      #      - name: Install KCL CLI
-      #        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
-
+      - name: Install KCL CLI
+        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+      - name: Install uv with all available options
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --all-groups
       # Free up disk space before building
       #      - name: Clean up disk space
       #        run: |

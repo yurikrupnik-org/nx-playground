@@ -17,8 +17,6 @@ docker_build(
         # without their sources busting this image's cache
         'apps/butler/cli/Cargo.toml',
         'apps/butler/cli/src/main.rs',
-        'apps/monodocs/cli/Cargo.toml',
-        'apps/monodocs/cli/src/main.rs',
         'apps/todo/api/Cargo.toml',
         'apps/todo/api/src/main.rs',
         'apps/todo/cli/Cargo.toml',

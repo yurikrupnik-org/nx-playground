@@ -33,8 +33,7 @@ import type { CargoCrate } from './butler-config.ts';
 
 /**
  * Every workspace package manifest. Rooted at `apps`/`libs` so the root
- * `package.json` — which is the workspace itself, not a project — stays out;
- * the monodocs fixture tree is excluded in `.nxignore`, like its crates.
+ * `package.json` — which is the workspace itself, not a project — stays out.
  */
 export const PACKAGE_MANIFESTS = '{apps,libs}/**/package.json';
 

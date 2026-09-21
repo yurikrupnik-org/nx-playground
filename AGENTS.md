@@ -10,9 +10,11 @@ imported (flat namespace, `just -l` shows everything):
 
 - `scripts/just/rust.just` — all cargo commands (lint-rust, test-rust, test-doc, doc-check, deps-unused, fmt-rust, audit, crates-*)
 - `scripts/just/web.just` — nx/biome/ncu (lint-web, test-web, fmt-web, outdated-node)
-- `scripts/just/docs.just` — `monodocs` (apps/monodocs/cli): docs-html/-api/-open,
-  docs-list, docs-lint, plus the rumdl leaves fmt-docs/fmt-check-docs. Renders every
-  project README + docs/*.md into one self-contained `dist/docs/index.html`.
+- `scripts/just/docs.just` — `monodocs` (EXTERNAL: lives in yurikrupnik/wasm-and-k8s,
+  published to crates.io, installed by `just docs-install` at the version pinned in
+  that file — never vendored here again): docs-html/-api/-open, docs-list, docs-lint,
+  plus the rumdl leaves fmt-docs/fmt-check-docs. Renders every project README +
+  docs/*.md into one self-contained `dist/docs/index.html`.
   `docs-lint` is NOT in `verify`: 36 of 60 projects have no README, so it is the
   worklist, not yet a gate. Markdown formatting is rumdl's (`.rumdl.toml`), not
   `monodocs fmt`'s — one formatter per file.

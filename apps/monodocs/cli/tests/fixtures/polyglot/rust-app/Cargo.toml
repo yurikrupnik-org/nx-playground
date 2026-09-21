@@ -1,8 +1,0 @@
-[package]
-name = "rust-app"
-version = "0.3.0"
-edition = "2024"
-description = "Fixture Rust binary"
-
-# Detached from the outer Cargo workspace: fixture only.
-[workspace]

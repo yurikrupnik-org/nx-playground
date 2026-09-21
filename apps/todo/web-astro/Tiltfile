@@ -17,7 +17,6 @@ docker_build(
         # every other bun workspace member's manifest: a frozen install
         # resolves the whole workspace, and a member missing from the
         # context fails it — never their sources
-        'apps/monodocs/cli/tests/fixtures/polyglot/ts-lib/package.json',
         'apps/terran/web/package.json',
         'apps/todo/e2e/package.json',
         'apps/todo/web/package.json',
@@ -29,8 +28,6 @@ docker_build(
         # without their sources busting this image's cache
         'apps/butler/cli/Cargo.toml',
         'apps/butler/cli/src/main.rs',
-        'apps/monodocs/cli/Cargo.toml',
-        'apps/monodocs/cli/src/main.rs',
         'apps/terran/api/Cargo.toml',
         'apps/terran/api/src/lib.rs',
         'apps/terran/api/src/main.rs',

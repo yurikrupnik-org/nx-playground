@@ -17,10 +17,6 @@
         "nx": "23.2.1",
       },
     },
-    "apps/monodocs/cli/tests/fixtures/polyglot/ts-lib": {
-      "name": "ts-lib",
-      "version": "1.2.0",
-    },
     "apps/terran/web": {
       "name": "terran-web",
       "version": "0.0.2",
@@ -1869,8 +1865,6 @@
     "trim-lines": ["trim-lines@3.0.1", "", {}, "sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg=="],
 
     "trough": ["trough@2.2.0", "", {}, "sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw=="],
-
-    "ts-lib": ["ts-lib@workspace:apps/monodocs/cli/tests/fixtures/polyglot/ts-lib"],
 
     "tsconfig-paths": ["tsconfig-paths@4.2.0", "", { "dependencies": { "json5": "^2.2.2", "minimist": "^1.2.6", "strip-bom": "^3.0.0" } }, "sha512-NoZ4roiN7LnbKn9QqE1amc9DJfzvZXxF4xDavcOWt1BPkdx+m+0gJuPM+S0vCe7zTJMYUP0R8pO2XMr+Y8oLIg=="],
 
