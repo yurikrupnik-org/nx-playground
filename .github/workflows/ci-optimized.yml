@@ -83,12 +83,12 @@ jobs:
       # formatting is gated by `bunx biome ci .` in the `web` job.
       - run: just fmt-check-rust
 
-      # PR: clippy + nextest for the crates this diff touches and their cargo
-      # dependents, each task cached by Nx Cloud across runs. A Cargo.lock,
-      # rust-toolchain.toml or .cargo/*.toml change is an input of every crate's
-      # targets, so it widens to all of them — and past 20 crates the recipe
-      # hands over to `lint-rust`/`test-rust`, one cargo process each, so this
-      # step is never slower than the workspace gate below.
+      # PR: clippy, nextest, doctests, rustdoc and the OpenAPI drift gate for
+      # the crates this diff touches and their cargo dependents, each task
+      # cached by Nx Cloud across runs. A Cargo.lock, rust-toolchain.toml or
+      # .cargo/*.toml change is an input of every crate's targets, so it widens
+      # to all of them — and past 20 crates the recipe hands over to the same
+      # workspace gates the step below runs, so this step is never slower.
       # testcontainers-backed tests need docker, which ubuntu-latest provides.
       - name: Rust gates for the affected crates
         if: github.event_name == 'pull_request'

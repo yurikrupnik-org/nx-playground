@@ -403,7 +403,8 @@ export function readCargoCrate(
       existsSync(join(workspaceRoot, dir, 'src', 'bin')),
     // `[lib] path` for a crate that moves it, `src/lib.rs` for the convention.
     hasLibrary:
-      tables.has('lib') || existsSync(join(workspaceRoot, dir, 'src', 'lib.rs')),
+      tables.has('lib') ||
+      existsSync(join(workspaceRoot, dir, 'src', 'lib.rs')),
     dependencies: new Set(tables.get('dependencies')?.keys() ?? []),
     publish:
       publish !== undefined &&

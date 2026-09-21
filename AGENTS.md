@@ -8,7 +8,7 @@ cargo manages Rust builds. Task runner is `just`.
 Root `justfile` holds cross-ecosystem flows and aggregates; domain recipes are
 imported (flat namespace, `just -l` shows everything):
 
-- `scripts/just/rust.just` — all cargo commands (lint-rust, test-rust, fmt-rust, audit, crates-*)
+- `scripts/just/rust.just` — all cargo commands (lint-rust, test-rust, test-doc, doc-check, deps-unused, fmt-rust, audit, crates-*)
 - `scripts/just/web.just` — nx/biome/ncu (lint-web, test-web, fmt-web, outdated-node)
 - `scripts/just/docs.just` — `monodocs` (apps/monodocs/cli): docs-html/-api/-open,
   docs-list, docs-lint, plus the rumdl leaves fmt-docs/fmt-check-docs. Renders every
@@ -29,8 +29,9 @@ Flows: `just check` (everyday gate) · `just verify` (pre-push: check + proto-li
 - Tiltfile/container-target/k8s-manifest drift + OSV scan) · `just fix`
 (auto-format all, then verify) · `just weekly` (upkg-paranoid + outdated).
 Aggregates `fmt`/`fmt-check`/`lint`/`test` fan out to their leaves —
-`fmt-rust proto-fmt fmt-web fmt-docs fmt-spell` / `lint-rust lint-web` /
-`test-rust test-web test-napi`; new ecosystems (go/py) add a leaf + append to the
+`fmt-rust proto-fmt fmt-web fmt-docs fmt-spell` /
+`lint-rust doc-check deps-unused lint-web` /
+`test-rust test-doc test-web test-napi`; new ecosystems (go/py) add a leaf + append to the
 aggregate. `just fmt` is the ONLY formatting entry point: rustfmt + cargo-sort,
 buf, biome, rumdl (markdown), typos (spelling, whole tree).
 
@@ -47,12 +48,16 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
 - **The one Rust path that DOES go through nx is affected-scoped**:
   `just check-rust-affected` (the CI PR path) asks nx which crates a diff touched
   (`nx show projects --affected -p tag:rust`) and runs the inferred per-crate
-  `lint` (`cargo clippy --package X --all-targets -- -D warnings`) and `test`
-  (`cargo nextest run --package X --no-tests=pass`) targets for exactly those,
+  `lint` (`cargo clippy --package X --all-targets -- -D warnings`), `test`
+  (`cargo nextest run --package X --no-tests=pass`), `doc`, `doc-test` and
+  `openapi-gate` targets for exactly those,
   Nx Cloud-cached (measured: 1 crate = 4s at 2/2 cache hits; 3 crates × 2 targets
   = 14.7s cold, 16ms at 6/6 hits). A diff with no crate in it runs no cargo at
-  all. Past `max` crates (default **20**, from the ~5.5s-per-crate against flat
-  2m13s arithmetic above) it hands over to `lint-rust`/`test-rust` instead — the
+  all. Past `max` crates (default **20**) it hands over to the workspace leaves
+  instead — `lint-rust test-rust test-doc doc-check openapi-check`, **3m40s**
+  flat against ~9s per crate (warm marginals on `domain_users`: clippy 0.4s,
+  nextest 0.7s, `cargo test --doc` 2.1s, `cargo doc` 1.5s — doctests reuse the
+  dev-profile artifacts nextest just built) — so the
   recipe is bounded by the workspace gate, never a 10-minute fan-out.
   Four things make it correct and they are load-bearing: the `rustGlobals`
   namedInput (Cargo.lock, Cargo.toml, rust-toolchain.toml,
@@ -117,7 +122,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   because that target is itself inferred from these same butler.toml facts. The
   root file also locates the workspace (walk-up markers are `butler.toml`, then
   `nx.json`), so the CLI works in repos without nx.
-- **ONE registered local nx plugin, `tools/nx/plugin.ts`, FIVE inference
+- **ONE registered local nx plugin, `tools/nx/plugin.ts`, SIX inference
   modules behind it.** nx forks an isolated worker process per REGISTERED
   plugin, so three entries in `nx.json` cost three node boots per graph build
   (measured: 1.45s vs 1.20s user CPU) for identical output. `plugin.ts` braces
@@ -125,10 +130,21 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `tilt-targets.ts` → `tilt-gen`/`tilt-check`, `rust-targets.ts` → `build`
   (`cargo build --package <crate>`, `production` configuration adds `--release`;
   a crate with no binary gets `cargo check` and no `production`) plus `test`
-  and the `rust` tag on every crate, `run` for crates that have a
+  and the `rust` tag on every crate, `doc`
+  (`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`, because rustdoc resolves
+  intra-doc links that neither clippy nor nextest looks at and
+  `monodocs build --cargo-doc` ships the result), `doc-test`
+  (`cargo test --doc`, ONLY for a crate with a library — nextest has no
+  rustdoc harness, so without it every documented example is uncompiled, and
+  `cargo test --doc` errors on a bin-only package), `run` for crates that have a
   binary and `install` (`cargo install --path <dir> --locked --force`,
   uncached — the binary lands outside the workspace) for a binary crate whose
   `[package] publish` says its binary leaves the repo, today only `butler`,
+  `openapi-targets.ts` → `openapi-gate` for a crate that depends on `utoipa`
+  and whose `src/` defines an `export_openapi*` test naming a
+  `docs/openapi/*.json` path (`cargo test … export_openapi` then
+  `git diff --exit-code` over exactly those documents — the export runs inside
+  the normal suite, so drift is invisible until someone diffs the tree),
   `container-targets.ts` → `container`/`scan`,
   `k8s-targets.ts` → `k8s-gen`/`k8s-check`, `polyglot-targets.ts` → `fmt` and
   `lint`, the two names BOTH ecosystems answer to. A crate gets
@@ -361,8 +377,11 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   non-empty `tags`, and a declared path parameter for every `{placeholder}`.
   Two of those were live defects when the CLI was written — `todos.v1.json`
   declared no `{id}` parameter on five operations, and `tasks.v1.json` keyed its
-  collection path as `""`. **`just openapi-check` (in `verify`) is what stops a
-  stale document**, and it matters more than a usual generated-file gate: a
+  collection path as `""`. **Two gates stop a stale document**: the inferred
+  per-crate `openapi-gate` (`tools/nx/openapi-targets.ts`, the affected/PR
+  path — it re-exports and `git diff --exit-code`s exactly the documents that
+  crate writes) and `just openapi-check` over the workspace (in `verify` and
+  the main-branch CI step). It matters more than a usual generated-file gate: a
   stale document is a CLI that addresses routes the server no longer serves.
   Note `utoipa`'s `nest` is a string concat while axum's `nest` is not, so
   `nest(path="/todos")` over a handler annotated `path = "/"` yields the key
