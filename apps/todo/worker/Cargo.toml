@@ -15,7 +15,6 @@ name = "todo_worker"
 path = "src/main.rs"
 
 [dependencies]
-async-trait = { workspace = true }
 core_config = { workspace = true }
 domain_todo = { workspace = true }
 eyre = { workspace = true }

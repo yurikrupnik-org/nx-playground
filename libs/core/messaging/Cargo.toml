@@ -15,8 +15,6 @@ nats = [
     "dep:futures",
     "dep:metrics",
     "dep:metrics-exporter-prometheus",
-    "dep:tower-http",
-    "dep:eyre",
 ]
 
 [dependencies]
@@ -24,13 +22,12 @@ nats = [
 # NATS dependencies (optional)
 async-nats = { workspace = true, optional = true }
 # Core dependencies (always included)
-async-trait = { workspace = true }
+#async-trait = { workspace = true }
 axum = { workspace = true, optional = true }
 # Poison-message payloads reach the DLQ as opaque bytes; base64 keeps the entry
 # valid JSON. See nats::dlq::DlqPayload::Raw.
 base64 = { workspace = true, optional = true }
 chrono = { workspace = true, features = ["serde"] }
-eyre = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 metrics = { workspace = true, optional = true }
 metrics-exporter-prometheus = { workspace = true, optional = true }
@@ -38,7 +35,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
-tower-http = { workspace = true, optional = true }
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 

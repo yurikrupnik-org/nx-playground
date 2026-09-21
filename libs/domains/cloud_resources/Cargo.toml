@@ -4,6 +4,12 @@ publish = false
 version.workspace = true
 edition.workspace = true
 
+# `k8s-openapi` is referenced by no `use` in this crate: it is declared solely to
+# select kube's required `v1_*` version feature (see `[features] k8s` below).
+# Dropping it fails the build, so cargo-machete's "unused" verdict is wrong.
+[package.metadata.cargo-machete]
+ignored = ["k8s-openapi"]
+
 [features]
 # Cluster-observed inventory (`observed` module). Off by default: the postgres
 # CRUD consumers (zerg api) pull no kube dependency.
@@ -27,7 +33,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 strum = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+#tokio = { workspace = true }
 tracing = { workspace = true }
 utoipa = { workspace = true }
 uuid = { workspace = true }

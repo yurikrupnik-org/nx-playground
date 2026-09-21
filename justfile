@@ -258,3 +258,5 @@ z:
   just zj          # attach, or create from manifests/zellij/nx-playground.kdl
   just zj-kill     # destroy the session (compose + kind survive)
   cargo run -p cluster_dashboard --bin cluster-dashboard
+  cargo-machete
+  cargo hack check --workspace --each-feature --no-dev-deps
