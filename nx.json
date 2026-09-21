@@ -35,6 +35,15 @@
       "{workspaceRoot}/.cargo/config.toml",
       "{workspaceRoot}/.cargo/clippy.toml"
     ],
+    "rustWorkspace": [
+      "rustGlobals",
+      "{workspaceRoot}/apps/**/*",
+      "{workspaceRoot}/libs/**/*",
+      "!{workspaceRoot}/**/node_modules/**/*",
+      "!{workspaceRoot}/**/dist/**/*",
+      "{workspaceRoot}/docs/openapi/**/*.json",
+      "{workspaceRoot}/manifests/db/**/*.sql"
+    ],
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci-optimized.yml"]
   },
   "nxCloudId": "6928516e8756394e71566e68",

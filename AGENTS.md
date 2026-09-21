@@ -57,12 +57,30 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `openapi-gate` targets for exactly those,
   Nx Cloud-cached (measured: 1 crate = 4s at 2/2 cache hits; 3 crates × 2 targets
   = 14.7s cold, 16ms at 6/6 hits). A diff with no crate in it runs no cargo at
-  all. Past `max` crates (default **20**) it hands over to the workspace leaves
+  all. Past `max` crates (default **20**) it hands over to the workspace gate
   instead — `lint-rust test-rust test-doc doc-check openapi-check`, **3m40s**
   flat against ~9s per crate (warm marginals on `domain_users`: clippy 0.4s,
   nextest 0.7s, `cargo test --doc` 2.1s, `cargo doc` 1.5s — doctests reuse the
   dev-profile artifacts nextest just built) — so the
   recipe is bounded by the workspace gate, never a 10-minute fan-out.
+  That handover runs the recipes through the **`rust_workspace_gate`** targets
+  (`scripts/rust/gate/`), not as bare `just` calls, because a bare call runs
+  outside nx and therefore outside Nx Cloud. Measured on one commit with both
+  workflows triggered in the same second (runs `35605711835` / `35605711733`):
+  cargo-direct workspace leaves **8m56s** (`Compiling proc-macro2 … serde …`,
+  full cold dep closure) against **2m31s** for the per-crate path at 167
+  `[remote cache]` hits and zero cargo. The `2m13s` vs `4m06s` figure above
+  chose cargo-direct from two *uncached* runs with a **warm target dir**; in CI
+  the target dir is always cold and the cloud cache is always warm, which
+  inverts it. Wrapping the same single `--workspace` invocation in a cached
+  target keeps the shared-compile win and makes an unchanged re-run a hit.
+  Those targets are named `lint-workspace`, not `lint`, and the project has no
+  `lang:rust` tag — otherwise a broad `run-many -t lint` or the per-crate
+  selector would pull a whole-workspace clippy into a per-project command.
+  Their cache honesty rests entirely on the `rustWorkspace` namedInput, which
+  is coarse (all of `apps/**` + `libs/**`, plus `docs/openapi/**/*.json` and
+  `manifests/db/**/*.sql`) precisely because crates `include_str!` non-Rust
+  files; see `scripts/rust/gate/README.md` before narrowing it.
   Four things make it correct and they are load-bearing: the `rustGlobals`
   namedInput (Cargo.lock, Cargo.toml, rust-toolchain.toml,
   `.cargo/{config,clippy}.toml`) is in every crate target's `inputs`, which is

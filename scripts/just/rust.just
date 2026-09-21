@@ -101,11 +101,18 @@ check-rust-affected base=env('NX_BASE', 'origin/main') head=env('NX_HEAD', 'HEAD
     fi
     if [ "$count" -gt {{ max }} ]; then
         echo "check-rust-affected: $count crates affected (> {{ max }}) — running the workspace gate"
-        just lint-rust
-        just test-rust
-        just test-doc
-        just doc-check
-        just openapi-check
+        # The same five cargo invocations the recipes run, but through the
+        # `rust_workspace_gate` targets (scripts/rust/gate/) so Nx Cloud caches
+        # their verdict. Calling `just lint-rust` etc. directly here ran the
+        # gate OUTSIDE nx and therefore outside the cache: measured 8m56s of
+        # `Compiling proc-macro2 … serde …` on every run, against 2m31s for the
+        # per-crate path's 167 remote hits on the same commit (runs
+        # 35605711835 / 35605711733). See scripts/rust/gate/README.md.
+        #
+        # --parallel=1 is not a default: all five share the one `dist/target`
+        # and would serialize on its lock anyway, badly (AGENTS.md).
+        bun nx run-many -t lint-workspace test-workspace doc-test-workspace \
+            doc-workspace openapi-workspace -p rust_workspace_gate --parallel=1
         exit 0
     fi
     crates=$(jq -r 'sort | join(",")' <<<"$affected")
