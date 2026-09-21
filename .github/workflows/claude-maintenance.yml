@@ -108,9 +108,11 @@ jobs:
           version: "*"
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
+      # protoc: build dependency of the Temporal SDK crates (`prost-wkt-types`
+      # build script), so any cargo gate over the whole workspace needs it.
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-outdated,cargo-edit,osv-scanner
+          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-outdated,cargo-edit,osv-scanner,protoc
       - name: Install KCL CLI
         run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | bash
       - name: Install npm-check-updates

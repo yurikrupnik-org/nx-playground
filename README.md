@@ -15,6 +15,7 @@ Nx monorepo with Rust backend services, a React frontend, and Kubernetes-native 
 | [Atlas](https://atlasgo.io/) | Database schema management | `brew install ariga/tap/atlas` |
 | [KCL](https://kcl-lang.io/) | CI/CD config generation | `brew install kcl-lang/tap/kcl` |
 | [cargo-nextest](https://nexte.st/) | Fast Rust test runner | `cargo install cargo-nextest` |
+| [protoc](https://protobuf.dev/installation/) | Build dep of the Temporal SDK crates (`prost-wkt-types` build script) | `brew install protobuf` |
 | [direnv](https://direnv.net/) | Auto-load env vars | `brew install direnv` |
 
 ### Optional

@@ -462,7 +462,7 @@ paid = false
 owner = "scope:todo"
 review = "2026-12-01"
 decision = "docs/architecture-backlog.md"
-note = "Client code without infrastructure. Either stand up a server behind a gate or delete the crate."
+note = "Client code without infrastructure. Either stand up a server behind a gate or delete the crate. Its SDK crates drag in a protoc build dependency (prost-wkt-types build script), so every cargo gate host needs protoc — installed in CI by taiki-e/install-action."
 
 [[tool]]
 name = "rabbitmq"

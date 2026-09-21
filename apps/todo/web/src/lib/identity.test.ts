@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import {
-  getIdentity,
-  IDENTITY_STORAGE_KEY,
-  identityHeaders,
-  isValidIdentity,
-  setIdentity,
-} from './identity';
+import type * as Identity from './identity';
 
 /** Minimal `Storage` stand-in so each test starts from a known slate. */
 function memoryStorage(seed: Record<string, string> = {}) {
@@ -28,8 +22,21 @@ function memoryStorage(seed: Record<string, string> = {}) {
   };
 }
 
-beforeEach(() => {
+/**
+ * `identity.ts` caches the identity in module scope (the in-memory fallback),
+ * so a static import would carry one test's identity into the next: a test
+ * that seeds an invalid `localStorage` value would read the *previous* test's
+ * identity instead of generating one.
+ *
+ * Hence the dynamic import — `vi.resetModules()` only affects subsequent
+ * imports, so a fresh instance per test is unreachable with a static one.
+ */
+let identity: typeof Identity;
+
+beforeEach(async () => {
+  vi.resetModules();
   vi.stubGlobal('localStorage', memoryStorage());
+  identity = await import('./identity');
 });
 
 afterEach(() => {
@@ -38,37 +45,43 @@ afterEach(() => {
 
 describe('isValidIdentity', () => {
   test('accepts the documented grammar', () => {
-    expect(isValidIdentity('yuri')).toBe(true);
-    expect(isValidIdentity('anon-1a2b3c4d')).toBe(true);
-    expect(isValidIdentity('user.name_1@example-corp')).toBe(true);
-    expect(isValidIdentity('a')).toBe(true);
-    expect(isValidIdentity('x'.repeat(64))).toBe(true);
+    expect(identity.isValidIdentity('yuri')).toBe(true);
+    expect(identity.isValidIdentity('anon-1a2b3c4d')).toBe(true);
+    expect(identity.isValidIdentity('user.name_1@example-corp')).toBe(true);
+    expect(identity.isValidIdentity('a')).toBe(true);
+    expect(identity.isValidIdentity('x'.repeat(64))).toBe(true);
   });
 
   test('rejects empty, over-long and out-of-alphabet values', () => {
-    expect(isValidIdentity('')).toBe(false);
-    expect(isValidIdentity('x'.repeat(65))).toBe(false);
-    expect(isValidIdentity('has space')).toBe(false);
-    expect(isValidIdentity('slash/es')).toBe(false);
-    expect(isValidIdentity('semi;colon')).toBe(false);
+    expect(identity.isValidIdentity('')).toBe(false);
+    expect(identity.isValidIdentity('x'.repeat(65))).toBe(false);
+    expect(identity.isValidIdentity('has space')).toBe(false);
+    expect(identity.isValidIdentity('slash/es')).toBe(false);
+    expect(identity.isValidIdentity('semi;colon')).toBe(false);
   });
 });
 
 describe('getIdentity', () => {
   test('generates and persists anon-<8 hex> on first use', () => {
-    const identity = getIdentity();
-    expect(identity).toMatch(/^anon-[0-9a-f]{8}$/);
-    expect(localStorage.getItem(IDENTITY_STORAGE_KEY)).toBe(identity);
+    const value = identity.getIdentity();
+    expect(value).toMatch(/^anon-[0-9a-f]{8}$/);
+    expect(localStorage.getItem(identity.IDENTITY_STORAGE_KEY)).toBe(value);
   });
 
   test('prefers a stored identity', () => {
     vi.stubGlobal('localStorage', memoryStorage({ todo_identity: 'yuri' }));
-    expect(getIdentity()).toBe('yuri');
+    expect(identity.getIdentity()).toBe('yuri');
   });
 
   test('regenerates when the stored value is not a valid identity', () => {
     vi.stubGlobal('localStorage', memoryStorage({ todo_identity: 'not ok!' }));
-    expect(getIdentity()).toMatch(/^anon-[0-9a-f]{8}$/);
+    expect(identity.getIdentity()).toMatch(/^anon-[0-9a-f]{8}$/);
+  });
+
+  test('keeps the identity it already handed out when storage turns invalid', () => {
+    const first = identity.getIdentity();
+    vi.stubGlobal('localStorage', memoryStorage({ todo_identity: 'not ok!' }));
+    expect(identity.getIdentity()).toBe(first);
   });
 
   test('falls back to memory when localStorage throws', () => {
@@ -81,30 +94,30 @@ describe('getIdentity', () => {
       },
     });
 
-    const first = getIdentity();
+    const first = identity.getIdentity();
     expect(first).toMatch(/^anon-[0-9a-f]{8}$/);
-    expect(getIdentity()).toBe(first);
+    expect(identity.getIdentity()).toBe(first);
   });
 });
 
 describe('setIdentity', () => {
   test('trims, persists and returns the stored value', () => {
-    expect(setIdentity('  yuri  ')).toBe('yuri');
-    expect(localStorage.getItem(IDENTITY_STORAGE_KEY)).toBe('yuri');
-    expect(getIdentity()).toBe('yuri');
+    expect(identity.setIdentity('  yuri  ')).toBe('yuri');
+    expect(localStorage.getItem(identity.IDENTITY_STORAGE_KEY)).toBe('yuri');
+    expect(identity.getIdentity()).toBe('yuri');
   });
 
   test('returns null and writes nothing for an invalid identity', () => {
-    setIdentity('yuri');
-    expect(setIdentity('no spaces allowed')).toBeNull();
-    expect(localStorage.getItem(IDENTITY_STORAGE_KEY)).toBe('yuri');
+    identity.setIdentity('yuri');
+    expect(identity.setIdentity('no spaces allowed')).toBeNull();
+    expect(localStorage.getItem(identity.IDENTITY_STORAGE_KEY)).toBe('yuri');
   });
 });
 
 describe('identityHeaders', () => {
   test('carries the identity and the app name', () => {
-    setIdentity('yuri');
-    expect(identityHeaders()).toEqual({
+    identity.setIdentity('yuri');
+    expect(identity.identityHeaders()).toEqual({
       'X-Todo-Identity': 'yuri',
       'X-Todo-App': 'web',
     });
