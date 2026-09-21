@@ -3,7 +3,7 @@ name = "butler"
 publish = true
 # Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
 # sed-bumps this literal line for every project with a container target.
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 license.workspace = true
 description = "Monorepo task compiler: reads nx-compatible config, builds the project/task graph itself, and executes plans with hashing, caching, and cargo batching."
