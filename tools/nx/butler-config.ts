@@ -27,10 +27,21 @@ export const CONFIG_FILE = 'butler.toml';
 /**
  * nx's `createNodesV2` contract, spelled out so no plugin in this directory has
  * to depend on `@nx/devkit`. Each entry maps a matched file to the projects it
- * contributes targets (and tags) to; nx merges those onto the existing graph
- * nodes.
+ * contributes targets (and a name, tags) to; nx merges those onto the existing
+ * graph nodes.
  */
 export type ProjectContribution = {
+  /**
+   * The crate's package name. Contributed because nx REJECTS the whole graph
+   * ("projects ... have no name provided") for any node no plugin names, and
+   * the only other namer of a crate node — `@monodon/rust` — shells out to
+   * `cargo metadata`: on a runner with no Rust toolchain (the `affected` and
+   * `container` CI jobs install bun only) that call fails, it silently
+   * contributes nothing, and every crate this plugin touches becomes nameless.
+   * `Cargo.toml` states the name; reading it needs no subprocess.
+   */
+  name?: string;
+  root?: string;
   targets: Record<string, unknown>;
   tags?: string[];
 };
@@ -43,6 +54,25 @@ export type CreateNodesV2 = [
     context: { workspaceRoot: string },
   ) => Promise<[string, { projects: Record<string, ProjectContribution> }][]>,
 ];
+
+/**
+ * nx's `createDependencies` contract, same zero-dependency treatment. `static`
+ * is `DependencyType.static`, spelled as the literal it is at runtime.
+ */
+export type RawDependency = {
+  source: string;
+  target: string;
+  type: 'static';
+  sourceFile: string;
+};
+
+export type CreateDependencies = (
+  options: unknown,
+  context: {
+    workspaceRoot: string;
+    projects: Record<string, { root: string }>;
+  },
+) => RawDependency[];
 
 /**
  * What an app is built from — the same rule as `tilt.rs::app_kind`:
@@ -366,9 +396,12 @@ export interface CargoCrate {
    */
   hasLibrary: boolean;
   /**
-   * `[dependencies]` keys — the cheap "can this crate possibly do X" test for
-   * an inference rule (`utoipa` -> it may export an OpenAPI document), without
-   * reading a line of its source.
+   * Every dependency name the manifest declares — `[dependencies]`,
+   * `[dev-dependencies]` and `[build-dependencies]` merged. Two callers: the
+   * cheap "can this crate possibly do X" test for an inference rule (`utoipa`
+   * -> it may export an OpenAPI document) and the crate-to-crate edges in
+   * `createDependencies`, where a dev-dependency is a real edge (it is what
+   * makes a test recompile).
    */
   dependencies: ReadonlySet<string>;
   /** `[package] publish` says this binary is meant to leave the repo. */
@@ -405,7 +438,11 @@ export function readCargoCrate(
     hasLibrary:
       tables.has('lib') ||
       existsSync(join(workspaceRoot, dir, 'src', 'lib.rs')),
-    dependencies: new Set(tables.get('dependencies')?.keys() ?? []),
+    dependencies: new Set(
+      ['dependencies', 'dev-dependencies', 'build-dependencies'].flatMap(
+        (table) => [...(tables.get(table)?.keys() ?? [])],
+      ),
+    ),
     publish:
       publish !== undefined &&
       (publish.startsWith('[')

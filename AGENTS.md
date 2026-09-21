@@ -161,12 +161,13 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `apps/**/butler.toml`, because that file is where an app declares its
   `[workload]` — the manifests it used to be keyed on are now that table's
   output. Zero deps (`createNodesV2` needs neither `@nx/devkit` nor
-  `@nx/plugin`), and every target MERGES onto an EXISTING graph node — the plugin
-  creates none. `@monodon/rust` infers the nodes and the dep edges but ONLY the
-  `nx-release-publish` target, which is why ~30 `project.json` files used to
+  `@nx/plugin`), and every target MERGES onto an EXISTING graph node.
+  `@monodon/rust` contributes ONLY the `nx-release-publish` target, which is
+  why ~30 `project.json` files used to
   hand-copy these — and it infers no `tags` at all, which is why the `rust` tag
   (the only marker of "this node is a cargo crate") is contributed here: a
-  plugin's `tags` CONCAT onto an existing node, they do not replace it. The plugin
+  plugin's `tags` CONCAT onto an existing node, they do not replace it.
+  The plugin
   also contributes a `scope:` tag to every node it touches (declared ownership map
   in `tools/nx/scope-tags.ts` — verticals for `apps/**`, `scope:tasks` for the
   extracted service + its domain, `scope:shared` for libs), enforced by
@@ -179,6 +180,21 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `butler.toml` in TS while butler resolves the same facts in Rust, and `just
   container-check` (`butler container verify --graph`) is the gate that stops the
   two drifting.
+- **The crate graph must not need a cargo subprocess.** `@monodon/rust` reads
+  `cargo metadata`, so on a runner that installs bun and nothing else (CI's
+  `affected` and `container` jobs) that call fails, it silently contributes
+  nothing, and nx rejects the WHOLE graph: "the projects in the following
+  directories have no name provided" for all 45 crates, followed by
+  `todo-e2e`'s `implicitDependencies` pointing at now-nonexistent
+  `todo_api`/`todo_web_htmx`. `plugin.ts` therefore contributes the crate
+  `name` (from `[package] name`) and `createDependencies` re-derives the
+  crate-to-crate edges by matching dependency KEYS against the workspace's
+  crate names — a workspace dependency is declared by name
+  (`core_config = { workspace = true }`), so no path arithmetic is involved.
+  Verified equal with and without cargo on `PATH`: 113 workspace edges, same
+  `zerg_api` dependency list, same `--affected --with-target=scan` answer for a
+  `libs/core/config` change. Without the edges `nx affected` would silently
+  stop rebuilding the image of an app whose library a diff touched.
 - **Tiltfiles and manifests: nx owns the app list, butler owns the content.**
   `tilt-targets.ts` and `k8s-targets.ts` share one predicate — the app declares a
   `[workload]` in its own `butler.toml` and has a recognizable kind

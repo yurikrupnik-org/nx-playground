@@ -27,11 +27,13 @@ import { dirname } from 'node:path';
 import {
   appKind,
   type CargoCrate,
+  type CreateDependencies,
   type CreateNodesV2,
   derivedImageName,
   hasWorkload,
   isProject,
   type ProjectContribution,
+  type RawDependency,
   type RootConfig,
   readCargoCrate,
   readCargoExclusions,
@@ -153,6 +155,14 @@ export const createNodesV2: CreateNodesV2 = [
           if (!excluded && !hasPackageScriptGates(workspaceRoot, dir))
             tags.push(RUST_TAG);
           const contribution: ProjectContribution = {
+            // Named here, not left to `@monodon/rust`: that plugin resolves
+            // names through `cargo metadata`, so on a runner with no Rust
+            // toolchain it contributes nothing and nx fails the WHOLE graph
+            // with "projects ... have no name provided" for every crate this
+            // plugin touches. Both spellings resolve to the `[package] name`,
+            // so they agree whenever cargo is present.
+            name: crate.name,
+            root: dir,
             targets: excluded
               ? {}
               : {
@@ -234,6 +244,47 @@ export const createNodesV2: CreateNodesV2 = [
     return results;
   },
 ];
+
+/**
+ * Crate-to-crate edges, read from the manifests.
+ *
+ * `@monodon/rust` contributes the same edges from `cargo metadata`, and nx
+ * de-duplicates identical `static` dependencies — but only when cargo ran. The
+ * `affected` and `container` CI jobs install bun and nothing else, so there
+ * the cargo call fails and every crate edge disappears; `nx affected` would
+ * then miss the app whose library a diff touched and the image would never be
+ * rebuilt. A workspace dependency is declared BY NAME
+ * (`core_config = { workspace = true }`), so matching a dependency key against
+ * the known crate names is the whole resolution — no path arithmetic, no
+ * subprocess.
+ */
+export const createDependencies: CreateDependencies = (_options, context) => {
+  // Crate name -> nx project name, for the projects nx already knows about.
+  const projectByCrate = new Map<string, string>();
+  const cratesByProject = new Map<string, CargoCrate>();
+  for (const [project, config] of Object.entries(context.projects)) {
+    const crate = readCargoCrate(context.workspaceRoot, config.root);
+    if (!crate) continue;
+    projectByCrate.set(crate.name, project);
+    cratesByProject.set(project, crate);
+  }
+
+  const dependencies: RawDependency[] = [];
+  for (const [project, crate] of cratesByProject) {
+    const root = context.projects[project].root;
+    for (const dependency of crate.dependencies) {
+      const target = projectByCrate.get(dependency);
+      if (target === undefined || target === project) continue;
+      dependencies.push({
+        source: project,
+        target,
+        type: 'static',
+        sourceFile: `${root}/Cargo.toml`,
+      });
+    }
+  }
+  return dependencies;
+};
 
 // The root Tiltfile is a workspace-level artifact (infra port-forwards, shared
 // resources, one include() per app), so there is no project to hang it off: this
