@@ -191,9 +191,15 @@ limits = { memory = "512Mi", cpu = "1000m" }
 # Churn that must never enter a rust or node image context. The `only=` allow
 # list is derived per app from the project graph, so this list only has to cover
 # files that live *inside* whitelisted directories.
+#
+# Markdown is deliberately absent: crate READMEs are compile inputs
+# (`#![doc = include_str!("../README.md")]`), so the repo-wide `.dockerignore`
+# excludes `**/*.md` and then re-includes `!**/README.md`. Tilt stores every
+# ignore entry as its own unit and cannot express that negation
+# (tilt-dev/tilt#3070), so md filtering lives only in `.dockerignore`, which
+# Tilt also applies to this context.
 contextIgnore = [
     "target/",
-    "**/*.md",
     "**/.git/",
     "**/k8s/",
     "**/Tiltfile",

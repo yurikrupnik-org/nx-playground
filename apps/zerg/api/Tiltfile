@@ -17,6 +17,8 @@ docker_build(
         # without their sources busting this image's cache
         'apps/butler/cli/Cargo.toml',
         'apps/butler/cli/src/main.rs',
+        'apps/monodocs/cli/Cargo.toml',
+        'apps/monodocs/cli/src/main.rs',
         'apps/terran/api/Cargo.toml',
         'apps/terran/api/src/lib.rs',
         'apps/terran/api/src/main.rs',
@@ -31,9 +33,14 @@ docker_build(
         'apps/todo/temporal/src/starter.rs',
         'apps/todo/web-htmx/Cargo.toml',
         'apps/todo/web-htmx/src/main.rs',
+        'apps/todo/web-leptos/Cargo.toml',
+        'apps/todo/web-leptos/src/main.rs',
         'apps/todo/worker/Cargo.toml',
         'apps/todo/worker/src/lib.rs',
         'apps/todo/worker/src/main.rs',
+        'apps/x/cli/Cargo.toml',
+        'apps/x/cli/src/lib.rs',
+        'apps/x/cli/src/main.rs',
         'apps/zerg/email-nats/Cargo.toml',
         'apps/zerg/email-nats/src/lib.rs',
         'apps/zerg/email-nats/src/main.rs',
@@ -76,6 +83,7 @@ docker_build(
         # this crate plus its transitive workspace deps, from the butler
         # project graph — the only sources that can change this binary
         'apps/zerg/api',
+        'libs/contracts/projects',
         'libs/contracts/tasks',
         'libs/core/axum-helpers',
         'libs/core/config',
@@ -98,7 +106,6 @@ docker_build(
     ],
     ignore=[
         'target/',
-        '**/*.md',
         '**/.git/',
         '**/k8s/',
         '**/Tiltfile',

@@ -7,6 +7,13 @@ target/
 **/.git/
 **/node_modules/
 **/*.md
+# ...except crate READMEs: three crates (`libs/core/strings`,
+# `libs/core/proc_macros/{api_resource,sea_orm_resource}`) make their README the
+# crate-level rustdoc via `#![doc = include_str!("../README.md")]`, so the file
+# is a compile input, not docs churn. Without this negation every Rust image
+# build died with `couldn't read libs/core/strings/src/../README.md`.
+# Last matching rule wins, so this MUST stay below `**/*.md`.
+!**/README.md
 **/k8s/
 **/Tiltfile
 # Host-built N-API addons: node.Dockerfile compiles the `.node` for the image's

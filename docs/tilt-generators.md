@@ -421,9 +421,18 @@ groups:
 
 Nothing there is hand-written: a new import edge in the app moves the context by
 itself. `[tilt] contextIgnore` (formerly `rustIgnore`, renamed once the node
-context started sharing it — `target/`, `**/*.md`, `**/dist/`,
-`apps/**/node_modules/`, …) subtracts the churn that lives *inside* those
-whitelisted directories.
+context started sharing it — `target/`, `**/dist/`, `apps/**/node_modules/`, …)
+subtracts the churn that lives *inside* those whitelisted directories.
+
+Markdown is **not** in that list, and deliberately so. Three crates
+(`libs/core/strings`, `libs/core/proc_macros/{api_resource,sea_orm_resource}`)
+make their README the crate-level rustdoc with
+`#![doc = include_str!("../README.md")]`, so those files are compile inputs: a
+blanket `**/*.md` ignore failed every Rust image build with `couldn't read
+libs/core/strings/src/../README.md`. The repo-wide `.dockerignore` expresses the
+exception (`**/*.md` then `!**/README.md`, last rule wins) and Tilt applies it
+to this context too; `ignore=` could not, because Tilt stores each ignore entry
+as its own unit and drops negations (tilt-dev/tilt#3070).
 
 Measured for the service rule against the blanket `only=['apps/', 'libs/']` a
 human would write:
