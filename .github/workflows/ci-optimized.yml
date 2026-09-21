@@ -170,6 +170,63 @@ jobs:
       - run: bun nx fix-ci
         if: always()
 
+  # python gates: ruff + uv build + pytest for every project tagged `lang:python`.
+  #
+  # Separate job for the same reason `rust` is separate: a different toolchain
+  # (uv + CPython, pinned by apps/*/.python-version) that no other job needs,
+  # and a red job that names its ecosystem. Before this existed the ONLY CI
+  # coverage of the python workspace was `osv-scanner --recursive .` in
+  # supply-chain reading uv.lock — `test-web` is scoped to `-p '*-web' web-auth`
+  # and the cargo job never sees it, so apps/test-cli1 shipped a ruff F811
+  # (a duplicated `hello`) and an unformatted file on main.
+  #
+  # No affected arm and no nx-set-shas, unlike `rust`. That is not an oversight:
+  # `rust` diffs the graph because a cold workspace gate is MINUTES of cargo,
+  # while every python task here is a 0s Nx Cloud cache hit when nothing
+  # changed — the residual cost is three `bun nx` startups, which affected does
+  # not remove. `web` makes the same call (it runs `nx run-many`, not affected).
+  # Selection is by TAG, so a new python project is gated with no edit here.
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The nx targets are @nxlv/python executors, so this job needs node deps
+      # as well as uv. Both installs are cached and finish in seconds.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # No `python-version` on purpose: apps/test-cli1/.python-version is the
+      # pin and uv provisions that interpreter itself. Naming a version here
+      # would be a second, unused pin — the same trap the `rust` job documents
+      # above for rustup toolchains.
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # The lockfile gate, mirroring `bun install --frozen-lockfile`: `--locked`
+      # fails if uv.lock is stale against any member's pyproject.toml.
+      # `--all-groups` brings in the dev group (ruff, pytest, pytest-cov) that
+      # the recipes below run.
+      - run: uv sync --locked --all-groups
+
+      - uses: extractions/setup-just@v3
+
+      - run: just fmt-check-py
+
+      - run: just lint-py
+
+      - run: just test-py
+
+#      - run: bun nx fix-ci
+#        if: always()
+
   # supply-chain gates: `just scan` (OSV) + `just proto-lint` / `proto-breaking` (buf)
   supply-chain:
     runs-on: ubuntu-latest

@@ -10,6 +10,8 @@ imported (flat namespace, `just -l` shows everything):
 
 - `scripts/just/rust.just` — all cargo commands (lint-rust, test-rust, test-doc, doc-check, deps-unused, fmt-rust, audit, crates-*)
 - `scripts/just/web.just` — nx/biome/ncu (lint-web, test-web, fmt-web, outdated-node)
+- `scripts/just/python.just` — uv/ruff/pytest via nx, scoped by TAG not project name
+  (`-p tag:lang:python`): lint-py, test-py, fmt-py, fmt-check-py, outdated-py
 - `scripts/just/docs.just` — `monodocs` (EXTERNAL: lives in yurikrupnik/wasm-and-k8s,
   published to crates.io, installed by `just docs-install` at the version pinned in
   that file — never vendored here again): docs-html/-api/-open, docs-list, docs-lint,
@@ -31,9 +33,9 @@ Flows: `just check` (everyday gate) · `just verify` (pre-push: check + proto-li
 - Tiltfile/container-target/k8s-manifest drift + OSV scan) · `just fix`
 (auto-format all, then verify) · `just weekly` (upkg-paranoid + outdated).
 Aggregates `fmt`/`fmt-check`/`lint`/`test` fan out to their leaves —
-`fmt-rust proto-fmt fmt-web fmt-docs fmt-spell` /
-`lint-rust doc-check deps-unused lint-web` /
-`test-rust test-doc test-web test-napi`; new ecosystems (go/py) add a leaf + append to the
+`fmt-rust proto-fmt fmt-web fmt-py fmt-docs fmt-spell` /
+`lint-rust doc-check deps-unused lint-web lint-py` /
+`test-rust test-doc test-web test-napi test-py`; new ecosystems (go) add a leaf + append to the
 aggregate. `just fmt` is the ONLY formatting entry point: rustfmt + cargo-sort,
 buf, biome, rumdl (markdown), typos (spelling, whole tree).
 
@@ -504,6 +506,20 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
 - Web: `just test-web` = nx `build test typecheck` for every `*-web` app plus the
   shared `web-auth` lib. `typecheck` (`tsc --noEmit`) is the TS gate — `vite build`
   is not, since esbuild strips types without checking them.
+- Python: `just test-py` = nx `build test` (uv wheel + pytest/coverage) for every
+  project tagged `lang:python`, `just lint-py`/`fmt-check-py` = ruff check/format.
+  `build` is in the leaf for the same reason it is in `test-web`: it is the only
+  gate on PACKAGING — remove the README that `[project].readme` declares and
+  `nx test` still passes while `nx build` fails in `uv_build.build_sdist`.
+  Selection is by TAG, never by project name, so a generated python app is gated
+  on day one. These DO go through nx (unlike the Rust leaves): the pytest
+  `addopts` are `../../`-relative, so a root-level `uv run pytest` writes
+  `coverage/` and `reports/` OUTSIDE the repo — the nx target pins `cwd` to the
+  project root. CI runs them in a dedicated `python` job (uv + bun) with NO
+  affected arm: unlike `rust` (PR → `check-rust-affected`), every python task is
+  a 0s cache hit when nothing changed, so graph-diffing would only add a
+  `nx-set-shas` step and save nothing. Before this job existed the only python
+  coverage on main was `osv-scanner` reading `uv.lock`.
 - Shared SPA auth (CSRF, `/auth/me` query, route guard) lives in `libs/ui/web-auth`
   (`@ui/web-auth`) and is consumed by zerg-web and terran-web; its tests defend both.
 - **Realtime UI lives in exactly one app: `todo-web`.** Its list is driven by a

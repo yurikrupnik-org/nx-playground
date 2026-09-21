@@ -11,6 +11,7 @@ import 'scripts/just/todo.just'
 import 'scripts/just/local-env.just'
 import 'scripts/just/platform.just'
 import 'scripts/just/web.just'
+import 'scripts/just/python.just'
 import 'scripts/just/tilt.just'
 import 'scripts/just/zellij.just'
 import 'scripts/just/container.just'
@@ -81,13 +82,17 @@ gen-ci:
 #   fix    = auto-format everything, then verify      -> run when verify whines
 #   weekly = deep dep update (runs `just check` itself) + cross-major preview
 #
-# Adding an ecosystem (go, python, ...): write lint-<eco>/test-<eco> leaves with
-# the ecosystem's NATIVE workspace tool, append them to `lint`/`test`. A
+# Adding an ecosystem (go, ...): write lint-<eco>/test-<eco> leaves with the
+# ecosystem's NATIVE workspace tool, append them to `lint`/`test`. A
 # full-workspace Rust gate is never routed through nx: cargo is already a
 # workspace orchestrator and one `--workspace` run beats N per-crate
 # invocations. The exception is scope, not orchestration:
 # `check-rust-affected` lets nx answer "which crates did this diff touch" and
 # runs the per-crate lint/test targets for those only (the CI PR path).
+# That measurement is cargo's, NOT a rule about nx: the python leaves DO go
+# through nx (`-p tag:lang:python`) because ruff/pytest are per-project
+# processes either way and the nx targets carry the cwd/output wiring pytest
+# needs — see the header of scripts/just/python.just.
 # ============================================================================
 
 # Full read-only gate: everything in `check` + proto lint/additivity + Tiltfile
@@ -115,13 +120,13 @@ scan:
     osv-scanner --recursive .
 
 # Every ecosystem's native formatter, invoked once: rustfmt + cargo-sort
-# (fmt-rust), buf (proto-fmt), biome (fmt-web), rumdl (fmt-docs), typos
-# (fmt-spell). typos runs last on purpose — it rewrites words inside files the
-# others have already reflowed. Adding an ecosystem = a new fmt-<eco> leaf
-# appended here, same rule as `lint`/`test`.
+# (fmt-rust), buf (proto-fmt), biome (fmt-web), ruff (fmt-py), rumdl
+# (fmt-docs), typos (fmt-spell). typos runs last on purpose — it rewrites words
+# inside files the others have already reflowed. Adding an ecosystem = a new
+# fmt-<eco> leaf appended here, same rule as `lint`/`test`.
 # Format every ecosystem — the ONE formatting entry point
 [group('quality')]
-fmt: fmt-rust proto-fmt fmt-web fmt-docs fmt-spell
+fmt: fmt-rust proto-fmt fmt-web fmt-py fmt-docs fmt-spell
 
 # No web leaf on purpose: `lint-web` is `biome ci .`, which already fails on
 # unformatted JS/TS/JSON/CSS, and a second biome process in the same gate would
@@ -129,7 +134,7 @@ fmt: fmt-rust proto-fmt fmt-web fmt-docs fmt-spell
 # because it installs neither rumdl nor typos.
 # Read-only formatting gate over every ecosystem (used by `check`)
 [group('quality')]
-fmt-check: fmt-check-rust proto-fmt-check fmt-check-docs fmt-check-spell
+fmt-check: fmt-check-rust proto-fmt-check fmt-check-py fmt-check-docs fmt-check-spell
 
 # The allowlist that keeps `--write-changes` from renaming an identifier is
 # _typos.toml — read its header before adding a word.
@@ -143,19 +148,20 @@ fmt-spell:
 fmt-check-spell:
     typos
 
-# Lint every ecosystem (read-only) — extend with lint-go/lint-py when they exist
+# Lint every ecosystem (read-only) — extend with lint-go when it exists
 # `doc-check` is rustdoc's pass over the same crates (intra-doc links, doc HTML)
 # and `deps-unused` is cargo-machete over the manifests: both are read-only
 # static gates that only Rust has today, so they ride with `lint-rust` rather
-# than growing a third aggregate.
+# than growing a third aggregate. `lint-py` is ruff over every project tagged
+# `lang:python` (scripts/just/python.just).
 [group('quality')]
-lint: lint-rust doc-check deps-unused lint-web
+lint: lint-rust doc-check deps-unused lint-web lint-py
 
-# Test every ecosystem — extend with test-go/test-py when they exist
+# Test every ecosystem — extend with test-go when it exists
 # `test-doc` is the second Rust leaf on purpose: nextest cannot run doctests,
 # so `test-rust` alone leaves every documented example uncompiled.
 [group('quality')]
-test: test-rust test-doc test-web test-napi
+test: test-rust test-doc test-web test-napi test-py
 
 # The everyday gate: formatting + all linters + all tests + supply-chain audit
 [group('quality')]
@@ -170,7 +176,7 @@ check-quick: fmt-check lint
 # recipes were removed: upkg runs both WITH scans, pin-respect, and post-checks.
 # Preview what a deps refresh would change (read-only), every ecosystem
 [group('deps')]
-outdated: outdated-rust outdated-node
+outdated: outdated-rust outdated-node outdated-py
 
 # Daily deps refresh (cargo+node+uv): OSV scans, npm cooldown, then build/lint/test
 [group('deps')]

@@ -337,7 +337,7 @@ category = "build"
 status = "adopted"
 cncf = "not-cncf"
 install = ".github/workflows/ci-optimized.yml"
-key = "bufbuild/buf-setup-action"
+key = "bufbuild/buf-action"
 usage = ["manifests/grpc/buf.yaml", "manifests/grpc/proto.just", "libs/rpc/src/generated"]
 gate = "just proto-lint, just proto-breaking"
 paid = false
@@ -725,6 +725,45 @@ gate = "CI web job (bun install --frozen-lockfile)"
 paid = false
 owner = "scope:infra"
 note = "bun's isolated linker is why the node image materialises its own runtime closure (AGENTS.md)."
+
+[[tool]]
+name = "uv"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (astral-sh/setup-uv)"
+key = "astral-sh/setup-uv"
+usage = ["pyproject.toml", "uv.lock", "apps/test-cli1/pyproject.toml", "scripts/just/python.just"]
+gate = "CI python job (uv sync --locked --all-groups); OSV reads uv.lock in just scan"
+paid = false
+owner = "scope:infra"
+note = "Workspace root + members live in [tool.uv.workspace]; every @nxlv/python executor shells out to `uv run`."
+
+[[tool]]
+name = "ruff"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "uv dev dependency group (pyproject.toml)"
+key = "ruff>="
+usage = ["apps/test-cli1/pyproject.toml", "scripts/just/python.just"]
+gate = "just lint-py, just fmt-check-py (CI python job)"
+paid = false
+owner = "scope:infra"
+note = "Linter AND formatter for python — the ecosystem's leaf in both `lint` and `fmt`/`fmt-check`."
+
+[[tool]]
+name = "pytest"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "uv dev dependency group (pyproject.toml)"
+key = "pytest>="
+usage = ["apps/test-cli1/pyproject.toml", "apps/test-cli1/tests", "scripts/just/python.just"]
+gate = "just test-py (CI python job)"
+paid = false
+owner = "scope:infra"
+note = "addopts are ../../-relative, so it MUST run with cwd = projectRoot — that is why test-py goes through the nx target."
 
 [[tool]]
 name = "docker-buildx"
