@@ -188,8 +188,9 @@ jobs:
       - run: just proto-lint
 
       # Additive-only wire policy (backlog 1.2, docs/grpc.md): renumbering or
-      # removing a field fails the PR. PR-only — on a push to main the
-      # `--against '.git#branch=main'` comparison is main against itself.
+      # removing a field fails the PR. PR-only — on a push to main the comparison
+      # is main against itself. `fetch-depth: 0` above matters: the recipe compares
+      # against refs/remotes/origin/main, which checkout only populates fully here.
       - run: just proto-breaking
         if: github.event_name == 'pull_request'
 

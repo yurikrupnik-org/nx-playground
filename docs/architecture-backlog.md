@@ -371,6 +371,16 @@ comparison is main against itself. Also added to `just verify`, with the caveat 
 the recipe: locally it compares against the **local** `main` ref, so it is only as fresh
 as your last fetch and is a no-op while standing on main.
 
+**Second failure, same gate, 2026-09-21.** The first PR that actually ran it in CI died
+with `Failure: could not clone file:///…/.git: exit status 128 / fatal: couldn't find
+remote ref main`. `fetch-depth: 0` is not enough: `actions/checkout` fetches
+`refs/heads/*` into `refs/remotes/origin/*` and checks out a detached head, so the clone
+has no local `refs/heads/main`, and buf resolves a `.git` input by *re-fetching* from it
+(`git fetch <repo> main`). The recipe now picks the ref that exists — local `main` on a
+dev machine, `ref=refs/remotes/origin/main` in CI, fetching that remote-tracking ref
+first if even it is missing (shallow checkout). Same lesson as above, one layer out: the
+gate was green on every machine that already had the ref it assumed.
+
 **Acceptance — verified red/green 2026-08-31.** Renumbering `CreateRequest.title` from
 `1` to `99` in `tasks.proto` fails the gate with
 `Previously present field "1" with name "title" on message "CreateRequest" was deleted.`
