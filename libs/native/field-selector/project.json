@@ -1,6 +1,6 @@
 {
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "name": "@native/field-selector",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "targets": {
     "build": {
       "outputs": [
@@ -19,7 +19,9 @@
       ]
     },
     "test": {
-      "dependsOn": ["build"]
+      "dependsOn": [
+        "build"
+      ]
     }
   }
 }

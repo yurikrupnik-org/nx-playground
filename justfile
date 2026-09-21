@@ -50,7 +50,10 @@ slava:
   pg-cli
   protoc-gen-rs
 lol:
+  gcloud auth application-default login
+  just generate-env
   devkit up --skip-dbs --skip-tilt --gitops --flux --skip-secrets
+  just zj
 events:
     kubectl create ns t
     kubectl create deployment bad --image=ngindssx -n t --dry-run=client -o yaml \

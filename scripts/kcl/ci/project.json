@@ -3,6 +3,10 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "scripts/kcl/ci",
+  "tags": [
+    "scope:infra",
+    "lang:kcl"
+  ],
   "targets": {
     "build": {
       "cache": true,
@@ -33,7 +37,10 @@
     "lint": {
       "cache": true,
       "executor": "nx:run-commands",
-      "inputs": ["{projectRoot}/**/*.k", "{projectRoot}/kcl.mod"],
+      "inputs": [
+        "{projectRoot}/**/*.k",
+        "{projectRoot}/kcl.mod"
+      ],
       "options": {
         "command": "kcl lint",
         "cwd": "{workspaceRoot}/scripts/kcl/ci"
@@ -49,13 +56,18 @@
     "pkg": {
       "cache": true,
       "executor": "nx:run-commands",
-      "dependsOn": ["test", "lint"],
+      "dependsOn": [
+        "test",
+        "lint"
+      ],
       "inputs": [
         "{projectRoot}/**/*.k",
         "{projectRoot}/kcl.mod",
         "{projectRoot}/kcl.mod.lock"
       ],
-      "outputs": ["{projectRoot}/*.tar"],
+      "outputs": [
+        "{projectRoot}/*.tar"
+      ],
       "options": {
         "command": "kcl mod pkg --target .",
         "cwd": "{workspaceRoot}/scripts/kcl/ci"
@@ -63,7 +75,10 @@
     },
     "publish": {
       "executor": "nx:run-commands",
-      "dependsOn": ["test", "lint"],
+      "dependsOn": [
+        "test",
+        "lint"
+      ],
       "options": {
         "command": "kcl mod push oci://$KCL_REGISTRY/kcl-ci",
         "cwd": "{workspaceRoot}/scripts/kcl/ci"
@@ -71,12 +86,14 @@
     },
     "nx-release-publish": {
       "executor": "nx:run-commands",
-      "dependsOn": ["test", "lint"],
+      "dependsOn": [
+        "test",
+        "lint"
+      ],
       "options": {
         "command": "kcl mod push oci://$KCL_REGISTRY/kcl-ci",
         "cwd": "{workspaceRoot}/scripts/kcl/ci"
       }
     }
-  },
-  "tags": ["scope:infra", "lang:kcl"]
+  }
 }

@@ -3,8 +3,13 @@
   "targetDefaults": {
     "build": {
       "cache": true,
-      "outputs": ["{projectRoot}/dist"],
-      "inputs": ["production", "^production"]
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
+      "inputs": [
+        "production",
+        "^production"
+      ]
     },
     "lint": {
       "cache": true
@@ -35,7 +40,9 @@
       "{workspaceRoot}/.cargo/config.toml",
       "{workspaceRoot}/.cargo/clippy.toml"
     ],
-    "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci-optimized.yml"]
+    "sharedGlobals": [
+      "{workspaceRoot}/.github/workflows/ci-optimized.yml"
+    ]
   },
   "nxCloudId": "6928516e8756394e71566e68",
   "plugins": [

@@ -3,6 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "apps/todo/web-leptos/src",
+  "tags": [],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",
@@ -13,7 +14,9 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "options": {
         "command": "trunk build --release",
         "cwd": "{workspaceRoot}/apps/todo/web-leptos"
@@ -26,6 +29,5 @@
         "cwd": "{workspaceRoot}/apps/todo/web-leptos"
       }
     }
-  },
-  "tags": []
+  }
 }

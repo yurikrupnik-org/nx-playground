@@ -3,6 +3,14 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "apps/test-cli1/test_cli1",
+  "release": {
+    "version": {
+      "versionActions": "@nxlv/python/release/version-actions"
+    }
+  },
+  "tags": [
+    "python"
+  ],
   "targets": {
     "lock": {
       "executor": "@nxlv/python:lock",
@@ -31,35 +39,35 @@
       "outputs": [
         "{projectRoot}/dist"
       ],
+      "cache": true,
       "options": {
         "outputPath": "{projectRoot}/dist",
         "publish": false,
         "lockedVersions": true,
         "bundleLocalDependencies": true
-      },
-      "cache": true
+      }
     },
     "lint": {
       "executor": "@nxlv/python:ruff-check",
       "outputs": [],
+      "cache": true,
       "options": {
         "lintFilePatterns": [
           "test_cli1",
           "tests"
         ]
-      },
-      "cache": true
+      }
     },
     "format": {
       "executor": "@nxlv/python:ruff-format",
       "outputs": [],
+      "cache": true,
       "options": {
         "filePatterns": [
           "test_cli1",
           "tests"
         ]
-      },
-      "cache": true
+      }
     },
     "test": {
       "executor": "@nxlv/python:run-commands",
@@ -67,11 +75,11 @@
         "{workspaceRoot}/reports/{projectRoot}/unittests",
         "{workspaceRoot}/coverage/{projectRoot}"
       ],
+      "cache": true,
       "options": {
         "command": "uv run pytest tests/",
         "cwd": "{projectRoot}"
-      },
-      "cache": true
+      }
     },
     "install": {
       "executor": "@nxlv/python:install",
@@ -81,14 +89,6 @@
         "verbose": false,
         "debug": false
       }
-    }
-  },
-  "tags": [
-    "python"
-  ],
-  "release": {
-    "version": {
-      "versionActions": "@nxlv/python/release/version-actions"
     }
   }
 }

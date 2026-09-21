@@ -3,6 +3,9 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "apps/todo/e2e/tests",
+  "tags": [
+    "scope:todo"
+  ],
   "implicitDependencies": [
     "todo_api",
     "todo-web",
@@ -15,7 +18,9 @@
       "cache": false,
       "dependsOn": [
         {
-          "projects": ["@native/field-selector"],
+          "projects": [
+            "@native/field-selector"
+          ],
           "target": "build"
         }
       ],
@@ -31,6 +36,5 @@
         "cwd": "{workspaceRoot}/apps/todo/e2e"
       }
     }
-  },
-  "tags": ["scope:todo"]
+  }
 }
