@@ -1,0 +1,358 @@
+name: CI Optimized (GCS + Rust Cache)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+permissions:
+  actions: read
+  contents: read
+  id-token: write        # Required for WIF authentication
+  security-events: write
+  packages: write        # Push/pull buildx layer cache to GHCR
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
+      RUSTC_WRAPPER: sccache      # Explicitly set wrapper
+      SCCACHE_GCS_BUCKET: ${{ vars.SCCACHE_GCS_BUCKET }}
+      SCCACHE_GCS_RW_MODE: READ_WRITE
+      SCCACHE_GCS_KEY_PREFIX: sccache
+      SCCACHE_LOG: error          # Only show errors
+    steps:
+      # Free up disk space FIRST - remove unused software
+      #      - name: Free Disk Space
+      #        uses: jlumbroso/free-disk-space@main
+      #        with:
+      #          tool-cache: false
+      #          android: true
+      #          dotnet: true
+      #          haskell: true
+      #          large-packages: true
+      #          docker-images: true
+      #          swap-storage: true
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      #          filter: tree:0
+
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        uses: nrwl/nx-set-shas@v5
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      # Authenticate to GCP using a service account key
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # Setup sccache for compiled artifacts (stored in GCS)
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      #      - name: Install KCL CLI
+      #        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+
+      #      # Free up disk space before linting
+      #      - name: Clean up disk space
+      #        run: |
+      #          df -h
+      #          rm -rf dist/target
+      #          docker system prune -af || true
+      #          df -h
+
+      # Run lint
+      - run: bun nx affected -t lint
+
+      # Clean up build artifacts to free space
+  #      - name: Clean up after lint
+  #        if: always()
+  #        run: |
+  #          df -h
+  #          du -sh dist/target 2>/dev/null || true
+  #          rm -rf dist/target
+  #          df -h
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
+      RUSTC_WRAPPER: sccache      # Explicitly set wrapper
+      SCCACHE_GCS_BUCKET: ${{ vars.SCCACHE_GCS_BUCKET }}
+      SCCACHE_GCS_RW_MODE: READ_WRITE
+      SCCACHE_GCS_KEY_PREFIX: sccache
+      SCCACHE_LOG: error          # Only show errors
+    steps:
+      # Free up disk space FIRST - remove unused software
+      #      - name: Free Disk Space
+      #        uses: jlumbroso/free-disk-space@main
+      #        with:
+      #          tool-cache: false
+      #          android: true
+      #          dotnet: true
+      #          haskell: true
+      #          large-packages: true
+      #          docker-images: true
+      #          swap-storage: true
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        uses: nrwl/nx-set-shas@v5
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      # Authenticate to GCP using a service account key
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # Setup sccache for compiled artifacts (stored in GCS)
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --no-cache
+
+      #      - name: Install KCL CLI
+      #        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+
+      #       Free up disk space before testing
+      #      - name: Clean up disk space
+      #        run: |
+      #          df -h
+      #          rm -rf dist/target
+      #          docker system prune -af || true
+      #          df -h
+
+      # Run tests
+      - run: bun nx affected -t test
+
+      # Clean up build artifacts to free space
+      - name: Clean up after test
+        if: always()
+        run: |
+          df -h
+          du -sh dist/target 2>/dev/null || true
+          rm -rf dist/target
+          df -h
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
+      RUSTC_WRAPPER: sccache      # Explicitly set wrapper
+      SCCACHE_GCS_BUCKET: ${{ vars.SCCACHE_GCS_BUCKET }}
+      SCCACHE_GCS_RW_MODE: READ_WRITE
+      SCCACHE_GCS_KEY_PREFIX: sccache
+      SCCACHE_LOG: error          # Only show errors
+    steps:
+      # Free up disk space FIRST - remove unused software
+      #      - name: Free Disk Space
+      #        uses: jlumbroso/free-disk-space@main
+      #        with:
+      #          tool-cache: false
+      #          android: true
+      #          dotnet: true
+      #          haskell: true
+      #          large-packages: true
+      #          docker-images: true
+      #          swap-storage: true
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        uses: nrwl/nx-set-shas@v5
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      # Authenticate to GCP using a service account key
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # Setup sccache for compiled artifacts (stored in GCS)
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --no-cache
+
+      #      - name: Install KCL CLI
+      #        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+
+      # Free up disk space before building
+      #      - name: Clean up disk space
+      #        run: |
+      #          df -h
+      #          rm -rf dist/target
+      #          docker system prune -af || true
+      #          df -h
+
+      # Run build
+      - run: bun nx affected -t build
+
+      # Clean up build artifacts to free space
+      #      - name: Clean up after build
+      #        if: always()
+      #        run: |
+      #          df -h
+      #          du -sh dist/target 2>/dev/null || true
+      #          rm -rf dist/target
+      #          df -h
+
+      # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
+      - run: bun nx fix-ci
+        if: always()
+
+  affected:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.affected.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        uses: nrwl/nx-set-shas@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --no-cache
+
+      - name: Compute affected projects with a scan target
+        id: affected
+        run: |
+          projects=$(bun nx show projects --affected --with-target=scan --json)
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
+          echo "Affected scan projects: $projects"
+
+  container:
+    needs: affected
+    if: ${{ needs.affected.outputs.projects != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(needs.affected.outputs.projects) }}
+    env:
+      ENABLE_VERSION: "false"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        uses: nrwl/nx-set-shas@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --no-cache
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to GCP using Workload Identity Federation (keyless)
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA }}
+
+      # Login to GCP Artifact Registry
+      - name: Login to Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Log in to GHCR (buildx layer cache)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute GHCR cache prefix
+        run: echo "BUILDCACHE=ghcr.io/${GITHUB_REPOSITORY,,}/buildcache" >> "$GITHUB_ENV"
+
+      - name: Build, push and scan container image
+        run: bun nx run ${{ matrix.project }}:scan --configuration=ci
+        continue-on-error: true
+        env:
+          INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_ARTIFACT_PROJECT }}/docker
+          SHORT_SHA: ${{ github.sha }}
+
+      - name: Collect SARIF files
+        id: collect-sarif
+        run: |
+          mkdir -p sarif-results
+          find . -name "trivy-*.sarif" -exec cp {} sarif-results/ \; 2>/dev/null || true
+          if ls sarif-results/*.sarif 1>/dev/null 2>&1; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "SARIF files found:"
+            ls -la sarif-results/
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "No SARIF files found"
+          fi
+
+      - name: Upload Trivy scan results to GitHub Security
+        if: steps.collect-sarif.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for sarif_file in sarif-results/*.sarif; do
+            if [ -f "$sarif_file" ]; then
+              category=$(basename "$sarif_file" .sarif)
+              echo "Uploading $sarif_file with category: $category"
+
+              gzip -c "$sarif_file" | base64 -w0 > /tmp/sarif_base64.txt
+
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/code-scanning/sarifs" \
+                -f "commit_sha=${{ github.sha }}" \
+                -f "ref=${{ github.ref }}" \
+                -f "sarif=@/tmp/sarif_base64.txt" \
+              && echo "Successfully uploaded $category" \
+              || echo "Warning: Failed to upload $sarif_file"
+            fi
+          done
