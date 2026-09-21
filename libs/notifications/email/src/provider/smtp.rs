@@ -127,7 +127,7 @@ impl SmtpProvider {
     ///
     /// # Setup
     /// 1. Enable 2-Factor Authentication on your Google account
-    /// 2. Generate an App Password at https://myaccount.google.com/apppasswords
+    /// 2. Generate an App Password at <https://myaccount.google.com/apppasswords>
     /// 3. Set environment variables:
     ///    - `GMAIL_USER` - Your Gmail address
     ///    - `GMAIL_APP_PASSWORD` - The 16-character app password

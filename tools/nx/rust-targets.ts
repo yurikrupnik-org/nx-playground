@@ -1,8 +1,9 @@
 /**
- * Inferred cargo targets for one crate: `build` and `test`, plus `run` for a
- * crate that has a binary and `install` for one that is `publish`able. `lint`
- * is next door in `polyglot-targets.ts`, which composes clippy with biome for
- * the crates that are also TS packages.
+ * Inferred cargo targets for one crate: `build`, `test` and `doc`, plus
+ * `doc-test` for a crate with a library, `run` for one that has a binary and
+ * `install` for one that is `publish`able. `lint` is next door in
+ * `polyglot-targets.ts`, which composes clippy with biome for the crates that
+ * are also TS packages.
  *
  * `@monodon/rust` contributes graph nodes, cargo dependency edges and exactly
  * one target (`nx-release-publish`) — its source still carries a
@@ -124,7 +125,55 @@ export function rustTargets(
         technologies: ['rust'],
       },
     },
+    // rustdoc is a THIRD compiler front-end over the same sources: it resolves
+    // every intra-doc link and every `#[doc]` attribute, which neither clippy
+    // nor nextest does. `-D warnings` is what turns that into a gate — without
+    // it a broken link is a warning nobody reads, and `monodocs build
+    // --cargo-doc` (the docs site's API section) ships the hole.
+    // `--no-deps`: the dependency docs are not this crate's to gate.
+    // Env inline rather than `options.env` so the command is the whole truth —
+    // `just doc-check` and butler's runner both execute the string verbatim.
+    doc: {
+      executor: 'nx:run-commands',
+      cache: true,
+      inputs: ['default', '^default', 'rustGlobals'],
+      // Same reasoning as `test`: rustdoc's HTML lands in the shared
+      // `dist/target/doc`, so a cache entry means "these inputs documented
+      // cleanly", not "an artifact was restored".
+      outputs: [],
+      options: {
+        command: `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --package ${crate.name}`,
+        cwd: '{workspaceRoot}',
+      },
+      metadata: {
+        description: `cargo doc ${crate.name} (warnings are errors)`,
+        technologies: ['rust'],
+      },
+    },
   };
+
+  // nextest CANNOT run doctests (it has no rustdoc harness), so `test` above
+  // leaves every `/// ```` example in this workspace uncompiled — 210 of them
+  // across 9 crates before this target existed. Only a `[lib]` gets one:
+  // `cargo test --doc` on a bin-only package fails with "no library targets
+  // found", which would be a red target for a crate that simply has no
+  // doctests to run.
+  if (crate.hasLibrary) {
+    targets['doc-test'] = {
+      executor: 'nx:run-commands',
+      cache: true,
+      inputs: ['default', '^default', 'rustGlobals'],
+      outputs: [],
+      options: {
+        command: `cargo test --doc --package ${crate.name}`,
+        cwd: '{workspaceRoot}',
+      },
+      metadata: {
+        description: `cargo test --doc ${crate.name}`,
+        technologies: ['rust'],
+      },
+    };
+  }
 
   if (!crate.hasBinary) return targets;
 

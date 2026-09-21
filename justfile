@@ -141,12 +141,18 @@ fmt-check-spell:
     typos
 
 # Lint every ecosystem (read-only) — extend with lint-go/lint-py when they exist
+# `doc-check` is rustdoc's pass over the same crates (intra-doc links, doc HTML)
+# and `deps-unused` is cargo-machete over the manifests: both are read-only
+# static gates that only Rust has today, so they ride with `lint-rust` rather
+# than growing a third aggregate.
 [group('quality')]
-lint: lint-rust lint-web
+lint: lint-rust doc-check deps-unused lint-web
 
 # Test every ecosystem — extend with test-go/test-py when they exist
+# `test-doc` is the second Rust leaf on purpose: nextest cannot run doctests,
+# so `test-rust` alone leaves every documented example uncompiled.
 [group('quality')]
-test: test-rust test-web test-napi
+test: test-rust test-doc test-web test-napi
 
 # The everyday gate: formatting + all linters + all tests + supply-chain audit
 [group('quality')]

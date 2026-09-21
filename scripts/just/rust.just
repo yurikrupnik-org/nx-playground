@@ -16,21 +16,54 @@ lint-rust:
 test-rust:
     cargo nextest run --workspace
 
-# Clippy + nextest for exactly the crates a diff touches, plus their cargo
-# dependents (`@monodon/rust` puts those edges in the graph). Runs the inferred
-# per-crate `lint`/`test` targets, so Nx Cloud caches a crate's result and a
-# rerun re-checks only what moved; a diff with no crate in it runs no cargo at
-# all. This is the CI PR path.
+# nextest has no rustdoc harness, so `test-rust` above runs ZERO of the ~210
+# doctests in this workspace: `--doc` is a separate cargo invocation or the
+# examples never compile. Warm, after `test-rust`, this is ~30s.
+# Doctests across the cargo workspace (what nextest cannot run)
+[group('quality')]
+test-doc:
+    cargo test --doc --workspace
+
+# rustdoc is the third front-end over these sources — it resolves intra-doc
+# links and `#[doc]` attributes that neither clippy nor nextest looks at, and
+# `monodocs build --cargo-doc` ships whatever it produces. `-D warnings` is
+# what makes that a gate; `--no-deps` keeps it to this workspace's crates.
+# Rustdoc gate: every crate documents cleanly, warnings are errors
+[group('quality')]
+doc-check:
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace
+
+# Dependency hygiene: a dependency nothing references still compiles, still
+# lands in Cargo.lock, still gets audited and still slows every build. Source
+# heuristic, no compilation — the whole workspace in under a second. A false
+# positive (a crate used only through a macro expansion) goes in that crate's
+# `[package.metadata.cargo-machete] ignored`, with the reason, not in an
+# allow-list here.
+[group('quality')]
+deps-unused:
+    cargo machete
+
+# Clippy, nextest, doctests, rustdoc and the OpenAPI drift gate for exactly the
+# crates a diff touches, plus their cargo dependents (`@monodon/rust` puts
+# those edges in the graph). Runs the inferred per-crate targets, so Nx Cloud
+# caches a crate's result and a rerun re-checks only what moved; a diff with no
+# crate in it runs no cargo at all. This is the CI PR path.
 #
 # `max` is where per-crate orchestration stops paying, measured on this
 # workspace (warm target dir, 45 crates / 90 tasks):
 #
-#   lint-rust + test-rust (one cargo process each)   20s + 1m53s = 2m13s
+#   lint-rust + test-rust + test-doc + doc-check (one cargo process each)
+#                                       20s + 1m53s + 31s + 56s = 3m40s
 #   all 45 crates through nx, --parallel=4                       4m06s
 #   all 45 crates through nx, --parallel=1                      10m09s
 #   3 crates through nx, cold / 100% Nx Cloud cache hit       14.7s / 16ms
 #
-# so ~5.5s per crate against a flat 2m13s: past ~20 crates the shared compile
+# Marginal cost of the two doc targets, one crate, everything warm
+# (`domain_users`): clippy 0.4s, nextest 0.7s, `cargo test --doc` 2.1s,
+# `cargo doc` 1.5s — doctests reuse the dev-profile artifacts nextest just
+# built, and only rustdoc pays for a metadata pass of its own.
+#
+# so ~9s per crate against a flat 3m40s: past ~20 crates the shared compile
 # of one --workspace run wins and this recipe hands over to it. A Cargo.lock,
 # rust-toolchain.toml or .cargo/*.toml change lands in every crate's `inputs`
 # (the `rustGlobals` namedInput) and therefore always takes that branch — which
@@ -56,11 +89,17 @@ check-rust-affected base=env('NX_BASE', 'origin/main') head=env('NX_HEAD', 'HEAD
         echo "check-rust-affected: $count crates affected (> {{ max }}) — running the workspace gate"
         just lint-rust
         just test-rust
+        just test-doc
+        just doc-check
+        just openapi-check
         exit 0
     fi
     crates=$(jq -r 'sort | join(",")' <<<"$affected")
     echo "check-rust-affected: $count crates — $crates"
-    bun nx run-many -t lint test -p "$crates" --parallel=4
+    # `doc-test` exists only for a crate with a library and `openapi-gate` only
+    # for the four that export a document; nx runs each target where it exists
+    # and skips the rest.
+    bun nx run-many -t lint test doc doc-test openapi-gate -p "$crates" --parallel=4
 
 # CI's cargo job runs this leaf directly instead of the `fmt-check` aggregate,
 # so it must stay cargo-only — no bun, rumdl or typos.

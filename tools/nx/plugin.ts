@@ -1,5 +1,5 @@
 /**
- * The repo's only local nx plugin. One registration, three inference modules.
+ * The repo's only local nx plugin. One registration, six inference modules.
  *
  * Why one: nx forks an isolated worker process per REGISTERED plugin, and each
  * one costs ~70 MB RSS plus its own startup while the project graph is computed.
@@ -11,7 +11,10 @@
  * plugin creates none of its own):
  *
  *   tilt-targets.ts       `tilt-gen` / `tilt-check`  — apps that ship k8s manifests
- *   rust-targets.ts       `build` / `test` / `run` / `install` — cargo crates
+ *   k8s-targets.ts        `k8s-gen` / `k8s-check`    — apps that ship k8s manifests
+ *   rust-targets.ts       `build` / `test` / `doc` / `doc-test` / `run` /
+ *                         `install`                  — cargo crates
+ *   openapi-targets.ts    `openapi-gate`             — crates exporting a document
  *   container-targets.ts  `container` / `scan`       — every deployable app
  *   polyglot-targets.ts   `fmt` / `lint`             — crates and TS packages
  *
@@ -40,6 +43,7 @@ import {
   containerTargets,
 } from './container-targets.ts';
 import { k8sTargets } from './k8s-targets.ts';
+import { openapiTargets } from './openapi-targets.ts';
 import { PACKAGE_MANIFESTS, polyglotTargets } from './polyglot-targets.ts';
 import {
   CARGO_MANIFESTS,
@@ -149,7 +153,15 @@ export const createNodesV2: CreateNodesV2 = [
           if (!excluded && !hasPackageScriptGates(workspaceRoot, dir))
             tags.push(RUST_TAG);
           const contribution: ProjectContribution = {
-            targets: excluded ? {} : rustTargets(crate, dir),
+            targets: excluded
+              ? {}
+              : {
+                  ...rustTargets(crate, dir),
+                  // Keyed on the crate too: a document is exported by a cargo
+                  // TEST, so the gate belongs to the crate node, not to the
+                  // app node an `apps/**/butler.toml` would contribute to.
+                  ...openapiTargets(workspaceRoot, dir, crate),
+                },
           };
           if (tags.length > 0) contribution.tags = tags;
           results.push([file, { projects: { [dir]: contribution } }]);

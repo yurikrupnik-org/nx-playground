@@ -2,7 +2,7 @@
 //!
 //! Provides reusable conversion functions for common types used in protobuf schemas:
 //! - UUIDs (domain Uuid ↔ protobuf bytes)
-//! - Timestamps (domain DateTime<Utc> ↔ protobuf i64 Unix timestamps)
+//! - Timestamps (domain `DateTime<Utc>` ↔ protobuf i64 Unix timestamps)
 //!
 //! These helpers are domain-agnostic and can be used across all services
 //! (tasks, users, projects, cloud_resources, etc.)
@@ -90,7 +90,7 @@ pub fn opt_bytes_to_uuid(bytes: Option<Vec<u8>>) -> Result<Option<Uuid>, String>
 // Timestamp Conversions (Unix timestamp ↔ DateTime<Utc>)
 // ============================================================================
 
-/// Convert DateTime<Utc> to Unix timestamp (seconds since epoch)
+/// Convert `DateTime<Utc>` to Unix timestamp (seconds since epoch)
 ///
 /// # Example
 /// ```ignore
@@ -102,7 +102,7 @@ pub fn datetime_to_timestamp(dt: DateTime<Utc>) -> i64 {
     dt.timestamp()
 }
 
-/// Convert Unix timestamp to DateTime<Utc>
+/// Convert Unix timestamp to `DateTime<Utc>`
 ///
 /// Falls back to current time if the timestamp is invalid.
 ///
@@ -116,7 +116,7 @@ pub fn timestamp_to_datetime(timestamp: i64) -> DateTime<Utc> {
     DateTime::from_timestamp(timestamp, 0).unwrap_or_else(Utc::now)
 }
 
-/// Convert optional Unix timestamp to optional DateTime<Utc>
+/// Convert optional Unix timestamp to optional `DateTime<Utc>`
 ///
 /// # Example
 /// ```ignore
@@ -128,7 +128,7 @@ pub fn opt_timestamp_to_datetime(timestamp: Option<i64>) -> Option<DateTime<Utc>
     timestamp.map(timestamp_to_datetime)
 }
 
-/// Convert optional DateTime<Utc> to optional Unix timestamp
+/// Convert optional `DateTime<Utc>` to optional Unix timestamp
 ///
 /// # Example
 /// ```ignore

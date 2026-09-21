@@ -352,10 +352,25 @@ export function derivedImageName(appDir: string): string {
   return trimmed.replace(/\//g, '-');
 }
 
-/** A cargo crate's package name, whether it produces a binary, and `publish`. */
+/**
+ * A cargo crate's package name, whether it produces a binary or a library, and
+ * `publish`.
+ */
 export interface CargoCrate {
   name: string;
   hasBinary: boolean;
+  /**
+   * A `[lib]` target — what `cargo test --doc` needs: rustdoc collects doctests
+   * from the library only, and cargo ERRORS ("no library targets found") on a
+   * bin-only package.
+   */
+  hasLibrary: boolean;
+  /**
+   * `[dependencies]` keys — the cheap "can this crate possibly do X" test for
+   * an inference rule (`utoipa` -> it may export an OpenAPI document), without
+   * reading a line of its source.
+   */
+  dependencies: ReadonlySet<string>;
   /** `[package] publish` says this binary is meant to leave the repo. */
   publish: boolean;
 }
@@ -386,6 +401,10 @@ export function readCargoCrate(
       declaresBin ||
       existsSync(join(workspaceRoot, dir, 'src', 'main.rs')) ||
       existsSync(join(workspaceRoot, dir, 'src', 'bin')),
+    // `[lib] path` for a crate that moves it, `src/lib.rs` for the convention.
+    hasLibrary:
+      tables.has('lib') || existsSync(join(workspaceRoot, dir, 'src', 'lib.rs')),
+    dependencies: new Set(tables.get('dependencies')?.keys() ?? []),
     publish:
       publish !== undefined &&
       (publish.startsWith('[')
