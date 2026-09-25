@@ -1,12 +1,15 @@
 [project]
 name = "nx-workspace"
 version = "1.0.0"
-dependencies = [ "test-cli1" ]
+dependencies = [ "test-cli1", "skill-agents" ]
 
 [tool.uv.workspace]
-members = [ "apps/test-cli1" ]
+members = [ "apps/test-cli1", "apps/skill-agents" ]
 
 [tool.uv.sources.test-cli1]
+workspace = true
+
+[tool.uv.sources.skill-agents]
 workspace = true
 
 [dependency-groups]

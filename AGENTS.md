@@ -436,6 +436,20 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   to gitignored `dist/agents/` by `task agents-export`; and `.gemini/settings.json`
   loads `AGENTS.md` itself via `context.fileName`, so this file is never copied
   into a second always-on context that could drift.
+- **The Vertex export is also a runnable agent set: `apps/skill-agents`.** It
+  builds one standalone ADK `LlmAgent` per `dist/agents/vertex/instructions/*.md`
+  and puts a multi-stage supervisor over them (triage → parallel delegate →
+  review, looping on `revise` up to `--max-rounds`) on two backends: an ADK
+  custom `BaseAgent` with the specialists as `sub_agents`, and a LangGraph
+  `StateGraph` whose `delegate` nodes run the SAME ADK agents. Prompts, schemas
+  and loop rules live once in `skill_agents/stages.py`; a test asserts both
+  backends return the same result. Its input is the export, so run
+  `task agents-export` first, and the `- Applies when:` / `- Verification:`
+  header lines of `knowledge()` in `tools/agents/gen.ts` are a parsed contract.
+  Two traps: the exported instruction goes in `static_instruction`, never
+  `instruction` (ADK substitutes `{name}` from session state there); and ADK
+  gives an agent exactly one parent, so each supervisor builds its own
+  specialist instances.
 - **`x` (`apps/x/cli`) has no route table — it reads the committed OpenAPI
   documents, and that is the only thing a client can honestly share with these
   servers.** The handlers cannot be reused: four of the six `libs/domains/*`

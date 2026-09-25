@@ -72,3 +72,6 @@ mprocs.log
 .nx/polygraph
 .nx/self-healing
 .nx/migrate-runs
+# moon
+.moon/cache
+.moon/docker
