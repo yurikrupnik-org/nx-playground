@@ -108,9 +108,9 @@ success on retry, `--force` is only for the throwaway local mirror). CI
 
 - Workload rendering: bump `butler.toml` `[k8s] tag` to the released version
   (check `~/gitorgs/kcl-packages/packages/app/CHANGELOG.md`; keep it PINNED —
-  an unpinned ref re-renders on every publish), then `just k8s-gen`,
-  `just tilt-gen`, and commit the regenerated `manifests/k8s/apps/**`,
-  `<app>/k8s/values*.yaml` and `Tiltfile`s (`just k8s-check` / `just tilt-check`
+  an unpinned ref re-renders on every publish), then `task k8s-gen`,
+  `task tilt-gen`, and commit the regenerated `manifests/k8s/apps/**`,
+  `<app>/k8s/values*.yaml` and `Tiltfile`s (`task k8s-check` / `task tilt-check`
   are the drift gates). `[k8s] package` is a bare `oci://<host>/<ns>/<name>`;
   the tag lives only in `tag`.
 - Ad hoc: `kcl run "oci://docker.io/yurikrupnik/app?tag=0.1.2" -D env=dev -q`

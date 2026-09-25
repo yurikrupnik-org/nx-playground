@@ -172,9 +172,9 @@ that already speak gRPC.
 ## Running it
 
 ```bash
-just docker-up             # Postgres + NATS
-just migrate todo          # schema, stack_profiles, the notify trigger
-just run todo-api          # REST + SSE + WS + gRPC on :8080
+task docker-up             # Postgres + NATS
+task migrate DB=todo       # schema, stack_profiles, the notify trigger
+task run -- todo-api       # REST + SSE + WS + gRPC on :8080
 
 cd apps/todo/web && bun run dev          # SPA        → http://localhost:3100
 cd apps/todo/web-astro && bun run dev    # Astro SSR  → http://localhost:3200/{,solid,htmx}
@@ -247,7 +247,7 @@ with the database detail logged, not returned.
 
 | Test | Guards |
 |---|---|
-| `apps/todo/e2e` (Playwright, `just e2e`) | The whole table above, in a browser: the same CRUD loop on all four surfaces through one page object; SSR pages carry the list in the initial HTML and the SPA shell does not; a `psql` write reaches the open SPA over SSE; an htmx write reaches the SPA in another tab; the `grpc_client` example runs against the listener the browser is using; the landing page renders the DB-backed `stack_profiles` |
+| `apps/todo/e2e` (Playwright, `task e2e`) | The whole table above, in a browser: the same CRUD loop on all four surfaces through one page object; SSR pages carry the list in the initial HTML and the SPA shell does not; a `psql` write reaches the open SPA over SSE; an htmx write reaches the SPA in another tab; the `grpc_client` example runs against the listener the browser is using; the landing page renders the DB-backed `stack_profiles` |
 | `apps/todo/api/src/grpc.rs` `crud_round_trip_over_grpc_is_visible_over_rest` | REST and gRPC served from one `axum::serve` on one ephemeral port; a gRPC write is read back over HTTP/1.1 REST |
 | `…` `watch_streams_bus_events` | An event on the shared bus arrives as a `todo.v1.TodoEvent` |
 | `…` `domain_validation_maps_to_invalid_argument` | Domain validation and bad UUIDs surface as `INVALID_ARGUMENT`, not `INTERNAL` |

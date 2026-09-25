@@ -5,7 +5,7 @@
 //! clients read.
 //!
 //! ```bash
-//! just run todo-api                      # or: cargo run -p todo_api
+//! task run -- todo-api                   # or: cargo run -p todo_api
 //! cargo run -p todo_api --example grpc_client [http://localhost:8080]
 //! ```
 

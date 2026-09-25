@@ -6,7 +6,7 @@ workspace members. Snapshot date: 2026-09-21.
 Evidence for every claim below is reproducible: `cargo metadata --no-deps`
 for the feature tables and per-dependency selections, a `cfg(feature = "…")`
 scan over each crate's `src/`, `tests/` and `benches/`, and the gate commands
-in `scripts/just/rust.just` plus the nx-inferred per-crate targets
+in `scripts/tasks/rust.yml` plus the nx-inferred per-crate targets
 (`bun nx show project <crate> --json`).
 
 ## The shape
@@ -38,11 +38,11 @@ of the lattice.
 
 | Gate | Command | Feature set compiled |
 |---|---|---|
-| main / `just check` | `cargo clippy --workspace --all-targets` | **union** of everything any member enables |
+| main / `task check` | `cargo clippy --workspace --all-targets` | **union** of everything any member enables |
 | PR (nx affected) | `cargo clippy --package X --all-targets` | that crate's **`default`** only |
 
 No `--all-features`, no `--no-default-features` and no `cargo hack` appears in
-`justfile`, `scripts/just/rust.just` or `.github/workflows`.
+`scripts/tasks/flows.yml`, `scripts/tasks/rust.yml` or `.github/workflows`.
 
 Two consequences follow, and both have already bitten:
 
@@ -61,7 +61,7 @@ Two consequences follow, and both have already bitten:
 
 | Feature | `cfg` sites | Enabled by | Risk |
 |---|---|---|---|
-| `field-selector/axum` | 1 — `libs/core/field-selector/src/lib.rs:312`, `mod axum_integration` | **nobody** | `field-selector` is in `published_crates` (`scripts/just/rust.just:130`). Its default is `[]` and `cargo package` builds defaults, so this module is compiled by no gate and no release step — yet crates.io consumers can enable it. |
+| `field-selector/axum` | 1 — `libs/core/field-selector/src/lib.rs:312`, `mod axum_integration` | **nobody** | `field-selector` is in `PUBLISHED_CRATES` (`scripts/tasks/rust.yml`). Its default is `[]` and `cargo package` builds defaults, so this module is compiled by no gate and no release step — yet crates.io consumers can enable it. |
 | `email/integration` | 1 — `libs/notifications/email/tests/integration_test.rs:350`, `mod nats_integration_tests` | **nobody** | A Docker-backed NATS test module that has never run in any gate. |
 | `test-utils/all` | 0 | nobody | Pure alias with no consumer. Dead. |
 
@@ -130,7 +130,7 @@ Add a non-PR gate that compiles the combinations nothing else does:
 cargo hack check --workspace --each-feature --no-dev-deps
 ```
 
-It belongs in the weekly/`audit` recipe rather than the PR path, because it
+It belongs in the weekly/`audit` task rather than the PR path, because it
 costs N× compile time. It is the only mechanism that keeps
 `field-selector/axum`, `email/integration` and the `messaging/nats` off-path
 from rotting silently — and without it, "we keep the feature for a future

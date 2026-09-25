@@ -74,12 +74,7 @@ impl<R: TodoRepository> TodoService<R> {
         let completed_change = input.completed;
         let todo = self.repository.update(id, input).await?;
 
-        // Distinguish completion transitions for a richer event stream.
-        let kind = match completed_change {
-            Some(true) => TodoEventKind::Completed,
-            Some(false) => TodoEventKind::Uncompleted,
-            None => TodoEventKind::Updated,
-        };
+        let kind = TodoEventKind::for_update(completed_change);
         self.emit(TodoEvent::from_todo(kind, &todo)).await;
         Ok(todo)
     }

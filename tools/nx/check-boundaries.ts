@@ -1,5 +1,5 @@
 /**
- * Tag-based dependency boundary gate over the nx graph — `just boundaries`.
+ * Tag-based dependency boundary gate over the nx graph — `task boundaries`.
  *
  * Usage: bun tools/nx/check-boundaries.ts <graph.json>
  * where <graph.json> is the output of `bun nx graph --file=<graph.json>`.

@@ -2,7 +2,7 @@
 //!
 //! Publishes N distinct welcome jobs onto `EMAILS` as fast as the server will ack,
 //! then prints the publish-side throughput. The delivery-side assertion lives in
-//! `just email-scale-check`, which counts what actually reached MailHog.
+//! `task email-scale-check`, which counts what actually reached MailHog.
 //!
 //! Run with: `cargo run -p zerg_email_nats --example publish_bulk -- 500`
 //!

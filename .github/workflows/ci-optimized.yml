@@ -14,14 +14,15 @@ permissions:
   security-events: write
   packages: write        # Push/pull buildx layer cache to GHCR
 
-# CI runs the same `just` recipes developers run (see justfile "Flows"), so a green
-# local `just verify` means a green CI. Cargo owns the Rust build: the gates below
-# are one `--workspace` invocation each, never one nx task per crate — see the
-# benchmark note in the root justfile header. nx is used for change detection on a
-# PR (`just check-rust-affected` -> the inferred per-crate `lint`/`test` targets,
-# Nx Cloud-cached), while a push to main always gates the whole workspace.
+# CI runs the same tasks developers run (see the "Flows" header in
+# scripts/tasks/flows.yml), so a green local `task verify` means a green CI.
+# Cargo owns the Rust build: the gates below are one `--workspace` invocation
+# each, never one nx task per crate — see the benchmark note in that same header.
+# nx is used for change detection on a PR (`task check-rust-affected` -> the
+# inferred per-crate `lint`/`test` targets, Nx Cloud-cached), while a push to
+# main always gates the whole workspace.
 jobs:
-  # cargo gates: `just fmt-check-rust audit` always, plus either the affected
+  # cargo gates: `task fmt-check-rust audit` always, plus either the affected
   # (PR) or the whole workspace (main).
   rust:
     runs-on: ubuntu-latest
@@ -56,9 +57,12 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
 
-      - uses: extractions/setup-just@v3
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Binaries the recipes below invoke: nextest for tests, cargo-sort for the
+      # Binaries the tasks below invoke: nextest for tests, cargo-sort for the
       # dependency-table half of `fmt-check-rust`, audit + deny for `audit`,
       # machete for `deps-unused`.
       # protoc is a BUILD dependency, not a recipe: `todo_temporal` pulls the
@@ -94,7 +98,7 @@ jobs:
       # The cargo-only formatting leaf, NOT the `fmt-check` aggregate: that one
       # also runs rumdl and typos, which this job does not install. Web
       # formatting is gated by `bunx biome ci .` in the `web` job.
-      - run: just fmt-check-rust
+      - run: task fmt-check-rust
 
       # PR: clippy, nextest, doctests, rustdoc and the OpenAPI drift gate for
       # the crates this diff touches and their cargo dependents, each task
@@ -105,7 +109,7 @@ jobs:
       # testcontainers-backed tests need docker, which ubuntu-latest provides.
       - name: Rust gates for the affected crates
         if: github.event_name == 'pull_request'
-        run: just check-rust-affected
+        run: task check-rust-affected
 
       # main: the authoritative full gate, one cargo process per command.
       # `test-doc` is separate from `test-rust` because nextest has no rustdoc
@@ -113,13 +117,13 @@ jobs:
       # `openapi-check` re-exports the committed documents and diffs them.
       - name: Rust gates for the whole workspace
         if: github.event_name != 'pull_request'
-        run: just lint-rust test-rust test-doc doc-check openapi-check
+        run: task lint-rust test-rust test-doc doc-check openapi-check
 
       # Manifest hygiene: source-heuristic scan, no compilation, whole
       # workspace in under a second — cheap enough to run on every event.
-      - run: just deps-unused
+      - run: task deps-unused
 
-      - run: just audit
+      - run: task audit
 
       # The Leptos/WASM delivery-surface arm. It is `[workspace] exclude`d, so
       # none of the cargo gates above compile it; this is its only CI coverage.
@@ -137,7 +141,7 @@ jobs:
           df -h
 
   # web gates: read-only biome (app `lint` scripts are mutating, so they are not a
-  # gate — see AGENTS.md) + nx build/test/typecheck via `just test-web`
+  # gate — see AGENTS.md) + nx build/test/typecheck via `task test-web`
   web:
     runs-on: ubuntu-latest
     steps:
@@ -154,20 +158,23 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - uses: extractions/setup-just@v3
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Read-only lint: `biome ci` never writes, so a violation fails the job
       - run: bunx biome ci .
 
-      - run: just test-web
+      - run: task test-web
 
       # N-API addons are the one Rust-through-nx exception (see AGENTS.md): the
       # deliverable is a JS package, so cargo runs via napi-cli under nx.
-      - run: just test-napi
+      - run: task test-napi
 
       # Tag-based dependency boundaries over the nx graph (backlog 1.3):
       # an edge may stay inside its scope: tag or point at scope:shared.
-      - run: just boundaries
+      - run: task boundaries
 
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: bun nx fix-ci
@@ -219,18 +226,40 @@ jobs:
       # the recipes below run.
       - run: uv sync --locked --all-groups
 
-      - uses: extractions/setup-just@v3
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: just fmt-check-py
+      - run: task fmt-check-py
 
-      - run: just lint-py
+      - run: task lint-py
 
-      - run: just test-py
+      - run: task test-py
 
 #      - run: bun nx fix-ci
 #        if: always()
 
-  # supply-chain gates: `just scan` (OSV) + `just proto-lint` / `proto-breaking` (buf)
+  # nu gate: `task lint-nu` (`nu --ide-check` over every .nu script, see
+  # scripts/tasks/nu.yml). Own job for the same reason as `python`: a toolchain
+  # no other job installs, and a red job that names its ecosystem.
+  nu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hustcer/setup-nu@v3
+        with:
+          version: "*"
+
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: task lint-nu
+
+  # supply-chain gates: `task scan` (OSV) + `task proto-lint` / `proto-breaking` (buf)
   supply-chain:
     runs-on: ubuntu-latest
     steps:
@@ -238,7 +267,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: extractions/setup-just@v3
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: taiki-e/install-action@v2
         with:
@@ -254,21 +286,21 @@ jobs:
       # RPC_* / ENUM_VALUE_PREFIX wall plus a format diff on the docs backup.
       # Its pr_comment default also needs `pull-requests: write`, which this
       # workflow does not grant ("Resource not accessible by integration").
-      # The gates stay the `just` recipes below, which cd into manifests/grpc.
+      # The gates stay the tasks below, which cd into manifests/grpc.
       - uses: bufbuild/buf-action@v1
         with:
           setup_only: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: just scan
+      - run: task scan
 
-      - run: just proto-lint
+      - run: task proto-lint
 
       # Additive-only wire policy (backlog 1.2, docs/grpc.md): renumbering or
       # removing a field fails the PR. PR-only — on a push to main the comparison
       # is main against itself. `fetch-depth: 0` above matters: the recipe compares
       # against refs/remotes/origin/main, which checkout only populates fully here.
-      - run: just proto-breaking
+      - run: task proto-breaking
         if: github.event_name == 'pull_request'
 
   affected:

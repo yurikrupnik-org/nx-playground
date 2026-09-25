@@ -19,7 +19,7 @@ description: Scaffold a new Rust crate (lib or app) in this workspace. Use when 
    - every dependency `{ workspace = true }` — versions live ONLY in the root
      `[workspace.dependencies]`; add new deps there first
    - `publish = false` unless it's going to crates.io (then also append to
-     `published_crates` in `scripts/just/rust.just`)
+     `PUBLISHED_CRATES` in `scripts/tasks/rust.yml`)
 2. Add the path to the root `Cargo.toml` `[workspace] members` list — it is an
    explicit list, not a glob; alphabetical within its section
 3. Nx discovers the crate automatically via @monodon/rust (verify:
@@ -28,7 +28,7 @@ description: Scaffold a new Rust crate (lib or app) in this workspace. Use when 
 4. Tests: unit tests inline; integration tests in `tests/` using `test-utils`
    (`TestPostgres`/`TestRedis`/`TestNats`) as dev-dependency with the features
    it needs, e.g. `test-utils = { workspace = true, features = ["nats"] }`
-5. Gate: `cargo check -p <name>`, then `just check-quick`. Do NOT run the crate
+5. Gate: `cargo check -p <name>`, then `task check-quick`. Do NOT run the crate
    through `nx run-many` (see AGENTS.md: cargo-native policy).
 
 ## Domain crate conventions (libs/domains/*)

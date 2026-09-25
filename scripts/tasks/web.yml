@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Web/node workspace tasks (nx + biome + ncu) — included (flattened) by the root Taskfile.yml.
+# nx handles web: package.json scripts as cached targets, scoped with -p '*-web'.
+version: '3'
+
+tasks:
+  # Biome (root config) over all JS/TS/JSON/CSS, read-only. The per-project
+  # `lint` target (tools/nx/polyglot-targets.ts) runs the same `biome ci` scoped
+  # to one project root; this is the whole-tree pass.
+  lint-web:
+    desc: Biome (root config) over all JS/TS/JSON/CSS, read-only
+    cmds:
+      - bunx biome ci .
+
+  # nx build+test+typecheck for every *-web project plus the shared web libs.
+  # `typecheck` (tsc --noEmit) is the TS gate — `vite build` is NOT: esbuild strips
+  # types without checking them.
+  test-web:
+    desc: nx build+test+typecheck for every *-web project plus the shared web libs
+    cmds:
+      - bun nx run-many -t build test typecheck -p '*-web' web-auth
+
+  # Formatter + assists (organizeImports) only — `--linter-enabled=false`. A
+  # formatting pass must never gate: `biome check --write` exits 1 when an
+  # unfixable LINT diagnostic remains, which would abort `task fmt` before the
+  # markdown and spelling leaves ever run. Lint is `lint-web`'s job (`biome ci .`,
+  # which checks formatting too — that is why `fmt-check` has no web leaf).
+  # Not routed through nx: one biome process beats N per-project invocations, and
+  # there is no per-project biome config to honour — the inferred `fmt` target is
+  # for the affected scope, not for this task.
+  fmt-web:
+    desc: 'Web auto-format: biome over the whole tree'
+    cmds:
+      - bunx biome check --write --linter-enabled=false .
+
+  # Native N-API addons (libs/native/*): cargo build via napi-cli + their node tests.
+  # nx-driven (unlike plain Rust crates) because the deliverable is a JS package:
+  # the .node artifact plus generated index.js/index.d.ts are nx build outputs.
+  test-napi:
+    desc: 'Native N-API addons (libs/native/*): napi build + node tests'
+    cmds:
+      - bun nx run-many -t build test -p '@native/*'
+
+  # Browser e2e for the todo vertical (apps/todo/e2e): Playwright boots a
+  # throwaway Postgres (docker), todo-api, and all three frontends on dedicated
+  # ports, then drives every delivery option against the one backend. Needs
+  # docker + cargo; the first run compiles two binaries and downloads Chromium
+  # (`playwright install` is idempotent). ~10s warm, 9 tests.
+  e2e:
+    desc: Browser e2e for the todo vertical (apps/todo/e2e, Playwright)
+    cmds:
+      - cd apps/todo/e2e && bunx playwright install chromium
+      - bun nx e2e todo-e2e
+
+  # Dependency boundaries over the whole nx graph (cargo + TS edges): every edge
+  # must stay inside its `scope:` tag or point at scope:shared. Tags are declared
+  # in tools/nx/scope-tags.ts; this is backlog 1.3 as an executable gate.
+  boundaries:
+    desc: 'Dependency boundaries over the whole nx graph (scope: tags)'
+    cmds:
+      - bun nx graph --file=dist/boundaries-graph.json >/dev/null
+      - bun tools/nx/check-boundaries.ts dist/boundaries-graph.json
+
+  # Platform tool registry drift gate (bun, no nx): every tool in
+  # docs/tooling/registry.toml must still cite paths that exist, every `adopted`
+  # row must name a gate or a declared [[gap]], and every paid tool must carry a
+  # human approval. Contract: .claude/skills/cncf-manager/SKILL.md.
+  tooling-check:
+    desc: Platform tool registry drift gate (docs/tooling/registry.toml)
+    cmds:
+      - bun tools/tooling/check-registry.ts
+
+  # Agent skill adapters: render every runtime's copy from the SKILL.md bodies +
+  # docs/agents/registry.toml (.gemini commands + context, docs/agents/README.md,
+  # docs/agents/skills.html). Contract: tools/agents/gen.ts.
+  agents-gen:
+    desc: Render every agent skill adapter from SKILL.md + docs/agents/registry.toml
+    cmds:
+      - bun tools/agents/gen.ts --write
+
+  # Agent skill drift gate: every registry row still cites paths that exist, has
+  # a gate or a declared [[gap]], and every generated adapter matches what the
+  # registry would render right now. Run `task agents-gen` when it fails.
+  agents-check:
+    desc: 'Agent skill drift gate (run `task agents-gen` when it fails)'
+    cmds:
+      - bun tools/agents/gen.ts --check
+
+  # Hosted-agent export (gitignored dist/agents/): per-skill instruction (capped
+  # at Bedrock's 4000-char limit) + knowledge document for AWS Bedrock and GCP
+  # Vertex AI, plus the upload commands. Creating the agents costs money and is a
+  # human decision — see .claude/skills/cncf-manager/SKILL.md.
+  agents-export:
+    desc: Hosted-agent export (Bedrock / Vertex AI) into dist/agents/
+    cmds:
+      - bun tools/agents/gen.ts --export
+
+  # Freeze the STAGED diff into one review input both pre-commit passes read
+  # (file table + class per file + the gates that diff implies + the diff
+  # itself). Exits 1 on a hard stop (secret-shaped path). Protocol:
+  # .claude/skills/precommit-review/SKILL.md
+  # Usage: task review-bundle [OUT=dist/review/bundle.md]
+  review-bundle:
+    desc: Freeze the STAGED diff into one pre-commit review input (OUT)
+    vars:
+      OUT: '{{.OUT | default "dist/review/bundle.md"}}'
+    cmds:
+      - bun tools/review/bundle.ts --out {{.OUT}}
+
+  outdated-node:
+    desc: npm-check-updates preview across all workspace package.json files (no -u)
+    cmds:
+      - cmd: ncu --workspaces --target latest
+        ignore_error: true
+
+  web:
+    desc: Run zerg web dev server
+    cmds:
+      - cd apps/zerg/web && bun run dev

@@ -14,7 +14,7 @@
  * that boilerplate, derived from the one file that cannot lie about a crate's
  * name: its `Cargo.toml`.
  *
- * Two orchestrators, two jobs. `just lint-rust` / `just test-rust` stay
+ * Two orchestrators, two jobs. `task lint-rust` / `task test-rust` stay
  * cargo-direct (`cargo clippy --workspace`, `cargo nextest run --workspace`) and
  * remain the authoritative gate: ONE cargo process shares the target-dir lock
  * and compiles each shared dependency once. Measured warm on 45 crates: 2m13s
@@ -24,7 +24,7 @@
  * diff actually touched, with Nx Cloud caching a crate's clippy/nextest result
  * across CI runs (1 crate, both targets, 2/2 cache hits: 4s).
  *
- * They have exactly one caller, `just check-rust-affected`, which also owns the
+ * They have exactly one caller, `task check-rust-affected`, which also owns the
  * cutover back: past ~20 affected crates it drops these targets and runs the
  * workspace gate instead. Do not invoke them over the whole graph
  * (`nx run-many -t lint test -p tag:lang:rust` is the 10-minute path by construction).
@@ -58,9 +58,9 @@ export const RUST_TAG = 'lang:rust';
  * inference wins over a plugin target, so for the N-API addons — whose
  * deliverable is a JS package and whose `test` is vitest — the cargo gate never
  * runs. Tagging them `rust` would hand a vitest run to
- * `just check-rust-affected`, whose contract is clippy + nextest; they are
- * covered by `just test-napi` and, for clippy, by the workspace
- * `just lint-rust` (and by their own composed `lint` target).
+ * `task check-rust-affected`, whose contract is clippy + nextest; they are
+ * covered by `task test-napi` and, for clippy, by the workspace
+ * `task lint-rust` (and by their own composed `lint` target).
  */
 export function hasPackageScriptGates(
   workspaceRoot: string,
@@ -132,7 +132,7 @@ export function rustTargets(
     // --cargo-doc` (the docs site's API section) ships the hole.
     // `--no-deps`: the dependency docs are not this crate's to gate.
     // Env inline rather than `options.env` so the command is the whole truth —
-    // `just doc-check` and butler's runner both execute the string verbatim.
+    // `task doc-check` and butler's runner both execute the string verbatim.
     doc: {
       executor: 'nx:run-commands',
       cache: true,
@@ -179,7 +179,7 @@ export function rustTargets(
 
   // `cargo install` for a crate whose binary is meant to leave this repo:
   // `[package] publish`, today only `butler`, the CLI every k8s/tilt target and
-  // half the just recipes shell out to. NOT cached: the artifact lands in
+  // half of scripts/tasks/ shells out to. NOT cached: the artifact lands in
   // `~/.cargo/bin`, outside anything nx fingerprints, so a cache hit would
   // report success while the machine still has the old binary — or none at
   // all, after a `rm ~/.cargo/bin/<bin>`.

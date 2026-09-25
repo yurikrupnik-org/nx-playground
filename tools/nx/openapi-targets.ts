@@ -7,8 +7,8 @@
  * `export_bindings_*` tests. The export runs inside the normal test suite,
  * which means a diff that changes an annotation REWRITES the document and the
  * suite still passes: the drift only becomes visible to whoever diffs the
- * working tree afterwards. `just openapi-check` does that for the whole
- * workspace, and it is in `just verify` — but `verify` is the local gate; the
+ * working tree afterwards. `task openapi-check` does that for the whole
+ * workspace, and it is in `task verify` — but `verify` is the local gate; the
  * CI cargo job runs the affected crates' targets, so without a per-crate gate
  * a stale document merges.
  *

@@ -1,7 +1,7 @@
 //! Standalone Todo API — one backend, four transports on one port.
 //!
 //! - Owns a Postgres connection (SeaORM) over the `todos` schema (migrations are
-//!   applied out of band: `just migrate todo`, or the Atlas operator in-cluster).
+//!   applied out of band: `task migrate DB=todo`, or the Atlas operator in-cluster).
 //! - Serves the `domain_todo` REST router under `/api/todos`.
 //! - Serves the same service as gRPC (`todo.v1.TodoService`, plus
 //!   `grpc.health.v1.Health`) on the SAME listener: tonic routes are merged

@@ -6,8 +6,8 @@ Images from `manifests/dockers/Dockerfile` targets (`nginx`, `caddy`,
 Reproduce:
 
 ```bash
-just test-web-servers     # behavior-parity checks (health, SPA fallback, gzip, caching)
-just bench-web-compare    # this benchmark
+task test-web-servers     # behavior-parity checks (health, SPA fallback, gzip, caching)
+task bench-web-compare    # this benchmark
 ```
 
 ## 2026-08-26 — Apple M4 Max, Docker Desktop (arm64), wrk -t4 -c64 -d10s
@@ -33,4 +33,4 @@ just bench-web-compare    # this benchmark
   the proxy-capable options and the simplest config surface.
 
 All three pass the same parity suite (health endpoint, SPA fallback,
-content types, immutable asset caching, gzip) — `just test-web-servers`.
+content types, immutable asset caching, gzip) — `task test-web-servers`.

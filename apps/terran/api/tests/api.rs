@@ -21,7 +21,7 @@ use terran_api::config::Config;
 use terran_api::db::{self, NewAsset};
 
 const DATABASE_URL: &str = "postgres://myuser:mypassword@localhost:5432/terran?sslmode=disable";
-/// Non-superuser role so RLS actually applies (created by `just db-fresh terran`).
+/// Non-superuser role so RLS actually applies (created by `task db-fresh DB=terran`).
 const APP_ROLE_URL: &str = "postgres://terran_app:terran_app@localhost:5432/terran?sslmode=disable";
 const ISSUER: &str = "http://localhost:8088/realms/terran";
 
@@ -148,7 +148,7 @@ async fn cross_tenant_isolation_at_repo_layer() {
 }
 
 #[tokio::test]
-#[ignore = "requires live terran db + the terran_app role (just db-fresh terran)"]
+#[ignore = "requires live terran db + the terran_app role (task db-fresh DB=terran)"]
 async fn rls_blocks_cross_tenant_under_app_role() {
     // Connect as the non-superuser app role so RLS is the enforcer — not a WHERE clause.
     let db = db::connect(APP_ROLE_URL)
@@ -212,7 +212,7 @@ async fn rls_blocks_cross_tenant_under_app_role() {
 }
 
 /// The observe-only cloud inventory: auth-guarded, and every entry mirrors a live
-/// cluster resource. Needs the `demo` CloudInventory claim (`just inventory-create`).
+/// cluster resource. Needs the `demo` CloudInventory claim (`task inventory-create`).
 #[tokio::test]
 #[ignore = "requires live Keycloak + Postgres + Redis + a kind cluster with the demo CloudInventory"]
 async fn cloud_inventory_is_auth_guarded_and_read_only() {

@@ -132,7 +132,7 @@ Two traps worth knowing:
 Both halves are asserted against a real server in
 `libs/core/messaging/tests/stream_kind_it.rs`: an `EventLog` delivers every message to
 each group, and a `JobQueue` **refuses** the second group. For the client half, run
-`just email-replica-check` (one delivery for one job) or `just email-scale-check` under
+`task email-replica-check` (one delivery for one job) or `task email-scale-check` under
 load.
 
 ### When you actually want fan-out
@@ -423,6 +423,13 @@ Worth comparing before defaulting to Temporal: **Restate** (lighter, single bina
 already runs Postgres everywhere). Both have a much smaller operational footprint, at the
 cost of a smaller ecosystem.
 
+Both runtimes now have a todo-lifecycle example to compare side by side:
+`apps/todo/temporal` (one workflow execution per todo, signals + query, polling worker)
+and `apps/todo/restate` (one virtual object per todo, exclusive handlers + a shared `get`,
+Restate calls into an HTTP endpoint). The Restate one is gated end to end by
+`apps/todo/restate/tests/lifecycle_it.rs` against a real server; its server is BUSL-1.1,
+so production adoption needs a licence decision first (`docs/tooling/registry.toml`).
+
 ---
 
 ## 7. Practical checklist for a new flow
@@ -434,7 +441,7 @@ cost of a smaller ecosystem.
 4. **One consumer or many?** One and forever → command. Otherwise → **event**.
 5. **Job or fact?** Job that must happen once → `KIND = JobQueue` (the default; the
    server then forbids fan-out). Fact others may react to later → `KIND = EventLog`.
-   Either way every replica shares `CONSUMER_NAME`. Verify with `just email-replica-check`.
+   Either way every replica shares `CONSUMER_NAME`. Verify with `task email-replica-check`.
 6. **Idempotent consumer?** Assume redelivery. Set `Nats-Msg-Id`; make the handler safe
    to run twice.
 7. **Does the flow span systems?** Count the steps. ≤3 → choreograph or compensate by

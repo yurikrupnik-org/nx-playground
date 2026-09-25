@@ -5,7 +5,7 @@
 -- gRPC service is the *only* path to these rows, so a future in-process shortcut is
 -- impossible rather than merely discouraged.
 --
--- Applied by `just db-fresh tasks` after schema.sql.
+-- Applied by `task db-fresh DB=tasks` after schema.sql.
 
 DO $$
 BEGIN

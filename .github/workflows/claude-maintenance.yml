@@ -9,8 +9,12 @@ name: Claude Maintenance
 # Claude Code loads them from the working directory. The target repo is checked
 # out UNDER the hub (`repos/<name>`), so the same playbook applies to all three.
 # The dotconfig checkout also supplies `upkg.nu`, which is how a dependency
-# refresh in nx-playground stays on the mandated path (`just upkg`) without the
+# refresh in nx-playground stays on the mandated path (`task upkg`) without the
 # runner having ~/dotconfig.
+#
+# Task runners differ per repo: nx-playground runs go-task (`task`, Taskfile.yml
+# + scripts/tasks/*.yml); kcl-packages and dotconfig still use `just`. The job
+# installs both, and --allowedTools permits both.
 #
 # Secrets:
 #   CLAUDE_CODE_OAUTH_TOKEN  — already used by claude.yml
@@ -98,8 +102,13 @@ jobs:
           path: ${{ env.DOTCONFIG }}
           fetch-depth: 1
 
-      # Toolchain: the union of what the three repos' `just` gates invoke.
+      # Toolchain: the union of what the three repos' gates invoke — `task` for
+      # nx-playground, `just` for kcl-packages and dotconfig.
       - uses: extractions/setup-just@v3
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -144,4 +153,4 @@ jobs:
             exactly as the skill prescribes, and finish with the report it specifies.
           claude_args: |
             --max-turns 120
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(just:*),Bash(cargo:*),Bash(bun:*),Bash(bunx:*),Bash(npm view:*),Bash(ncu:*),Bash(upkg:*),Bash(nu:*),Bash(kcl:*),Bash(osv-scanner:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git checkout:*),Bash(git switch:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git fetch:*),Bash(git branch:*),Bash(git stash:*),Bash(gh pr:*),Bash(gh issue:*),Bash(gh api repos/*),Bash(gh search:*),Bash(jq:*),Bash(diff:*),Bash(curl -s:*)"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(just:*),Bash(task:*),Bash(cargo:*),Bash(bun:*),Bash(bunx:*),Bash(npm view:*),Bash(ncu:*),Bash(upkg:*),Bash(nu:*),Bash(kcl:*),Bash(osv-scanner:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git checkout:*),Bash(git switch:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git fetch:*),Bash(git branch:*),Bash(git stash:*),Bash(gh pr:*),Bash(gh issue:*),Bash(gh api repos/*),Bash(gh search:*),Bash(jq:*),Bash(diff:*),Bash(curl -s:*)"

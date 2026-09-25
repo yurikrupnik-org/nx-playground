@@ -4,6 +4,7 @@
 //! - `TestDatabase`: PostgreSQL container with automatic cleanup (feature: "postgres")
 //! - `TestRedis`: Redis container with automatic cleanup (feature: "redis")
 //! - `TestNats`: NATS container with JetStream for stream testing (feature: "nats")
+//! - `TestRestate`: Restate server container reaching back to an in-test endpoint (feature: "restate")
 //! - `openapi`: invariant checks for the committed OpenAPI artifacts (feature: "openapi")
 //! - `TestDataBuilder`: Deterministic test data generation (always available)
 //! - `assertions`: Custom assertion helpers (always available)
@@ -13,6 +14,7 @@
 //! - `postgres` (default): Enables PostgreSQL test infrastructure
 //! - `redis`: Enables Redis test infrastructure
 //! - `nats`: Enables NATS JetStream test infrastructure
+//! - `restate`: Enables Restate server test infrastructure
 //! - `openapi`: Enables the committed-OpenAPI-document walker (no containers)
 //! - `all`: Enables all test infrastructure
 //!
@@ -94,6 +96,9 @@ mod redis;
 #[cfg(feature = "nats")]
 mod nats;
 
+#[cfg(feature = "restate")]
+mod restate;
+
 #[cfg(feature = "openapi")]
 pub mod openapi;
 
@@ -106,6 +111,9 @@ pub use redis::TestRedis;
 
 #[cfg(feature = "nats")]
 pub use nats::TestNats;
+
+#[cfg(feature = "restate")]
+pub use restate::TestRestate;
 
 /// Builder for test data with deterministic randomization
 ///

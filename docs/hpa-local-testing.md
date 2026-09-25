@@ -56,8 +56,8 @@ minReplicas = 1
 maxReplicas = 10
 ```
 
-There is no `hpa.yaml` to edit: `just k8s-gen` (or `just k8s-gen-app zerg_api`) renders
-that table into `manifests/k8s/apps/zerg-api.yaml`, and `just k8s-check` fails if the two
+There is no `hpa.yaml` to edit: `task k8s-gen` (or `task k8s-gen-app APP=zerg_api`) renders
+that table into `manifests/k8s/apps/zerg-api.yaml`, and `task k8s-check` fails if the two
 have drifted. The package also omits `spec.replicas` from the Deployment whenever an
 autoscaler owns it, so the kind-wide `replicas = 1` default never fights the HPA.
 
@@ -157,10 +157,10 @@ kubectl top pods -n zerg
 
 ```bash
 # Quick benchmark (10s, light load)
-just bench-cluster-quick
+task bench-cluster-quick
 
 # Full benchmark (30s, heavier load)
-just bench-cluster-all
+task bench-cluster-all
 ```
 
 ### Manual Load Test
@@ -283,6 +283,6 @@ Real cloud Kubernetes clusters (GKE, EKS, AKS) with proper ingress will perform 
 
 - `apps/zerg/api/butler.toml` — `[workload.hpa]` for zerg-api
 - `apps/zerg/tasks/butler.toml` — `[workload.hpa]` for zerg-tasks
-- `manifests/k8s/apps/{zerg-api,zerg-tasks}.yaml` — generated output, `just k8s-gen`
+- `manifests/k8s/apps/{zerg-api,zerg-tasks}.yaml` — generated output, `task k8s-gen`
 - `apps/zerg/shared/k8s/kustomize/overlays/dev/kustomization.yaml` — the reduced DB pool
   sizes every zerg pod inherits through `zerg-shared-config`

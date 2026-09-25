@@ -8,7 +8,7 @@
 //!
 //! The publish deliberately uses **only `contract_projects` + `messaging`**,
 //! never `domain_projects`: `zerg_tasks` must not depend on another vertical's
-//! domain crate (`just boundaries` rejects it), and a test dependency is a real
+//! domain crate (`task boundaries` rejects it), and a test dependency is a real
 //! cargo edge. Publishing straight to the contract's subject is also the
 //! stronger assertion — it proves the two sides agree on stream, subject and
 //! payload rather than sharing one helper that could be wrong in the same way

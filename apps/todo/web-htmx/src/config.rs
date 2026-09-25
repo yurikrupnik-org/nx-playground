@@ -28,7 +28,7 @@ impl FromEnv for AppConfig {
             server: ServerConfig {
                 host: env_parse_or("HOST", ServerConfig::DEFAULT_HOST)?,
                 // `TODO_WEB_HTMX_PORT`, not `PORT`: the root `.env` exports
-                // `PORT=8080` (todo-api) into every `just` recipe, which would
+                // `PORT=8080` (todo-api) into every `task`, which would
                 // reintroduce the self-fetch collision.
                 port: env_parse_or("TODO_WEB_HTMX_PORT", DEFAULT_PORT)?,
             },

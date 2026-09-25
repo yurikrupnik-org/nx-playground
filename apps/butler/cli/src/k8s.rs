@@ -193,7 +193,7 @@ fn resolve(
             markers = tilt::KIND_MARKERS
         )
     })?;
-    let facts = tilt::image_facts(root, &kind, dir, project, app.image.as_ref())?;
+    let facts = tilt::image_facts(root, &kind, dir, Some(&project.name), app.image.as_ref())?;
     let repository = tilt::image_from_tag(&facts.tag, &root.registry);
     let name = repository
         .rsplit('/')

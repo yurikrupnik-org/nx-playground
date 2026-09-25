@@ -10,9 +10,9 @@ metadata:
 data:
   schema.sql: |
     -- Desired Database Schema (single source of truth — zerg has no migrations)
-    -- Local dev: `just db-fresh zerg` drops/recreates the DB from this file + seed.sql
+    -- Local dev: `task db-fresh DB=zerg` drops/recreates the DB from this file + seed.sql
     -- K8s:       Atlas Operator reconciles it declaratively (AtlasSchema + zerg-schema ConfigMap)
-    -- Change flow: edit this file → `just db-fresh zerg` → `just gen-schema-configmap zerg`
+    -- Change flow: edit this file → `task db-fresh DB=zerg` → `task gen-schema-configmap DB=zerg`
     -- PostgreSQL 18 (uuidv7() is a built-in function, no extension required)
 
     -- =============================================================================

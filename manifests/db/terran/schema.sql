@@ -1,7 +1,7 @@
 -- terran — Desired Database Schema (single source of truth)
 -- B2B multi-tenant: identity is global, authorization is tenant-scoped (see
 -- docs/terran-apps-plan.md → "Multi-tenancy & security model").
--- Local dev: `just db-fresh terran` applies this directly via psql.
+-- Local dev: `task db-fresh DB=terran` applies this directly via psql.
 -- Cluster:   Atlas Operator applies migrations via ConfigMaps.
 -- PostgreSQL 18 (uuidv7() is a built-in function, no extension required).
 

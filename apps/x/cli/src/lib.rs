@@ -31,8 +31,8 @@
 //! two ingress paths of `libs/core/oidc-auth`'s `auth_required`:
 //! `--token`/`$X_TOKEN` (`Authorization: Bearer <jwt>`, the machine path) and
 //! `--session`/`$X_SESSION` (the opaque session id, sent under the cookie name
-//! the document declares — the browser path). `just x-token` and
-//! `just x-session` mint them against the local stack.
+//! the document declares — the browser path). `task x-token` and
+//! `task x-session` mint them against the local stack.
 //!
 //! A token wins when both are held: the middleware accepts a bearer JWT on
 //! every guarded route, including the ones whose document declares only the

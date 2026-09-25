@@ -1,0 +1,129 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Local development entry points: bacon/mprocs runners, env bootstrap, scaffolding
+# and personal scratch tasks.
+version: '3'
+
+tasks:
+  slava:
+    desc: Reinstall butler and poke the locally installed cargo binaries
+    cmds:
+      - cargo install --path apps/butler --force
+      - kopium gitrepositories.source.toolkit.fluxcd.io -A > prometheusrule.rs
+      - typos
+      - rumdl
+      - ls ~/.cargo/bin
+      # check what they do and how we use them
+      - iac-cli
+      - zesh
+      - butler
+      - dashboard-tui
+      - dashboard-api
+      - monodocs
+      - nufmt
+      - nx-schema
+      - typos
+      - rust-gdbgui
+      - rust-gdb
+      - rumdl
+      - rls
+      - pg-cli
+      - protoc-gen-rs
+
+  lol:
+    desc: 'GCP login, fetch .env.local, devkit up (gitops/flux), then attach zellij'
+    cmds:
+      - gcloud auth application-default login
+      - task: generate-env
+      - devkit up --skip-dbs --skip-tilt --gitops --flux --skip-secrets
+      - task: zj
+
+  events:
+    desc: Provoke a FailedCreate event in namespace t and watch cluster events
+    cmds:
+      - kubectl create ns t
+      - |
+        kubectl create deployment bad --image=ngindssx -n t --dry-run=client -o yaml \
+          | yq '.spec.template.spec.hostNetwork = true' | kubectl apply -f -
+      - kubectl get events -A --field-selector reason=FailedCreate -w
+
+  prepare:
+    desc: Format Rust and lint protos
+    cmds:
+      - task: fmt-rust
+      - task: proto-lint
+      # task --list
+
+  generate-env:
+    desc: Fetch secrets into .env.local (devkit)
+    cmds:
+      - devkit secrets fetch -o .env.local
+
+  gen-ci:
+    desc: Render .github/workflows/generated-ci.yml from the KCL CI config
+    cmds:
+      - kcl run scripts/kcl/ci/main.k -D config_file=manifests/ci/ci-config.yaml -S githubWorkflow > .github/workflows/generated-ci.yml
+
+  # Run bacon, layering secrets resolved from vals (GCP Secret Manager) on top of
+  # the inherited shell env (DATABASE_URL, REDIS_HOST, ... from direnv). `-i` keeps
+  # the parent env; vals injects the secret keys. No plaintext .env needed.
+  # task run -- zerg-api    task run -- zerg-tasks
+  run:
+    desc: 'Run bacon with vals-resolved secrets: task run -- zerg-api'
+    interactive: true
+    cmds:
+      - vals exec -i -f manifests/secrets/.vals.yaml -- bacon {{.CLI_ARGS}}
+
+  # Wrapped in `vals exec -i` so every proc mprocs spawns inherits the
+  # vals-resolved secrets (fetched once) on top of the shell env — same source as
+  # `task run`, no plaintext .env needed.
+  dev:
+    desc: Start local dev (bacon apps via mprocs)
+    interactive: true
+    cmds:
+      - vals exec -i -f manifests/secrets/.vals.yaml -- mprocs -c manifests/mprocs/local.yaml
+
+  dev-todo:
+    desc: Start just the todo group (todo-api + todo-worker + todo-web) via mprocs.
+    interactive: true
+    cmds:
+      - mprocs -c manifests/mprocs/todo.yaml
+
+  dev-terran:
+    desc: Start just the terran group (terran-api + terran-web) via mprocs.
+    interactive: true
+    cmds:
+      - mprocs -c manifests/mprocs/terran.yaml
+
+  dev-zerg:
+    desc: Start just the zerg group via mprocs (same set as `task dev`).
+    interactive: true
+    cmds:
+      - mprocs -c manifests/mprocs/local.yaml
+
+  #vals exec -i -f manifests/secrets/.vals.yaml --
+  dev-kind:
+    desc: Start Kind dev (port-forward + tilt)
+    interactive: true
+    cmds:
+      - mprocs -c manifests/mprocs/kind.yaml
+
+  create-nx-project:
+    desc: Just how to create a nx repo template
+    cmds:
+      - npx create-nx-workspace@latest --e2eTestRunner playwright --unitTestRunner vitest ---aiAgents claude --workspaceType package-based --packageManager bun --ci github --preset @monodon/rust
+      - bun nx generate @monodon/rust:library --name=rpc --no-interactive
+      - nx add @nxext/solid
+      - devkit config init
+
+  z:
+    desc: Show zellij sessions
+    interactive: true
+    cmds:
+      - zellij list-sessions --short
+      - zellij -s nx-playground action query-tab-names
+      - zellij -s nx-playground action list-panes
+      - task: zj # attach, or create from manifests/zellij/nx-playground.kdl
+      - task: zj-kill # destroy the session (compose + kind survive)
+      - cargo run -p cluster_dashboard --bin cluster-dashboard
+      - cargo-machete
+      - cargo hack check --workspace --each-feature --no-dev-deps

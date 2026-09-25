@@ -1,6 +1,6 @@
 //! Integration tests against the local dev stack (Keycloak `:8088`, Redis `:6379`).
 //!
-//! These require the running compose stack (`just reset-db` / `just _docker-up`) and
+//! These require the running compose stack (`task reset-db` / `task docker-up`) and
 //! are `#[ignore]`d so CI without the stack stays green. Run locally with:
 //!   cargo test --package oidc-auth --test integration -- --ignored
 #![allow(

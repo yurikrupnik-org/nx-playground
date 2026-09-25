@@ -1,5 +1,5 @@
 /**
- * Review bundle for the two-pass pre-commit review — `just review-bundle`.
+ * Review bundle for the two-pass pre-commit review — `task review-bundle`.
  *
  * Usage: bun tools/review/bundle.ts [--out dist/review/bundle.md]
  *
@@ -11,7 +11,7 @@
  *   - the staged file table with add/delete counts and a class per file
  *     (generated / test / source / config / docs / binary);
  *   - the repo gates those classes imply, so a diff that touches no Rust never
- *     pays for `just test-rust`;
+ *     pays for `task test-rust`;
  *   - generated output, with the command that produces it and the gate that
  *     proves the committed copy matches its source (a required-check list, not
  *     a blocker list — regenerated output is normal to commit);
@@ -45,30 +45,30 @@ import { argv, exit } from 'node:process';
  * regenerated file in a diff is normal; a hand-edited one is what the proof
  * catches, so this is a required-check list, not a blocker list.
  *
- * A proof must be able to FAIL: `just proto-check` is `cargo check -p rpc`,
+ * A proof must be able to FAIL: `task proto-check` is `cargo check -p rpc`,
  * which compiles the generated tree without comparing it to the .proto, so the
  * proof is regenerate-then-`git diff --exit-code`.
  */
 const GENERATED: Record<string, { regen: string; proof: string }> = {
-  '**/Tiltfile': { regen: 'just tilt-gen', proof: 'just tilt-check' },
-  'manifests/k8s/apps/**': { regen: 'just k8s-gen', proof: 'just k8s-check' },
-  '**/k8s/values.yaml': { regen: 'just k8s-gen', proof: 'just k8s-check' },
-  '**/k8s/values.*.yaml': { regen: 'just k8s-gen', proof: 'just k8s-check' },
+  '**/Tiltfile': { regen: 'task tilt-gen', proof: 'task tilt-check' },
+  'manifests/k8s/apps/**': { regen: 'task k8s-gen', proof: 'task k8s-check' },
+  '**/k8s/values.yaml': { regen: 'task k8s-gen', proof: 'task k8s-check' },
+  '**/k8s/values.*.yaml': { regen: 'task k8s-gen', proof: 'task k8s-check' },
   'libs/*/*/types/**': {
     regen: 'cargo test export_bindings_',
-    proof: 'just test-rust + git diff --exit-code',
+    proof: 'task test-rust + git diff --exit-code',
   },
   'libs/rpc/src/generated/**': {
-    regen: 'just proto-gen',
-    proof: 'just proto-gen + git diff --exit-code',
+    regen: 'task proto-gen',
+    proof: 'task proto-gen + git diff --exit-code',
   },
   'docs/openapi/**': {
     regen: 'cargo test export_openapi_',
-    proof: 'just test-rust + git diff --exit-code',
+    proof: 'task test-rust + git diff --exit-code',
   },
   '.github/workflows/generated-ci.yml': {
-    regen: 'just gen-ci',
-    proof: 'just gen-ci + git diff --exit-code',
+    regen: 'task gen-ci',
+    proof: 'task gen-ci + git diff --exit-code',
   },
 };
 
@@ -118,57 +118,62 @@ const SECRET_CONTENT: { name: string; re: RegExp }[] = [
 const GATES: { when: RegExp; gates: string[]; why: string }[] = [
   {
     when: /\.rs$|(^|\/)Cargo\.(toml|lock)$/,
-    gates: ['just lint-rust', 'just test-rust'],
+    gates: ['task lint-rust', 'task test-rust'],
     why: 'rust sources or the cargo manifests changed',
   },
   {
     when: /^libs\/native\//,
-    gates: ['just test-napi'],
+    gates: ['task test-napi'],
     why: 'an N-API addon changed (its targets are JS, not cargo)',
   },
   {
     when: /\.(m?[jt]sx?|cjs|css|astro)$|(^|\/)package\.json$|(^|\/)bun\.lock$/,
-    gates: ['just lint-web', 'just test-web'],
+    gates: ['task lint-web', 'task test-web'],
     why: 'web sources or JS manifests changed (biome lints .js/.mjs too)',
   },
   {
     when: /(^|\/)butler\.toml$/,
-    gates: ['just tilt-check', 'just k8s-check', 'just container-check'],
-    why: 'butler.toml drives the generated Tiltfiles, manifests and image targets',
+    gates: ['task tilt-check', 'task k8s-check', 'task graph-check'],
+    why: 'butler.toml drives the generated Tiltfiles, manifests and inferred targets',
   },
   {
     when: /^tools\/nx\/|(^|\/)project\.json$|^nx\.json$/,
     gates: [
-      'just boundaries',
-      'just container-check',
-      'just tilt-check',
-      'just k8s-check',
+      'task boundaries',
+      'task graph-check',
+      'task tilt-check',
+      'task k8s-check',
     ],
     why: 'nx inference or project tags changed',
   },
   {
+    when: /^apps\/butler\/cli\/src\/infer\//,
+    gates: ['task graph-check'],
+    why: "butler's Rust port of the nx inference changed",
+  },
+  {
     when: /^manifests\/grpc\/proto\//,
-    gates: ['just proto-lint', 'just proto-breaking'],
+    gates: ['task proto-lint', 'task proto-breaking'],
     why: 'protobuf changed — additivity is a gate',
   },
   {
     when: /^scripts\/kcl\//,
-    gates: ['just gen-ci'],
+    gates: ['task gen-ci'],
     why: 'the CI workflow is rendered from these KCL sources',
   },
   {
     when: /^docs\/tooling\/registry\.toml$|^tools\/tooling\//,
-    gates: ['just tooling-check'],
+    gates: ['task tooling-check'],
     why: 'the platform tool registry changed',
   },
   {
     when: /(^|\/)Cargo\.lock$|(^|\/)bun\.lock$/,
-    gates: ['just audit', 'just scan'],
+    gates: ['task audit', 'task scan'],
     why: 'a lockfile changed — supply-chain scans apply',
   },
   {
     when: /^apps\/todo\/(api|web|web-astro|web-htmx|e2e)\//,
-    gates: ['just e2e'],
+    gates: ['task e2e'],
     why: 'a todo frontend, its backend or the e2e suite changed (docker + Chromium)',
   },
 ];
@@ -265,8 +270,7 @@ for (let i = 0; i < tokens.length && tokens[i] !== ''; i++) {
     /(^|\/)(tests?|__test__|e2e)\/|\.(test|spec)\.[tj]sx?$|_it\.rs$/.test(path)
   )
     klass = 'test';
-  else if (/\.(toml|json|ya?ml|lock)$|(^|\/)(justfile|.*\.just)$/.test(path))
-    klass = 'config';
+  else if (/\.(toml|json|ya?ml|lock)$/.test(path)) klass = 'config';
   entries.push({
     path,
     added,

@@ -3,7 +3,7 @@
 // Playwright owns the whole stack through `webServer`: a throwaway Postgres
 // (docker), todo-api (cargo, migrations applied on its readiness path), and
 // the three frontends, each on a dedicated port so a developer's normal
-// `just run todo-api` / `bun run dev` on :8080 / :3100 / :3200 / :3300 is
+// `task run -- todo-api` / `bun run dev` on :8080 / :3100 / :3200 / :3300 is
 // never reused or disturbed. Servers start in array order, each awaited.
 //
 // Tests run serially on purpose: the suite shares one database, one event bus

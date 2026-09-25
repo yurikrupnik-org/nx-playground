@@ -95,7 +95,7 @@ nats: error: Consumer creation failed: filtered consumer not unique on workqueue
 
 Regression cover: `replicas_share_one_consumer_group`,
 `stream_kind_defaults_to_job_queue`, `per_instance_broadcast_is_opt_in_and_unique`
-(`libs/core/messaging/src/nats/config.rs`), plus `just email-replica-check` end to end.
+(`libs/core/messaging/src/nats/config.rs`), plus `task email-replica-check` end to end.
 
 **Gotcha found while fixing.** `EventLog` first mapped to `Interest` retention, which
 drops a message published while no consumer exists and gives a later-added group nothing
@@ -107,7 +107,7 @@ had to be deleted and recreated. Trivial locally (`nats stream rm EMAILS`), need
 window anywhere real.
 
 **Verified at scale 2026-07-25.** Four replicas, one consumer group
-(`just email-scale-check <n>`):
+(`task email-scale-check COUNT=<n>`):
 
 | Jobs | Delivered | Distinct | Dupes | Lost | Per-replica split | End-to-end |
 |---|---|---|---|---|---|---|
@@ -161,7 +161,7 @@ is a redelivery, so the processor-side record is the part that actually closes i
 
 **Acceptance.** Publish the same job id twice within the dedupe window; assert one
 delivery. Then re-run the churn test: kill a replica mid-flight during
-`just email-scale-check 3000` and assert **0** duplicates (it reports 1 today).
+`task email-scale-check COUNT=3000` and assert **0** duplicates (it reports 1 today).
 
 ---
 
@@ -178,7 +178,7 @@ reference plus an event is what replaces a cross-context FK.
 
 **The contract crate was forced by the gate from 1.3, which is the point.** Defining
 the event in `domain_projects` and consuming it from `zerg_tasks` is the shared-kernel
-coupling Phase 2 removed — and `just boundaries` now **rejects** it
+coupling Phase 2 removed — and `task boundaries` now **rejects** it
 (`scope:tasks` → `scope:zerg`). So the payload plus the stream identity live in a new
 `libs/contracts/projects` (`scope:shared`), which is exactly 5.1's rule of thumb: a
 serialization boundary between independently deployed processes. The consumer group
@@ -351,7 +351,7 @@ token checking is how you eventually get one that is subtly wrong.
 ### 1.2 Enforce additive-only proto in CI · S · ✅ FIXED 2026-08-31
 
 **Problem.** The policy is documented in [`grpc.md`](./grpc.md) and the proto uses
-`reserved`, but nothing checked a PR. `just proto-breaking` existed and was not wired up.
+`reserved`, but nothing checked a PR. `task proto-breaking` existed and was not wired up.
 
 **The recipe was also broken, which is why "just wire it up" would have failed CI on the
 first PR.** It read `cd manifests/grpc && buf breaking --against '.git#branch=main'`, and
@@ -367,8 +367,8 @@ buf breaking manifests/grpc --against '.git#branch=main,subdir=manifests/grpc'
 
 **Fixed.** Wired into the CI `supply-chain` job (which already had `fetch-depth: 0` and
 `buf-setup`), guarded `if: github.event_name == 'pull_request'` — on a push to main the
-comparison is main against itself. Also added to `just verify`, with the caveat noted at
-the recipe: locally it compares against the **local** `main` ref, so it is only as fresh
+comparison is main against itself. Also added to `task verify`, with the caveat noted at
+the task: locally it compares against the **local** `main` ref, so it is only as fresh
 as your last fetch and is a no-op while standing on main.
 
 **Second failure, same gate, 2026-09-21.** The first PR that actually ran it in CI died
@@ -376,7 +376,7 @@ with `Failure: could not clone file:///…/.git: exit status 128 / fatal: couldn
 remote ref main`. `fetch-depth: 0` is not enough: `actions/checkout` fetches
 `refs/heads/*` into `refs/remotes/origin/*` and checks out a detached head, so the clone
 has no local `refs/heads/main`, and buf resolves a `.git` input by *re-fetching* from it
-(`git fetch <repo> main`). The recipe now picks the ref that exists — local `main` on a
+(`git fetch <repo> main`). The task now picks the ref that exists — local `main` on a
 dev machine, `ref=refs/remotes/origin/main` in CI, fetching that remote-tracking ref
 first if even it is missing (shallow checkout). Same lesson as above, one layer out: the
 gate was green on every machine that already had the ref it assumed.
@@ -406,7 +406,7 @@ nx graph carries both cargo edges (@monodon/rust) and TS workspace edges, one ga
 both ecosystems. Untagged nodes default to `shared` — strictest as a source, so a new
 project cannot silently reach into a vertical.
 
-Wired as `just boundaries`, part of `just verify`, and a step in the CI `web` job.
+Wired as `task boundaries`, part of `task verify`, and a step in the CI `web` job.
 
 **Found on first run:** `domain_cloud_resources → domain_projects` — the SeaORM FK seam
 Issue 5 of [`architecture-review-todo.md`](./architecture-review-todo.md) flags as
@@ -457,7 +457,7 @@ The split is a claim until it deploys. These gaps were introduced by Phases 3–
 not `./config/postgres-init`. The whole `config/` file was dead: `terran` was never
 created by compose either. A fresh `docker compose up` therefore produced a Postgres
 with no `tasks` database, and `zerg_tasks` failed at startup until someone ran
-`just db-fresh tasks`.
+`task db-fresh DB=tasks`.
 
 **Fixed.** `tasks` and `terran` joined the loop in the *mounted*
 `manifests/dockers/postgres-init/10-create-extra-databases.sh`, and the dead
@@ -671,7 +671,7 @@ twice:
 - **`scope:` tags** on every graph node — the ownership map is
   `tools/nx/scope-tags.ts`, contributed through the plugin (verticals for `apps/**`,
   `scope:tasks` for the extracted service + its domain, `scope:shared` for libs, with
-  the zerg-owned domains called out), enforced by `just boundaries` (see 1.3).
+  the zerg-owned domains called out), enforced by `task boundaries` (see 1.3).
 - **`.github/CODEOWNERS`** — one human owns everything today, but the per-path rows
   mirror the scope map (verticals, the tasks boundary, shared platform), so handing a
   vertical to another team is editing owner handles, not inventing structure. The file

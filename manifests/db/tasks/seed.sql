@@ -1,5 +1,5 @@
 -- Seed data for local development of the tasks service.
--- Applied after schema.sql via: just db-fresh tasks
+-- Applied after schema.sql via: task db-fresh DB=tasks
 --
 -- `org_ref`/`user_ref` are identity-provider references, so seed rows use clearly
 -- synthetic refs. Real logins derive their own refs from the verified token

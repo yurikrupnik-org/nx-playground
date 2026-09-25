@@ -355,16 +355,17 @@ let users_repo = PgUserRepository::new(pool.clone());
 ### Migration Strategy
 
 There is no `manifests/migrations/` directory. Schemas live per database under
-`manifests/db/<db>/` (`just db-list`): `zerg` and `tasks` are **declarative**
-(`schema.sql` + `seed.sql`, applied by `just db-fresh <db>` / `just db-seed <db>`; Atlas
+`manifests/db/<db>/` (`task db-list`): `zerg` and `tasks` are **declarative**
+(`schema.sql` + `seed.sql`, applied by `task db-fresh DB=<db>` / `task db-seed DB=<db>`; Atlas
 diffs the live database against `schema.sql`), while `todo` and `terran` carry Atlas
 **versioned** migrations in `manifests/db/<db>/migrations/` (`atlas.sum` + timestamped
-`*.sql`). Connection strings come from `just _db-url <db> <env>`.
+`*.sql`). Connection strings come from the `db_url <db> <env>` shell function
+(`DB_URL_FN`) in `scripts/tasks/db.yml`.
 
 ```bash
-just db-fresh zerg      # drop + recreate from manifests/db/zerg/schema.sql
-just db-seed zerg       # load manifests/db/zerg/seed.sql
-just db-inspect zerg    # pg_dump --schema-only of the live database
+task db-fresh DB=zerg      # drop + recreate from manifests/db/zerg/schema.sql
+task db-seed DB=zerg       # load manifests/db/zerg/seed.sql
+task db-inspect DB=zerg    # pg_dump --schema-only of the live database
 ```
 
 ### Repository Pattern
@@ -467,7 +468,7 @@ pub struct InMemoryProjectRepository {
 
 - Rust 1.75+
 - Docker & Docker Compose
-- Just (command runner)
+- go-task (`task`, command runner)
 - PostgreSQL client tools
 
 ### Initial Setup
@@ -476,8 +477,8 @@ pub struct InMemoryProjectRepository {
 # 1. Start infrastructure
 docker compose -f manifests/dockers/compose.yaml up -d
 
-# 2. Run migrations
-just _migration
+# 2. Apply the schema
+task db-fresh DB=zerg
 
 # 3. Build the project
 cargo build
@@ -509,10 +510,10 @@ cargo check
 cargo fmt
 
 # Run with watch (requires bacon)
-just run
+task run
 
 # Reset database
-just reset-db
+task reset-db
 ```
 
 ## Development Workflow

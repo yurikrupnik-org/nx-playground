@@ -28,11 +28,11 @@
 # leave it). The DELETE is measured too, because "one write" for a CLI is one
 # request and a cleanup is one more.
 #
-# Requires a running API (`just docker-up && just migrate todo && just run
-# todo-api`). Exits 1 with the start command if it is not reachable — unlike
+# Requires a running API (`task docker-up && task migrate DB=todo && task run
+# -- todo-api`). Exits 1 with the start command if it is not reachable — unlike
 # `assets.sh` there is nothing to measure without it.
 #
-# Invoked by `just bench-ops`.
+# Invoked by `task bench-ops`.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -64,7 +64,7 @@ if ! curl -fsS -o /dev/null --max-time 5 "$API/todos"; then
   cat >&2 <<EOF
 FATAL: no API answering GET $API/todos
 
-  just docker-up && just migrate todo && just run todo-api
+  task docker-up && task migrate DB=todo && task run -- todo-api
 
 Point this elsewhere with --base URL (default http://127.0.0.1:8080).
 EOF
@@ -190,10 +190,10 @@ echo "# Per-operation wire cost — $API"
 echo
 echo "## $(date -u +%F) — median of $RUNS runs per row"
 echo
-echo "- Reproduce: \`just bench-ops\` (\`scripts/bench/ops.sh --base $BASE --runs $RUNS\`), $(date -u +%FT%TZ)."
+echo "- Reproduce: \`task bench-ops\` (\`scripts/bench/ops.sh --base $BASE --runs $RUNS\`), $(date -u +%FT%TZ)."
 echo "- \`GET /api/todos\` was measured against a list of **$LIST_COUNT** todos — this number scales with the table, so quote it with the row."
 echo "- request bytes = request line + headers + body; response bytes = status line + headers + body as it crossed the socket (\`wc -c\` of what curl stored, so a gzip row is compressed bytes)."
-echo "- A CLI/TUI pays only these bytes per command. A browser app pays them too, *after* the one-time first-render closure in \`just bench-assets\`."
+echo "- A CLI/TUI pays only these bytes per command. A browser app pays them too, *after* the one-time first-render closure in \`task bench-assets\`."
 echo
 echo "| operation | content-encoding | request bytes | response bytes | of which body | status | note |"
 echo "|---|---|---:|---:|---:|---:|---|"

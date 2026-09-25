@@ -8,7 +8,7 @@
 //! Run against a local dev database:
 //!
 //! ```text
-//! just db-fresh todo
+//! task db-fresh DB=todo
 //! DATABASE_URL=postgres://myuser:mypassword@localhost:5432/todo \
 //!   cargo run -p domain_todo --example todo_crud
 //! ```

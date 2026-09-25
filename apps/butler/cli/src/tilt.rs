@@ -7,9 +7,9 @@
 //!   * image build inputs — the app config's `[image]` when it departs from the
 //!     repo convention, else `[imageDefaults.<kind>]`, so the fact has one
 //!     home. The nx `container`/`scan` targets are generated from these same
-//!     facts by `tools/nx/container-targets.ts` and checked against butler's own
-//!     resolution by `butler container verify`, so the Tiltfile and CI cannot
-//!     build different images;
+//!     facts by butler's native inference and by `tools/nx/container-targets.ts`,
+//!     and `butler graph verify` checks the two agree, so the Tiltfile and CI
+//!     cannot build different images;
 //!   * app kind (compiled service, static web app, Node SSR app) and how its
 //!     manifests reach the cluster (kustomize overlay vs live `kcl run`) —
 //!     detected on disk;
@@ -481,14 +481,21 @@ pub(crate) struct ImageFacts {
 ///    `$REGISTRY/<product>-<app>:latest` for the tag).
 ///
 /// Nothing reads the nx `container` target: that target is *generated* from
-/// these facts by `tools/nx/container-targets.ts`, and `butler container verify`
-/// diffs the generated graph against this function. Reading it back would make
-/// the derivation circular and let a hand-edited target silently move the image.
+/// these facts (by butler's native inference and by
+/// `tools/nx/container-targets.ts`), and `butler graph verify` diffs nx's graph
+/// against butler's. Reading it back would make the derivation circular and let
+/// a hand-edited target silently move the image.
+///
+/// `name` is the project's name: a service's build arg is its cargo package,
+/// and an app at the repo root is named after it. Inference reads it from the
+/// app's own manifest before nx has named anything, so `None` means "that
+/// `Cargo.toml` has no `[package]`" — an error only when a service's build arg
+/// actually needs it, exactly as in `container-targets.ts`.
 pub(crate) fn image_facts(
     root: &Root,
     kind: &Kind,
     dir: &str,
-    project: &Project,
+    name: Option<&str>,
     declared: Option<&settings::Image>,
 ) -> Result<ImageFacts> {
     if let Some(image) = declared {
@@ -518,10 +525,12 @@ pub(crate) fn image_facts(
     })?;
 
     let mut build_args = BTreeMap::new();
-    if let Some(name) = &convention.build_arg {
+    if let Some(arg) = &convention.build_arg {
         let value = match kind {
             // The cargo package name the Dockerfile compiles.
-            Kind::Service => project.name.clone(),
+            Kind::Service => name
+                .ok_or_else(|| eyre!("{dir}: Cargo.toml has no [package] name"))?
+                .to_string(),
             // Where the local build dropped the static output.
             Kind::Web => {
                 if dir == "." {
@@ -534,7 +543,7 @@ pub(crate) fn image_facts(
             // built outside it, so it needs the directory, not an output path.
             Kind::Node => dir.to_string(),
         };
-        build_args.insert(name.clone(), value);
+        build_args.insert(arg.clone(), value);
     }
 
     Ok(ImageFacts {
@@ -545,7 +554,9 @@ pub(crate) fn image_facts(
         build_args,
         tag: format!(
             "$REGISTRY/{}:latest",
-            derived_image_name(dir, &project.name)
+            // Only a root app falls back to its name, and every caller that
+            // resolves one names it.
+            derived_image_name(dir, name.unwrap_or_default())
         ),
     })
 }
@@ -556,8 +567,8 @@ pub(crate) fn image_facts(
 /// must never be built by accident.
 ///
 /// One implementation, two callers: the Tiltfile's `docker_build(target=...)`
-/// and the `target` option `butler container verify` expects on the inferred
-/// nx `container` target.
+/// and the `target` option of the inferred `container` target (via
+/// [`crate::container::resolve`]).
 pub(crate) fn resolve_stage(root: &Root, facts: &ImageFacts, dir: &str) -> Result<String> {
     if let Some(stage) = &facts.stage {
         return Ok(stage.clone());
@@ -590,7 +601,7 @@ fn resolve_image(
         root,
         &candidate.kind,
         dir,
-        project,
+        Some(&project.name),
         candidate.app.image.as_ref(),
     )?;
 
@@ -1302,6 +1313,7 @@ mod tests {
             root: root.into(),
             project_type: None,
             tags: vec![],
+            implicit_dependencies: vec![],
             targets: BTreeMap::new(),
             deps: BTreeSet::new(),
             build_deps: BTreeSet::new(),
@@ -1348,7 +1360,7 @@ mod tests {
         )
         .expect("node convention parses");
         let project = project("todo-astro-web", "apps/todo/web-astro");
-        let facts = image_facts(&root, &Kind::Node, &project.root, &project, None)
+        let facts = image_facts(&root, &Kind::Node, &project.root, Some(&project.name), None)
             .expect("the convention covers a node app");
 
         // The app directory, not a prebuilt output path: the image builds it.
@@ -1369,7 +1381,8 @@ mod tests {
     fn a_node_app_without_a_convention_names_the_section_to_add() {
         let root: Root = toml::from_str("registry = 'acme'").expect("minimal root");
         let project = project("todo-astro-web", "apps/todo/web-astro");
-        let Err(err) = image_facts(&root, &Kind::Node, &project.root, &project, None) else {
+        let Err(err) = image_facts(&root, &Kind::Node, &project.root, Some(&project.name), None)
+        else {
             panic!("a node app with no convention must not resolve an image")
         };
         assert!(err.to_string().contains("[imageDefaults.node]"), "{err}");

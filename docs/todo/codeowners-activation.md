@@ -2,7 +2,7 @@
 
 - **Status:** Deferred — nothing to do while the repo has one human
 - **Date:** 2026-08-31
-- **Related:** `.github/CODEOWNERS`, `tools/nx/scope-tags.ts`, `just boundaries`,
+- **Related:** `.github/CODEOWNERS`, `tools/nx/scope-tags.ts`, `task boundaries`,
   backlog 5.6 / 1.3 in [`../architecture-backlog.md`](../architecture-backlog.md)
 
 ## Current state (why this file exists)
@@ -10,7 +10,7 @@
 `.github/CODEOWNERS` maps every vertical to `@yurikrupnik`. GitHub auto-requests
 reviews from matching owners on every non-draft PR — but **never from the PR's own
 author**, so with one human the file is inert by construction. The path rows already
-mirror the `scope:` tag map enforced by `just boundaries`, so activating team review
+mirror the `scope:` tag map enforced by `task boundaries`, so activating team review
 later is an owner-handle edit, not a restructuring.
 
 Two facts to remember about the mechanism, both easy to get wrong:
@@ -70,9 +70,9 @@ ownership enforced, add a ruleset (or classic branch protection) on `main`:
       owner approves — request alone must not satisfy it.
 - [ ] Draft PRs request nobody until *Ready for review* — expected, not a bug.
 
-## Division of labor with `just boundaries`
+## Division of labor with `task boundaries`
 
-CODEOWNERS gates **who approves a change to files in a path**; `just boundaries`
+CODEOWNERS gates **who approves a change to files in a path**; `task boundaries`
 gates **which dependency edges may exist between scopes**. They share one ownership
 map but catch different mistakes: a zerg dev editing todo code trips CODEOWNERS,
 `zerg_api` importing `domain_tasks` trips the boundary gate. Keep both keyed to

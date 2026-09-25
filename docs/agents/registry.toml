@@ -1,6 +1,6 @@
 # Agent skill registry — the source of truth for what this repo teaches an agent
 # and which runtimes get taught. Contract: tools/agents/gen.ts, gate
-# `just agents-check` (inside `just verify`).
+# `task agents-check` (inside `task verify`).
 #
 # One row per skill. The PROCEDURE lives in `.claude/skills/<name>/SKILL.md`
 # (that file is the corpus, authored by hand, reviewed like code); this file
@@ -32,7 +32,7 @@
 [[gap]]
 name = "hook-enforced-only"
 applies_to = ["repo-maintenance"]
-why = "The invariants that matter (never commit on main, never force-push, no secret material in a diff) are enforced at tool-call time by .claude/hooks/guard-git.js and .claude/hooks/guard-secrets.js, which are Claude Code hooks. No `just` recipe can assert them, and no other runtime has an equivalent — a Gemini/Bedrock/Vertex agent running this playbook is on the honour system."
+why = "The invariants that matter (never commit on main, never force-push, no secret material in a diff) are enforced at tool-call time by .claude/hooks/guard-git.js and .claude/hooks/guard-secrets.js, which are Claude Code hooks. No `task` can assert them, and no other runtime has an equivalent — a Gemini/Bedrock/Vertex agent running this playbook is on the honour system."
 closes_when = "the guards are re-implemented as a pre-commit/pre-push hook in git itself, so every runtime inherits them"
 owner = "scope:infra"
 
@@ -45,7 +45,7 @@ name = "cncf-manager"
 status = "adopted"
 owner = "scope:infra"
 targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
-gate = "just tooling-check"
+gate = "task tooling-check"
 why = """
 Prose is not proof. README.md listed Istio + Kiali as prerequisites for months \
 while the repo contained no control plane, no CR and no canary — an agent \
@@ -65,7 +65,7 @@ name = "db-migration"
 status = "adopted"
 owner = "scope:tasks"
 targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
-gate = "just migrate-validate <db>"
+gate = "task migrate-validate DB=<db>"
 why = """
 One schema change is four artifacts that must agree: the timestamped `.up.sql`, \
 `schema.sql`, `atlas.sum` and the migrations ConfigMap. Only the first is \
@@ -73,14 +73,14 @@ obvious from the request, and the failure mode of skipping the re-hash is \
 invisible locally — a stale `atlas.sum` breaks the Atlas Operator at apply \
 time, in the cluster, long after the PR went green.\
 """
-evidence = ["manifests/db/db.just", "manifests/db/terran/migrations", "manifests/db/terran/schema.sql"]
+evidence = ["scripts/tasks/db.yml", "manifests/db/terran/migrations", "manifests/db/terran/schema.sql"]
 
 [[skill]]
 name = "deps-maintenance"
 status = "adopted"
 owner = "scope:infra"
 targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
-gate = "just check (post-upkg) + just scan"
+gate = "task check (post-upkg) + task scan"
 why = """
 `cargo upgrade --incompatible` is the obvious command and the wrong one: it \
 bulldozes deliberate range pins — `testcontainers = \"=0.27.3\"` is exact-pinned \
@@ -88,14 +88,14 @@ precisely so it is skipped — and it runs no OSV scan, no npm cooldown and no \
 post-check. Every update therefore goes through `upkg`, and a failed run prints \
 a diagnosis block that is only actionable if you know how to read it.\
 """
-evidence = ["justfile", "apps/todo/web-leptos/osv-scanner.toml", "Cargo.toml"]
+evidence = ["scripts/tasks/flows.yml", "apps/todo/web-leptos/osv-scanner.toml", "Cargo.toml"]
 
 [[skill]]
 name = "kcl-package"
 status = "adopted"
 owner = "scope:infra"
 targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
-gate = "just k8s-check"
+gate = "task k8s-check"
 why = """
 Manifests are rendered by a PINNED KCL package that lives in a SIBLING repo and \
 is consumed as an OCI artifact. The intuitive move — write the `.k` files next \
@@ -110,7 +110,7 @@ name = "new-rust-crate"
 status = "adopted"
 owner = "scope:shared"
 targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
-gate = "just lint-rust"
+gate = "task lint-rust"
 why = """
 `cargo new` is wrong here in four ways at once: dependency versions live only in \
 the root `[workspace.dependencies]`, `members` is an explicit alphabetical list \
@@ -123,7 +123,7 @@ evidence = [
   "Cargo.toml",
   "tools/nx/plugin.ts",
   "tools/nx/scope-tags.ts",
-  "scripts/just/rust.just",
+  "scripts/tasks/rust.yml",
 ]
 
 [[skill]]
@@ -131,7 +131,7 @@ name = "precommit-review"
 status = "adopted"
 owner = "scope:shared"
 targets = ["claude-code", "gemini-cli"]
-gate = "just review-bundle"
+gate = "task review-bundle"
 why = """
 The model that wrote the code knows the intent and therefore forgives itself. \
 The fix is two passes with different blind spots over ONE frozen input: the \
@@ -166,7 +166,7 @@ name = "rust-architecture-audit"
 status = "adopted"
 owner = "scope:shared"
 targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
-gate = "just boundaries"
+gate = "task boundaries"
 why = """
 Every shortcut in a layered workspace is locally reasonable: one SQL query in a \
 handler, one `if status ==` in a service, one domain crate depending on its \
@@ -186,7 +186,7 @@ name = "service-transport"
 status = "adopted"
 owner = "scope:shared"
 targets = ["claude-code", "gemini-cli", "bedrock", "vertex"]
-gate = "just proto-lint"
+gate = "task proto-lint"
 why = """
 "How should A talk to B" is answered by the repo, not by taste: one broker \
 (NATS JetStream), one proto module, one HTTP toolkit, Postgres NOTIFY for \
@@ -197,6 +197,6 @@ transport to maintain.\
 """
 evidence = [
   "docs/communication-and-consistency.md",
-  "manifests/grpc/proto.just",
+  "scripts/tasks/proto.yml",
   "docs/todo-delivery-options.md",
 ]

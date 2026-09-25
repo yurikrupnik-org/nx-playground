@@ -26,7 +26,9 @@ def main():
         if conn["postgres"] and conn["postgres"].get("password"):
             conn["postgres"]["password"] = "********"
             if conn["postgres"].get("uri"):
-                conn["postgres"]["uri"] = re.sub(r"//([^:]+):[^@]+@", r"//\1:********@", conn["postgres"]["uri"])
+                conn["postgres"]["uri"] = re.sub(
+                    r"//([^:]+):[^@]+@", r"//\1:********@", conn["postgres"]["uri"]
+                )
         print(json.dumps(conn, indent=2))
     else:
         print(f"DevEnvironment {namespace}/{name} is not ready yet", file=sys.stderr)

@@ -1,5 +1,6 @@
-//! Git integration: tracked file listing (for hashing) and change detection
-//! (for `affected`). Shells out to `git`, like nx does.
+//! Git integration: the workspace file listing (for hashing). Shells out to
+//! `git`, like nx does; change detection for `affected` is in
+//! [`crate::affected`].
 
 use std::path::Path;
 use std::process::Command;
@@ -34,20 +35,4 @@ fn lines_z(raw: &[u8]) -> Vec<String> {
 pub fn ls_files(root: &Path) -> Result<Vec<String>> {
     let raw = git(root, &["ls-files", "-z", "-co", "--exclude-standard"])?;
     Ok(lines_z(&raw))
-}
-
-/// Files changed relative to `merge-base(HEAD, base)`, including uncommitted
-/// tracked changes and untracked files.
-pub fn changed_files(root: &Path, base: &str) -> Result<Vec<String>> {
-    let mb_raw = git(root, &["merge-base", "HEAD", base])?;
-    let merge_base = String::from_utf8_lossy(&mb_raw).trim().to_string();
-
-    let mut files = lines_z(&git(root, &["diff", "--name-only", "-z", &merge_base])?);
-    files.extend(lines_z(&git(
-        root,
-        &["ls-files", "-z", "--others", "--exclude-standard"],
-    )?));
-    files.sort();
-    files.dedup();
-    Ok(files)
 }

@@ -171,7 +171,7 @@ cp manifests/grpc/proto/apps/v1/tasks.proto manifests/grpc/proto/apps/v1/tasks_l
 cp manifests/grpc/proto/apps/v1/tasks_optimized.proto manifests/grpc/proto/apps/v1/tasks.proto
 
 # Regenerate Rust code
-just proto-gen
+task proto-gen
 ```
 
 ### 2. Update Conversion Logic
@@ -262,11 +262,11 @@ Similar changes needed in `apps/zerg/tasks/src/main.rs`.
 
 ```bash
 # Test current implementation
-just bench-tasks-grpc
+task bench-tasks-grpc
 
 # After proto optimization
-just proto-gen && cargo build -p zerg_api
-just bench-tasks-grpc
+task proto-gen && cargo build -p zerg_api
+task bench-tasks-grpc
 
 # Compare results
 # Expected: 8-15% improvement in throughput

@@ -48,6 +48,6 @@ bun run typecheck  # tsc --noEmit — the actual TS gate; `vite build` does not 
 bun run build
 ```
 
-Requires `todo-api` on `:8080` (`just run todo-api`) with the todo migrations
-applied (`just migrate todo`) — the trigger ships as a migration, so a database
+Requires `todo-api` on `:8080` (`task run -- todo-api`) with the todo migrations
+applied (`task migrate DB=todo`) — the trigger ships as a migration, so a database
 without it produces a working but silent UI.

@@ -1,7 +1,7 @@
 # Ownership by vertical — backlog 5.6 (docs/architecture-backlog.md).
 # One human owns everything today; the per-path rows below are the seams a
 # second team slots into, and they mirror the `scope:` tags that
-# `just boundaries` enforces (declared in tools/nx/scope-tags.ts).
+# `task boundaries` enforces (declared in tools/nx/scope-tags.ts).
 # Later rows win over earlier ones — the catch-all stays first.
 #
 # Adding a user? Follow docs/todo/codeowners-activation.md — this file is inert

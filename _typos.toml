@@ -1,7 +1,7 @@
-# Spell check over the whole tree — `just fmt` (rewrite) / `just fmt-check` (gate).
+# Spell check over the whole tree — `task fmt` (rewrite) / `task fmt-check` (gate).
 #
 # Every entry below is a real word this repo uses, not a typo to be tolerated:
-# keep the list short and justified, because `just fmt` runs `typos --write-changes`
+# keep the list short and justified, because `task fmt` runs `typos --write-changes`
 # and an over-broad allowlist is the only thing standing between that and a
 # silent rename of an identifier.
 

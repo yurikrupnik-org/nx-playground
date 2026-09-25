@@ -5,24 +5,24 @@
 One corpus, four runtimes. Every procedure is written once as
 `.claude/skills/<name>/SKILL.md`; `registry.toml` records why it exists, the
 gate that proves it and the runtimes it is exported to; `tools/agents/gen.ts`
-renders every adapter. **Nothing below is hand-edited** — `just agents-check`
-fails on drift, inside `just verify`.
+renders every adapter. **Nothing below is hand-edited** — `task agents-check`
+fails on drift, inside `task verify`.
 
 - **Why we have these skills (read this first): [`skills.html`](skills.html)**
 - Source of truth: [`registry.toml`](registry.toml) + the SKILL.md bodies
-- Regenerate: `just agents-gen` · verify: `just agents-check` · hosted export: `just agents-export`
+- Regenerate: `task agents-gen` · verify: `task agents-check` · hosted export: `task agents-export`
 
 | Skill | Status | Gate | Runtimes |
 | --- | --- | --- | --- |
-| [`cncf-manager`](../../.claude/skills/cncf-manager/SKILL.md) | adopted | `just tooling-check` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
-| [`db-migration`](../../.claude/skills/db-migration/SKILL.md) | adopted | `just migrate-validate <db>` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
-| [`deps-maintenance`](../../.claude/skills/deps-maintenance/SKILL.md) | adopted | `just check (post-upkg) + just scan` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
-| [`kcl-package`](../../.claude/skills/kcl-package/SKILL.md) | adopted | `just k8s-check` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
-| [`new-rust-crate`](../../.claude/skills/new-rust-crate/SKILL.md) | adopted | `just lint-rust` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
-| [`precommit-review`](../../.claude/skills/precommit-review/SKILL.md) | adopted | `just review-bundle` | Claude Code, Gemini CLI |
+| [`cncf-manager`](../../.claude/skills/cncf-manager/SKILL.md) | adopted | `task tooling-check` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`db-migration`](../../.claude/skills/db-migration/SKILL.md) | adopted | `task migrate-validate DB=<db>` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`deps-maintenance`](../../.claude/skills/deps-maintenance/SKILL.md) | adopted | `task check (post-upkg) + task scan` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`kcl-package`](../../.claude/skills/kcl-package/SKILL.md) | adopted | `task k8s-check` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`new-rust-crate`](../../.claude/skills/new-rust-crate/SKILL.md) | adopted | `task lint-rust` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`precommit-review`](../../.claude/skills/precommit-review/SKILL.md) | adopted | `task review-bundle` | Claude Code, Gemini CLI |
 | [`repo-maintenance`](../../.claude/skills/repo-maintenance/SKILL.md) | adopted | none — gap `hook-enforced-only` | Claude Code |
-| [`rust-architecture-audit`](../../.claude/skills/rust-architecture-audit/SKILL.md) | adopted | `just boundaries` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
-| [`service-transport`](../../.claude/skills/service-transport/SKILL.md) | adopted | `just proto-lint` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`rust-architecture-audit`](../../.claude/skills/rust-architecture-audit/SKILL.md) | adopted | `task boundaries` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`service-transport`](../../.claude/skills/service-transport/SKILL.md) | adopted | `task proto-lint` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
 
 ## Runtimes
 
@@ -33,7 +33,7 @@ fails on drift, inside `just verify`.
 | AWS Bedrock | Hosted agent: instruction + the SKILL.md as a knowledge-base document | `dist/agents/bedrock/ (build output)` |
 | GCP Vertex AI (ADK) | Hosted ADK agent: instruction + the SKILL.md in a RAG corpus | `dist/agents/vertex/ (build output)` |
 
-Bedrock and Vertex have no checkout, so `just agents-export` writes a short
+Bedrock and Vertex have no checkout, so `task agents-export` writes a short
 instruction (routing + prohibitions, capped at the Bedrock 4000-character
 limit) plus the full SKILL.md as a retrieval document, into gitignored
 `dist/agents/`. Creating the hosted agents themselves costs money and is a

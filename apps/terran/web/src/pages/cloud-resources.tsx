@@ -40,7 +40,7 @@ export function CloudResourcesPage() {
             fallback={
               <p class="text-gray-500">
                 No observed resources — create an inventory with{' '}
-                <code>just inventory-create</code>.
+                <code>task inventory-create</code>.
               </p>
             }
           >

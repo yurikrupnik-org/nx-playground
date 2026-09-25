@@ -8,7 +8,7 @@
 #   flagsmith
 #   directus  — third-party services in compose.yaml
 #
-# Schemas are NOT applied here; run `just db-fresh <name>` for that.
+# Schemas are NOT applied here; run `task db-fresh DB=<name>` for that.
 #
 # Scripts in /docker-entrypoint-initdb.d run once, when the data directory is
 # first initialised. This compose service has no persistent volume, so a

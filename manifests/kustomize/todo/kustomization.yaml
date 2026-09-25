@@ -1,7 +1,7 @@
 # Todo vertical infrastructure (namespace + Postgres + NATS) for the local
 # kind cluster. App workloads live beside their code:
 #   apps/todo/{api,worker,web}/k8s/kustomize/overlays/dev
-# Deploy everything with: just todo-deploy
+# Deploy everything with: task todo-deploy
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: todo

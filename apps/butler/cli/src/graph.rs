@@ -1,10 +1,10 @@
-//! Project model, project graph, and task graph.
+//! Project model and project graph. (The task graph is in [`crate::task`].)
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use eyre::{Result, bail, eyre};
+use eyre::{Result, eyre};
 
-use crate::config::{ResolvedTarget, TargetConfig};
+use crate::config::TargetConfig;
 
 #[derive(Debug, Clone)]
 pub struct Project {
@@ -12,10 +12,16 @@ pub struct Project {
     /// Workspace-root-relative root directory.
     pub root: String,
     pub project_type: Option<String>,
+    /// In contribution order, de-duplicated — nx unions tags across layers.
     pub tags: Vec<String>,
-    /// Raw (unresolved) targets, already merged: scripts < inferred < project.json.
+    /// `implicitDependencies` as nx normalizes them: patterns expanded to
+    /// project names, `!name` exclusions kept.
+    pub implicit_dependencies: Vec<String>,
+    /// Targets as nx's graph holds them: every inference layer and
+    /// `targetDefaults` merged, then normalized (tokens resolved in options).
     pub targets: BTreeMap<String, TargetConfig>,
-    /// Names of workspace projects this project depends on.
+    /// Names of workspace projects this project depends on, over edges of
+    /// every kind (static, dynamic, implicit).
     pub deps: BTreeSet<String>,
     /// `deps` minus dev-dependencies: what actually feeds a shipped artifact.
     pub build_deps: BTreeSet<String>,
@@ -24,6 +30,16 @@ pub struct Project {
 #[derive(Debug, Default)]
 pub struct ProjectGraph {
     pub projects: BTreeMap<String, Project>,
+    /// Every project-to-project edge with its nx kind — nx's `dependencies`;
+    /// [`Project::deps`] is the kind-less view of the same edges.
+    pub edges: BTreeSet<Edge>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Edge {
+    pub source: String,
+    pub target: String,
+    pub kind: crate::infer::DepKind,
 }
 
 impl ProjectGraph {
@@ -89,155 +105,20 @@ impl ProjectGraph {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TaskId {
-    pub project: String,
-    pub target: String,
-}
-
-impl std::fmt::Display for TaskId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.project, self.target)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Task {
-    pub id: TaskId,
-    pub resolved: ResolvedTarget,
-    /// Task-level dependencies (edges into the task graph).
-    pub deps: BTreeSet<TaskId>,
-}
-
-/// Expand seed (project, target) pairs into the full task graph by following
-/// `dependsOn` ("t" = same project, "^t" = each project dependency that has t),
-/// then return tasks in a valid topological order.
-pub fn build_task_graph(
-    graph: &ProjectGraph,
-    seeds: &[(String, String)],
-    configuration: Option<&str>,
-) -> Result<Vec<Task>> {
-    let mut tasks: BTreeMap<TaskId, Task> = BTreeMap::new();
-    let mut queue: VecDeque<TaskId> = VecDeque::new();
-
-    for (project, target) in seeds {
-        let p = graph.get(project)?;
-        if !p.targets.contains_key(target) {
-            bail!("project `{project}` has no target `{target}`");
-        }
-        queue.push_back(TaskId {
-            project: project.clone(),
-            target: target.clone(),
-        });
-    }
-
-    while let Some(id) = queue.pop_front() {
-        if tasks.contains_key(&id) {
-            continue;
-        }
-        let project = graph.get(&id.project)?;
-        let config = project
-            .targets
-            .get(&id.target)
-            .ok_or_else(|| eyre!("project `{}` has no target `{}`", id.project, id.target))?;
-        let resolved = config.resolve(&project.name, &project.root, &id.target, configuration)?;
-
-        let mut deps = BTreeSet::new();
-        for dep_spec in &resolved.depends_on {
-            if let Some(dep_target) = dep_spec.strip_prefix('^') {
-                for dep_project in &project.deps {
-                    let dp = graph.get(dep_project)?;
-                    if dp.targets.contains_key(dep_target) {
-                        deps.insert(TaskId {
-                            project: dep_project.clone(),
-                            target: dep_target.to_string(),
-                        });
-                    }
-                }
-            } else {
-                if !project.targets.contains_key(dep_spec) {
-                    bail!(
-                        "{}: dependsOn `{dep_spec}` but the project has no such target",
-                        id
-                    );
-                }
-                deps.insert(TaskId {
-                    project: id.project.clone(),
-                    target: dep_spec.clone(),
-                });
-            }
-        }
-
-        for dep in &deps {
-            queue.push_back(dep.clone());
-        }
-        tasks.insert(id.clone(), Task { id, resolved, deps });
-    }
-
-    topo_sort(tasks)
-}
-
-fn topo_sort(mut tasks: BTreeMap<TaskId, Task>) -> Result<Vec<Task>> {
-    let mut in_degree: BTreeMap<TaskId, usize> = tasks
-        .iter()
-        .map(|(id, t)| (id.clone(), t.deps.len()))
-        .collect();
-    let mut dependents: BTreeMap<TaskId, Vec<TaskId>> = BTreeMap::new();
-    for t in tasks.values() {
-        for dep in &t.deps {
-            dependents
-                .entry(dep.clone())
-                .or_default()
-                .push(t.id.clone());
-        }
-    }
-
-    let mut ready: VecDeque<TaskId> = in_degree
-        .iter()
-        .filter(|(_, d)| **d == 0)
-        .map(|(id, _)| id.clone())
-        .collect();
-    let mut out = Vec::with_capacity(tasks.len());
-
-    while let Some(id) = ready.pop_front() {
-        for user in dependents.get(&id).into_iter().flatten() {
-            let d = in_degree
-                .get_mut(user)
-                .expect("dependent must be in the task set");
-            *d -= 1;
-            if *d == 0 {
-                ready.push_back(user.clone());
-            }
-        }
-        let task = tasks.remove(&id).expect("ready task must exist");
-        out.push(task);
-    }
-
-    if !tasks.is_empty() {
-        let cycle: Vec<String> = tasks.keys().map(ToString::to_string).collect();
-        bail!("task graph has a cycle among: {}", cycle.join(", "));
-    }
-    Ok(out)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::RunOptions;
 
     fn project(name: &str, root: &str, deps: &[&str], targets: &[(&str, &[&str])]) -> Project {
         let mut map = BTreeMap::new();
         for (target, depends_on) in targets {
             map.insert(
                 (*target).to_string(),
-                TargetConfig {
-                    depends_on: Some(depends_on.iter().map(|d| serde_json::json!(*d)).collect()),
-                    options: RunOptions {
-                        command: Some(format!("echo {name}:{target}")),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
+                serde_json::from_value(serde_json::json!({
+                    "dependsOn": depends_on,
+                    "options": {"command": format!("echo {name}:{target}")},
+                }))
+                .unwrap(),
             );
         }
         Project {
@@ -245,6 +126,7 @@ mod tests {
             root: root.into(),
             project_type: None,
             tags: vec![],
+            implicit_dependencies: vec![],
             targets: map,
             deps: deps.iter().map(|d| (*d).to_string()).collect(),
             build_deps: deps.iter().map(|d| (*d).to_string()).collect(),
@@ -254,6 +136,7 @@ mod tests {
     fn graph(projects: Vec<Project>) -> ProjectGraph {
         ProjectGraph {
             projects: projects.into_iter().map(|p| (p.name.clone(), p)).collect(),
+            ..Default::default()
         }
     }
 
@@ -291,49 +174,6 @@ mod tests {
             .project_for_file("libs/core/proc_macros/src/lib.rs")
             .unwrap();
         assert_eq!(p.name, "outer");
-        assert!(g.project_for_file("justfile").is_none());
-    }
-
-    #[test]
-    fn caret_depends_on_expands_to_project_deps_with_target() {
-        let g = graph(vec![
-            project("lib", "libs/lib", &[], &[("build", &[])]),
-            project("nolib", "libs/nolib", &[], &[("test", &[])]), // no build target
-            project(
-                "app",
-                "apps/app",
-                &["lib", "nolib"],
-                &[("build", &["^build"])],
-            ),
-        ]);
-        let tasks = build_task_graph(&g, &[("app".into(), "build".into())], None).unwrap();
-        let ids: Vec<String> = tasks.iter().map(|t| t.id.to_string()).collect();
-        assert_eq!(ids, vec!["lib:build", "app:build"]); // topo order, nolib skipped
-    }
-
-    #[test]
-    fn same_project_depends_on_orders_tasks() {
-        let g = graph(vec![project(
-            "kcl",
-            "scripts/kcl/ci",
-            &[],
-            &[("pkg", &["test", "lint"]), ("test", &[]), ("lint", &[])],
-        )]);
-        let tasks = build_task_graph(&g, &[("kcl".into(), "pkg".into())], None).unwrap();
-        let ids: Vec<String> = tasks.iter().map(|t| t.id.to_string()).collect();
-        assert_eq!(ids.len(), 3);
-        assert_eq!(ids.last().unwrap(), "kcl:pkg");
-    }
-
-    #[test]
-    fn cycle_is_reported() {
-        let g = graph(vec![project(
-            "a",
-            "libs/a",
-            &[],
-            &[("x", &["y"]), ("y", &["x"])],
-        )]);
-        let err = build_task_graph(&g, &[("a".into(), "x".into())], None).unwrap_err();
-        assert!(format!("{err:#}").contains("cycle"));
+        assert!(g.project_for_file("Taskfile.yml").is_none());
     }
 }

@@ -30,7 +30,7 @@ second event source for the same data (`docs/realtime-todo.md`).
 
 Crossing a service boundary means the payload type lives in its own `scope:shared`
 crate (`libs/contracts/<name>`), never in the other vertical's domain crate:
-`just boundaries` rejects `scope:tasks → scope:zerg` (`tools/nx/scope-tags.ts`,
+`task boundaries` rejects `scope:tasks → scope:zerg` (`tools/nx/scope-tags.ts`,
 `tools/nx/check-boundaries.ts`).
 
 ## 1. Event topic — NATS JetStream
@@ -115,7 +115,7 @@ Broker locations: compose `nats:2.10-alpine --jetstream -m 8222` → `nats://loc
 zerg in kind → `zerg-shared-config` ConfigMap `nats://nats.dbs.svc.cluster.local:4222`;
 todo in kind → `manifests/kustomize/todo/nats.yaml` (Service `nats:4222`). There is **no
 `[[tilt.portForward]]` for nats**, so a host `nats` CLI talks to compose, not the cluster.
-`just email-*` (`apps/zerg/email-nats/email.just`) are the live gates: `email-replica-check`
+`task email-*` (`scripts/tasks/email.yml`) are the live gates: `email-replica-check`
 (one delivery per job across replicas), `email-scale-check` (no dupes/loss at 2000 jobs),
 `email-consumers-clean` (durables leak across restarts).
 
@@ -144,14 +144,14 @@ network; no `build.rs`, no local protoc) — never hand-edit it.
 1. `package <name>.v1;`, `option go_package = "grpc/<name>/v1";`. Wire policy is
    additive-only: `breaking: use: [FILE]` — never renumber or remove a field, `reserved`
    both the tag number and the name (`tasks.proto` is the worked example).
-2. `just proto-fmt && just proto-lint && just proto-build`, then `just proto-gen`.
+2. `task proto-fmt && task proto-lint && task proto-build`, then `task proto-gen`.
 3. **Hand-write the module chain buf does not emit** (there is no `prost-crate` plugin,
    and the files lie with a `// @generated` header): `libs/rpc/src/generated/<name>/mod.rs`
    = `pub mod v1;`, `<name>/v1/mod.rs` = `include!("<name>.v1.rs");` (the prost file
    already includes the `.tonic.rs`), plus `pub mod <name>;` in `generated/mod.rs`.
    Skip this and `cargo check -p rpc` still passes while your service is unreachable —
    `agent/v1` and `users/v1` are orphaned in the tree right now.
-4. `just proto-check` (`cargo check -p rpc`); confirm
+4. `task proto-check` (`cargo check -p rpc`); confirm
    `rpc::<name>::v1::<name>_service_server::SERVICE_NAME` resolves.
 5. Server — pick a shape:
    - **Merged into an existing axum app** (no new port/binary, h2c on `:8080`): copy
@@ -186,11 +186,11 @@ network; no `build.rs`, no local protoc) — never hand-edit it.
    gRPC is east–west ClusterIP only.
 10. Prove it by serving REST+gRPC on an ephemeral port and connecting a real client
     (`apps/todo/api/src/grpc.rs` `serve()` + `crud_round_trip_over_grpc_is_visible_over_rest`).
-    Gate: `just proto` then `just proto-gen && git diff --exit-code`; `just proto-breaking`
+    Gate: `task proto` then `task proto-gen && git diff --exit-code`; `task proto-breaking`
     before pushing (fetch `main` first — it is a no-op while standing on `main`, and CI
     runs it PR-only).
 
-`just check` contains NO proto step. CI never runs `proto-gen` or diffs generated output.
+`task check` contains NO proto step. CI never runs `proto-gen` or diffs generated output.
 
 ## 3. HTTP / REST
 
@@ -262,8 +262,8 @@ generated (AGENTS.md).
    `prometheus = true` only if the process really serves `/metrics`.
 6. Caller addresses callee by same-namespace short DNS in `[config]`
    (`http://<workload-name>:<port>`).
-7. Regenerate and commit: `just tilt-gen`, `just k8s-gen` (per-app:
-   `just tilt-gen-app <project>` / `just k8s-gen-app <project>`, then one full run for the
+7. Regenerate and commit: `task tilt-gen`, `task k8s-gen` (per-app:
+   `task tilt-gen-app APP=<project>` / `task k8s-gen-app APP=<project>`, then one full run for the
    root artifacts). Rendered manifests land in `[k8s] outDir` — read the key, do not
    assume `manifests/k8s/apps`.
 8. New crate → `skill://new-rust-crate` (workspace members list, `{ workspace = true }`
@@ -274,11 +274,11 @@ generated (AGENTS.md).
 ```text
 cargo check -p <crate>            # fastest loop
 cargo nextest run -p <crate>      # docker up for testcontainers
-just check                        # fmt-check lint test audit — no proto, no drift gates
-just tilt-check k8s-check container-check boundaries   # drift; CI runs only `boundaries`
-just proto                        # gRPC only: fmt→lint→build→gen→cargo check -p rpc
-just verify                       # pre-push: check + proto + all drift gates + scan + e2e
+task check                        # fmt-check lint test audit — no proto, no drift gates
+task tilt-check k8s-check graph-check boundaries   # drift; CI runs only `boundaries`
+task proto                        # gRPC only: fmt→lint→build→gen→cargo check -p rpc
+task verify                       # pre-push: check + proto + all drift gates + scan + e2e
 ```
 
 Never run whole-workspace Rust through `nx run-many` (AGENTS.md). CI does not run
-`tilt-check`/`k8s-check`/`container-check` — catch drift locally before pushing.
+`tilt-check`/`k8s-check`/`graph-check` — catch drift locally before pushing.

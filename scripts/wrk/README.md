@@ -7,7 +7,7 @@ Performance benchmarks comparing gRPC-based and direct database access endpoints
 ### Quick Benchmarks (10s, light load)
 
 ```bash
-just bench-tasks-quick
+task bench-tasks-quick
 ```
 
 - 2 threads, 10 connections
@@ -18,13 +18,13 @@ just bench-tasks-quick
 **GET endpoints:**
 
 ```bash
-just bench-tasks-grpc        # gRPC: GET /api/tasks
+task bench-tasks-grpc        # gRPC: GET /api/tasks
 ```
 
 **POST endpoints:**
 
 ```bash
-just bench-tasks-grpc-post   # gRPC: POST /api/tasks
+task bench-tasks-grpc-post   # gRPC: POST /api/tasks
 ```
 
 - 4 threads, 50 connections
@@ -34,7 +34,7 @@ just bench-tasks-grpc-post   # gRPC: POST /api/tasks
 ### Full Run
 
 ```bash
-just bench-tasks-all
+task bench-tasks-all
 ```
 
 Runs the GET and POST benchmarks sequentially.
@@ -60,7 +60,7 @@ Runs the GET and POST benchmarks sequentially.
 
 ### Change load parameters
 
-Edit the justfile recipes to adjust:
+Edit the tasks in `scripts/tasks/bench.yml` to adjust:
 
 - `-t<N>`: Number of threads
 - `-c<N>`: Number of connections
@@ -127,7 +127,7 @@ Ensure all services are running:
 
 ```bash
 # Start database
-just docker-up
+task docker-up
 
 # Start tasks gRPC service
 cargo run -p zerg_tasks

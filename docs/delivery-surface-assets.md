@@ -59,8 +59,8 @@ All numbers are from this repo, not vendor claims. Re-measure before quoting
 them elsewhere:
 
 ```bash
-just bench-assets   # scripts/bench/assets.sh — bytes, startup, RSS
-just bench-ops      # scripts/bench/ops.sh   — bytes per operation
+task bench-assets   # scripts/bench/assets.sh — bytes, startup, RSS
+task bench-ops      # scripts/bench/ops.sh   — bytes per operation
 ```
 
 Until this change **no tool in this repo measured bytes**. Every kB figure in
@@ -76,7 +76,7 @@ each file compressed on its own, because one file is one HTTP response.
 
 ### First render — what the browser downloads
 
-Source: `just bench-assets`. The **first-render closure** is `index.html` plus
+Source: `task bench-assets`. The **first-render closure** is `index.html` plus
 the `.js`/`.css`/`.wasm` it references, plus the `.wasm` named inside that JS.
 Lazily imported route chunks are excluded.
 
@@ -126,7 +126,7 @@ now scripted rather than transcribed.
 
 ### Binary arms — size, startup, memory
 
-Source: `just bench-assets`, 10 runs, `min` quoted (wall times are
+Source: `task bench-assets`, 10 runs, `min` quoted (wall times are
 load-sensitive; bytes are not).
 
 | Arm | Artifact | On disk | Invocation | Wall (min) | Peak RSS |
@@ -155,7 +155,7 @@ the next table.
 
 ### Per-operation wire cost
 
-Source: `just bench-ops`, median of 7 runs, against a list of **50** todos
+Source: `task bench-ops`, median of 7 runs, against a list of **50** todos
 (this row scales with the table, so it is only quotable with that count).
 
 | Operation | Request bytes | Response bytes | Of which body | Status |
@@ -231,7 +231,7 @@ fixed (`manifests/dockers/`):
   0.4%, at CPU cost on every cache miss — not taken).
 - caddy compressed it but never marked it immutable.
 
-`static-web-server` was correct on both counts. `just test-web-servers
+`static-web-server` was correct on both counts. `task test-web-servers
 apps/todo/web-leptos/dist` is 27/27 across all three servers; the assertions
 were not weakened to get there.
 
@@ -250,10 +250,10 @@ were not weakened to get there.
 
 | Gate | Guards |
 |---|---|
-| `just openapi-check` (in `verify`) | The documents `x` embeds still match the handler annotations |
+| `task openapi-check` (in `verify`) | The documents `x` embeds still match the handler annotations |
 | `document_satisfies_cli_invariants` (per API crate, `test-utils` feature `openapi`) | Path keys, unique operationIds, tags, declared `{id}` params — the five things the command tree derivation relies on |
 | `nested_todo_routes_land_on_the_routes_axum_serves` | `utoipa`'s string-concat nesting does not publish `/todos/` for a route axum serves at `/todos` |
 | `doc_endpoint_serves_the_document` | `--spec http://host/api-docs/openapi.json` builds the same tree as the embedded copy |
 | `apps/x/cli` unit tests | Verb/resource derivation, arity dispatch, schema coercion, error-envelope rendering |
-| `just test-web-servers <dist>` | Both dist layouts, including wasm MIME, compression and cache headers |
+| `task test-web-servers DIST=<dist>` | Both dist layouts, including wasm MIME, compression and cache headers |
 | `bun nx show project todo-web-leptos --json` | The excluded crate gets trunk targets, not `cargo build`, and no `rust` tag |

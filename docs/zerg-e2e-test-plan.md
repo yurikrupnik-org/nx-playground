@@ -2,7 +2,7 @@
 
 > **Status: plan only.** Nothing below exists yet — `apps/zerg/api/tests/` is
 > not a directory. The repo's implemented e2e suite is the browser-level
-> Playwright project for the todo vertical, `apps/todo/e2e` (`just e2e`); see
+> Playwright project for the todo vertical, `apps/todo/e2e` (`task e2e`); see
 > `docs/TESTING_GUIDE.md` § E2E Tests.
 
 ## Overview

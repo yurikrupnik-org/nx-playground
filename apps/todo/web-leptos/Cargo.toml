@@ -4,7 +4,7 @@
 # its OWN one-crate workspace, with its own Cargo.lock. Two reasons it cannot be
 # a member:
 #   * it only ever builds for `wasm32-unknown-unknown`, while every host gate
-#     (`just lint-rust`, `just test-rust`) is a `--workspace` host-target run;
+#     (`task lint-rust`, `task test-rust`) is a `--workspace` host-target run;
 #   * `leptos`/`gloo-net`/`web-sys` would join the workspace dependency graph and
 #     be re-resolved for 45 host crates that never use them.
 # The price is that `{ workspace = true }` is unavailable here — an excluded

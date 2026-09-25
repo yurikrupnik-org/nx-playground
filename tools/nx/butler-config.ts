@@ -7,12 +7,13 @@
  * before any binary in this repo is guaranteed to be built. Shelling out to
  * `butler` there would put a cargo compile in front of every nx command.
  *
- * The values are therefore derived twice, once here and once in butler
- * (`apps/butler/cli/src/container.rs`), from the same `butler.toml` facts. That
- * is deliberate and guarded: `just container-check` runs
- * `butler container verify --graph <nx graph dump>`, which recomputes the facts
- * in Rust and diffs them against what this plugin put in the graph. Change one
- * side without the other and that gate fails.
+ * The values are therefore derived twice, once here and once in butler's Rust
+ * port of this plugin (`apps/butler/cli/src/infer/native`, resolving images
+ * through `apps/butler/cli/src/container.rs`), from the same `butler.toml`
+ * facts. That is deliberate and guarded: `task graph-check` runs
+ * `butler graph verify --graph <nx graph dump>`, which infers the whole graph
+ * in Rust and diffs it against what this plugin put in nx's. Change one side
+ * without the other and that gate fails.
  *
  * Zero dependencies on purpose (see the plugin headers): nx loads these files
  * directly, so the TOML subset below is hand-parsed rather than pulling a
@@ -404,8 +405,36 @@ export interface CargoCrate {
    * makes a test recompile).
    */
   dependencies: ReadonlySet<string>;
+  /**
+   * Declared under `[dev-dependencies]` and no other table — the Rust port's
+   * rule (`dev_only` in `apps/butler/cli/src/infer/native/crates.rs`), cargo's
+   * reading: `[target.<cfg>.*]` variants, `[T.<name>]` sub-tables and dotted
+   * keys count. Still an edge (a test recompiles on it) but never part of the
+   * shipped binary. nx has no field for that; butler's external inferrer
+   * (`infer.ts`) marks these edges `dev` so image build contexts leave them
+   * out, exactly as butler's native inference does.
+   */
+  devOnly: ReadonlySet<string>;
   /** `[package] publish` says this binary is meant to leave the repo. */
   publish: boolean;
+}
+
+/**
+ * The crate names one kind of dependency table declares, as cargo reads them:
+ * `[T]` keys (`foo.workspace = true` is `foo`), `[T.foo]` sub-tables, and the
+ * `[target.<cfg>.T]` variants of both.
+ */
+function dependencyNames(tables: Tables, kind: string): Set<string> {
+  const names = new Set<string>();
+  for (const [table, keys] of tables) {
+    const scoped = table.replace(/^target\.('[^']*'|"[^"]*"|[^.]+)\./, '');
+    if (scoped === kind) {
+      for (const key of keys.keys()) names.add(key.split('.')[0]);
+    } else if (scoped.startsWith(`${kind}.`)) {
+      names.add(unquote(scoped.slice(kind.length + 1)));
+    }
+  }
+  return names;
 }
 
 /** undefined for a virtual manifest (a workspace root with no `[package]`). */
@@ -428,6 +457,10 @@ export function readCargoCrate(
   // repo spells the flag out anyway, and the dozen that do not are libraries
   // with no binary to install.
   const publish = pkg?.get('publish')?.trim();
+  const shipped = new Set([
+    ...dependencyNames(tables, 'dependencies'),
+    ...dependencyNames(tables, 'build-dependencies'),
+  ]);
   return {
     name: unquote(name),
     hasBinary:
@@ -441,6 +474,11 @@ export function readCargoCrate(
     dependencies: new Set(
       ['dependencies', 'dev-dependencies', 'build-dependencies'].flatMap(
         (table) => [...(tables.get(table)?.keys() ?? [])],
+      ),
+    ),
+    devOnly: new Set(
+      [...dependencyNames(tables, 'dev-dependencies')].filter(
+        (name) => !shipped.has(name),
       ),
     ),
     publish:
@@ -458,7 +496,7 @@ export function readCargoCrate(
  * manifest glob — but it is NOT a member of the cargo workspace, so
  * `cargo <verb> --package <name>` run from the workspace root cannot see it and
  * every inferred cargo target would fail. The `rust` tag is worse than a
- * failing target: it hands the node to `just check-rust-affected`, whose whole
+ * failing target: it hands the node to `task check-rust-affected`, whose whole
  * job is to run those targets for a diff.
  *
  * Read ONCE per graph build (plugin.ts calls this beside `readRootConfig`), not

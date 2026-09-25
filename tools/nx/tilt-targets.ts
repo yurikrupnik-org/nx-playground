@@ -1,8 +1,9 @@
 /**
  * Inferred Tiltfile generation targets (`tilt-gen` / `tilt-check`) for one app.
  *
- * nx owns the *list* — the marker glob below decides which projects are Tilt
- * apps, and `nx run-many -t tilt-gen` is therefore the authoritative app set. butler
+ * The project graph owns the *list* — the marker glob below (mirrored by
+ * butler's Rust port, `task graph-check`) decides which projects are Tilt apps,
+ * and `butler run-many -t tilt-gen` is therefore the authoritative app set. butler
  * owns the *logic*: the tight `docker_build(only=...)` needs the transitive,
  * dev-dependency-excluding cargo closure, which nx's graph cannot express
  * (`@monodon/rust` flattens `[dependencies]` and `[dev-dependencies]` into one
@@ -72,7 +73,7 @@ export function tiltTargets(appDir: string): Record<string, unknown> {
 // The root Tiltfile is a workspace-level artifact (infra port-forwards, shared
 // resources, one include() per app), so there is no project to hang it off: this
 // workspace has no root project, and adding one would change `nx affected`
-// semantics for every file. `just tilt-gen` derives its app list from the nx
+// semantics for every file. `task tilt-gen` derives its app list from the nx
 // graph instead, so nx stays authoritative there too:
 //
 //   nodes with a `tilt-gen` target -> their roots -> butler tilt gen --root --apps <roots>

@@ -453,7 +453,7 @@ libs/rpc/src/generated/tasks/v1/tasks.v1.rs        # Message types
 libs/rpc/src/generated/tasks/v1/tasks.v1.tonic.rs  # Client & Server
 ```
 
-Regenerate with `just proto` (buf: format → lint → build → generate → `cargo check -p rpc`).
+Regenerate with `task proto` (buf: format → lint → build → generate → `cargo check -p rpc`).
 Hand-maintained `mod.rs` files wire the generated files into the crate.
 
 ### Services

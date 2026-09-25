@@ -26,6 +26,17 @@ pub enum TodoEventKind {
 }
 
 impl TodoEventKind {
+    /// The event an [`UpdateTodo`](crate::UpdateTodo) emits, given its
+    /// `completed` field: completion transitions get their own kinds so the
+    /// stream distinguishes them from plain edits.
+    pub fn for_update(completed: Option<bool>) -> Self {
+        match completed {
+            Some(true) => TodoEventKind::Completed,
+            Some(false) => TodoEventKind::Uncompleted,
+            None => TodoEventKind::Updated,
+        }
+    }
+
     /// Subject suffix used under the `todos.` prefix.
     pub fn subject_suffix(self) -> &'static str {
         match self {

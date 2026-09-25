@@ -1,8 +1,9 @@
 /**
  * Inferred manifest-generation targets (`k8s-gen` / `k8s-check`) for one app.
  *
- * Same division as the Tiltfile targets: nx owns the LIST — an app qualifies by
- * declaring a `[workload]` in its own `butler.toml` — and butler owns the LOGIC.
+ * Same division as the Tiltfile targets: the project graph owns the LIST — an
+ * app qualifies by declaring a `[workload]` in its own `butler.toml` — and
+ * butler owns the LOGIC.
  * It merges `[workloadDefaults.<kind>]` under the app's `[workload]` under any
  * `[env.<env>.workload]` overlay, injects what an app must never hand-type (the
  * image reference, name, namespace, partOf), writes `<app>/k8s/values.yaml`, and

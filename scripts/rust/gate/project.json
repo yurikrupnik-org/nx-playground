@@ -11,7 +11,7 @@
       "inputs": ["rustWorkspace"],
       "outputs": [],
       "options": {
-        "command": "just lint-rust",
+        "command": "task lint-rust",
         "cwd": "{workspaceRoot}"
       }
     },
@@ -21,7 +21,7 @@
       "inputs": ["rustWorkspace"],
       "outputs": [],
       "options": {
-        "command": "just test-rust",
+        "command": "task test-rust",
         "cwd": "{workspaceRoot}"
       }
     },
@@ -31,7 +31,7 @@
       "inputs": ["rustWorkspace"],
       "outputs": [],
       "options": {
-        "command": "just test-doc",
+        "command": "task test-doc",
         "cwd": "{workspaceRoot}"
       }
     },
@@ -41,7 +41,7 @@
       "inputs": ["rustWorkspace"],
       "outputs": [],
       "options": {
-        "command": "just doc-check",
+        "command": "task doc-check",
         "cwd": "{workspaceRoot}"
       }
     },
@@ -51,7 +51,7 @@
       "inputs": ["rustWorkspace"],
       "outputs": [],
       "options": {
-        "command": "just openapi-check",
+        "command": "task openapi-check",
         "cwd": "{workspaceRoot}"
       }
     }

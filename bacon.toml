@@ -9,7 +9,7 @@ default_job = "check"
 command = ["nx", "run-many", "-t", "lint", "--parallel=16"]
 need_stdout = true
 
-# Native clippy over the whole workspace — same invocation as `just lint`,
+# Native clippy over the whole workspace — same invocation as `task lint`,
 # without the nx layer. Deliberately NOT named `clippy`: that key is a bacon
 # built-in bound to `c` in the TUI, and shadowing it would turn a single-crate
 # keypress into a full workspace build.
@@ -103,7 +103,7 @@ need_stdout = false
 command = ["cargo", "test", "--workspace", "--color", "always"]
 need_stdout = true
 
-# Same suite via nextest — parallel, per-test processes. Matches `just test`.
+# Same suite via nextest — parallel, per-test processes. Matches `task test`.
 [jobs.test-all-fast]
 command = ["cargo", "nextest", "run", "--workspace", "--color", "always"]
 need_stdout = true

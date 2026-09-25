@@ -17,7 +17,7 @@ legal only when the bundle reports docs/config classes only).
 ## Invariants
 
 - **Review the staged index, never memory of the edit.** Start with
-  `just review-bundle`; it freezes `git diff --cached` plus a file table, a
+  `task review-bundle`; it freezes `git diff --cached` plus a file table, a
   class per file and the gates that diff implies into
   `dist/review/bundle.md`. Every component reads that one file. A `Stale`
   section means a staged file is also dirty in the working tree — stage or
@@ -28,8 +28,8 @@ legal only when the bundle reports docs/config classes only).
 - **Pass 2 never sees pass 1.** Anchoring destroys the point of a second
   opinion. Reconcile after, never during.
 - **Generated output is not authored code.** The bundle's *Generated output*
-  section names the regeneration command and the proof — `just tilt-check`,
-  `just k8s-check`, or regenerate-then-`git diff --exit-code` where no drift
+  section names the regeneration command and the proof — `task tilt-check`,
+  `task k8s-check`, or regenerate-then-`git diff --exit-code` where no drift
   gate exists. Run the proof; do not review those hunks line by line, and
   never hand-fix them.
 - **Nothing secret reaches a reviewer.** The bundle hard-stops (exit 1,
@@ -53,7 +53,7 @@ legal only when the bundle reports docs/config classes only).
 ## Pass 0 — machine gates
 
 Run exactly the gates the bundle listed for the classes in the diff, plus any
-proof gate for generated output. `just verify` is the superset and is the
+proof gate for generated output. `task verify` is the superset and is the
 pre-push gate; pre-commit runs the subset. Red gate ⇒ fix and re-bundle; do not
 start pass 1 on a red tree.
 
@@ -69,7 +69,7 @@ these in writing; "looks fine" is not an answer:
 3. **Second convention** (AGENTS.md). Does this add a parallel way to do
    something the repo already does — a hand-written manifest beside
    `butler.toml` → KCL generation, a per-crate nx rust task beside
-   `just lint-rust`, a new scanner beside `trivy`/`osv-scanner`, a tool with no
+   `task lint-rust`, a new scanner beside `trivy`/`osv-scanner`, a tool with no
    row in `docs/tooling/registry.toml`?
 4. **Repo traps** touched by this diff: whole-workspace Rust through nx;
    `biome check --write` used as a gate instead of `biome ci`; a hand-edited
@@ -139,7 +139,7 @@ present a one-component pass as a two-pass review.
 
 ## Pass 4 — fix, then re-review only the delta
 
-Fix every blocker, re-stage, re-run `just review-bundle` and the gates, and run
+Fix every blocker, re-stage, re-run `task review-bundle` and the gates, and run
 **the author pass again over the new diff only**. Re-run pass 2 only if the fix
 touched logic a reviewer flagged, or added ≥1 new file. Maximum two fix rounds;
 after that, stop and report what is unresolved — a third round means the change

@@ -20,6 +20,9 @@
  *
  * Zero dependencies on purpose: `createNodesV2` is a plain export, so nothing
  * here needs `@nx/devkit` or `@nx/plugin` installed.
+ *
+ * `apps/butler/cli/src/infer/native` is its Rust port (butler infers the same
+ * graph without node), kept in lockstep by `task graph-check`.
  */
 
 import { dirname } from 'node:path';
@@ -142,7 +145,7 @@ export const createNodesV2: CreateNodesV2 = [
           // A `[workspace] exclude`d directory is a crate but not a MEMBER, so
           // `cargo … --package <name>` from the workspace root cannot resolve
           // it: no cargo targets, and above all no `rust` tag, which would
-          // hand it to `just check-rust-affected`. It still belongs to a
+          // hand it to `task check-rust-affected`. It still belongs to a
           // vertical, so it keeps its scope tag. (`apps/todo/web-leptos`: a
           // wasm32 trunk app whose `build` comes from its own project.json.)
           const excluded = excludedCrates.has(dir);
@@ -150,7 +153,7 @@ export const createNodesV2: CreateNodesV2 = [
           // (`-p tag:lang:rust`); nothing else in the graph marks a node as a cargo
           // crate. It is withheld from a crate whose `lint`/`test` come from a
           // package.json script — the N-API addons — because that lint is
-          // mutating and those are `just test-napi`'s job.
+          // mutating and those are `task test-napi`'s job.
           const tags = scopeFor(dir);
           if (!excluded && !hasPackageScriptGates(workspaceRoot, dir))
             tags.push(RUST_TAG);
@@ -289,7 +292,7 @@ export const createDependencies: CreateDependencies = (_options, context) => {
 // The root Tiltfile is a workspace-level artifact (infra port-forwards, shared
 // resources, one include() per app), so there is no project to hang it off: this
 // workspace has no root project, and adding one would change `nx affected`
-// semantics for every file. `just tilt-gen` derives its app list from the nx
+// semantics for every file. `task tilt-gen` derives its app list from the nx
 // graph instead, so nx stays authoritative there too:
 //
 //   nodes with a `tilt-gen` target -> their roots -> butler tilt gen --root --apps <roots>

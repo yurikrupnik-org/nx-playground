@@ -123,8 +123,8 @@
 
 **Todos**
 
-- [~] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call. *(2026-08-31: the edge is now surfaced and pinned — grandfathered in `tools/nx/scope-tags.ts` with a pointer here; `just boundaries` enforces whichever way this is decided, by merging scopes or deleting the exception.)*
-- [x] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.** *(2026-08-31: written down AND executable — `just boundaries` fails a cross-scope import, and backlog 0.3 is the worked example of the other half: an ID reference stays correct via a `ProjectDeleted` event instead of an FK. The `cloud_resources → projects` FK above is the one grandfathered exception, named in `tools/nx/scope-tags.ts`.)*
+- [~] Decide whether `cloud_resources → projects` is *one* bounded context (then the FK is fine) or *two* (then replace the cross-context FK with an ID reference + validation/event). Document the call. *(2026-08-31: the edge is now surfaced and pinned — grandfathered in `tools/nx/scope-tags.ts` with a pointer here; `task boundaries` enforces whichever way this is decided, by merging scopes or deleting the exception.)*
+- [x] Write down the explicit rule: **new domains reference others by ID, not by importing entities or FK-ing across contexts.** *(2026-08-31: written down AND executable — `task boundaries` fails a cross-scope import, and backlog 0.3 is the worked example of the other half: an ID reference stays correct via a `ProjectDeleted` event instead of an FK. The `cloud_resources → projects` FK above is the one grandfathered exception, named in `tools/nx/scope-tags.ts`.)*
 - [x] Add a "when do we extract a service?" checklist (scaling, independent deploy, team ownership) so distribution stays a deliberate decision, not a default. *(Already exists: `docs/modular-monolith-architecture.md:772-803` — "First: do you actually need a separate process?" plus the seven-row boundary checklist. The Issue 4 guardrail todo above points at the same section.)*
 - [ ] Keep the app layer as the only composition point — no domain-imports-domain code coupling.
 
@@ -174,11 +174,11 @@ being interesting.
   serialization boundary as a first-class artifact; contrast with `libs/contracts/tasks`.
 - [ ] **Idempotency**: `Nats-Msg-Id` + `duplicate_window` + idempotent processor
   (backlog **0.2**) — the at-least-once residual is already measured (1 dup per replica
-  loss); the pattern's acceptance test exists (`just email-scale-check` churn run).
+  loss); the pattern's acceptance test exists (`task email-scale-check` churn run).
 - [x] **Architecture-as-test**: turn the dependency-direction and proto-additivity rules
   into CI gates (backlog **1.2/1.3**) — the "fitness function" pattern; a rule is real
   only when its violation is red. *(2026-08-31: both done and both verified red/green —
-  `scope:` tags + `just boundaries` for dependency direction, `just proto-breaking` for
+  `scope:` tags + `task boundaries` for dependency direction, `task proto-breaking` for
   wire additivity. Lesson worth keeping: the proto recipe had been **broken since it was
   written** (`.git` resolved relative to the cwd), so the rule had a gate, a doc and a
   policy while checking nothing. An unrun gate is indistinguishable from no gate.)*

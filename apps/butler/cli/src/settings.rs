@@ -82,6 +82,9 @@ pub struct Root {
     pub tilt: RootTilt,
     #[serde(default)]
     pub container: Container,
+    /// How butler builds the project graph.
+    #[serde(default)]
+    pub graph: Graph,
     /// Standalone repos only: the single app living at the repo root.
     pub app: Option<App>,
 }
@@ -151,6 +154,20 @@ pub struct Container {
     /// Workspace-root-relative app directories to include in the container set.
     #[serde(default)]
     pub extra: Vec<String>,
+}
+
+/// Project-graph inference.
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Graph {
+    /// External inferrer replacing the native one: an argv whose command speaks
+    /// nx's plugin JSON (see `infer::external`). Unset = the native Rust port.
+    #[serde(default)]
+    pub infer: Option<Vec<String>>,
+    /// Targets `butler graph verify` skips on both sides: ones a third-party nx
+    /// plugin contributes and butler does not model.
+    #[serde(default)]
+    pub verify_ignore_targets: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]

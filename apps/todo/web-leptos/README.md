@@ -130,7 +130,7 @@ workspace (`opt-level = 'z'`, `lto`, `codegen-units = 1`, `panic = 'abort'`,
 Measure gzip as `gzip -9 -c < FILE`, never `gzip -9 -c FILE`: the named form
 writes the filename into the gzip FNAME header, inflating every figure by
 `len(name) + 1` bytes — 41 B on the wasm here — and no static server ever sends
-that field. `just bench-assets` reports these same two closures; quote a row
+that field. `task bench-assets` reports these same two closures; quote a row
 from it rather than recomputing.
 
 For scale, wasm-opt matters: the raw cargo artifact is 1 450 691 B before
@@ -187,7 +187,7 @@ served `.wasm` with neither `Cache-Control` nor gzip (its asset regex and
 immutable. No JS bundle in this repo was large enough for that to matter.
 Both are fixed — `application/wasm` is in nginx's `gzip_types` and `wasm` is
 in its immutable location, and caddy's `@immutable` matcher covers it.
-`just test-web-servers apps/todo/web-leptos/dist` is green across all three
+`task test-web-servers DIST=apps/todo/web-leptos/dist` is green across all three
 stages (27 checks: health, SPA fallback, js + wasm content-type, long-lived
 cache-control, gzip).
 
@@ -202,12 +202,12 @@ cache miss.
   `[workspace] exclude` list, so it has its own `[workspace]` table and its own
   `Cargo.lock`, and it cannot use `{ workspace = true }` dependencies. It only
   ever builds for `wasm32-unknown-unknown` (pinned in `.cargo/config.toml`),
-  while every host gate (`just lint-rust`, `just test-rust`) is a `--workspace`
+  while every host gate (`task lint-rust`, `task test-rust`) is a `--workspace`
   host-target run.
 - **No `rust` nx tag.** `tools/nx/plugin.ts` withholds the cargo targets and
   the `rust` tag from any `[workspace] exclude`d directory: `cargo … --package`
   from the repo root cannot resolve a non-member, and the tag would hand this
-  node to `just check-rust-affected`. The `scope:todo` tag stays.
+  node to `task check-rust-affected`. The `scope:todo` tag stays.
 - **Dist layout.** Trunk puts *everything at the dist root* — `index.html`,
   `<crate>-<hash>.js`, `<crate>_bg-<hash>.wasm`, `<theme>-<hash>.css` — with
   root-relative `/name-hash.ext` hrefs, and **no `assets/` subdirectory**, which

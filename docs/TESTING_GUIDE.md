@@ -237,11 +237,11 @@ await todos.expectDone(title, true);                  // checkbox followed
 **Run with:**
 
 ```bash
-just e2e                       # installs Chromium if missing, then bun nx e2e todo-e2e
+task e2e                       # installs Chromium if missing, then bun nx e2e todo-e2e
 cd apps/todo/e2e && bun run e2e:ui   # Playwright UI mode
 ```
 
-`just e2e` is part of `just verify` (pre-push), not `just check`.
+`task e2e` is part of `task verify` (pre-push), not `task check`.
 
 There is no Rust-level e2e for `zerg_api`; `docs/zerg-e2e-test-plan.md` is an
 unimplemented plan, not a description of existing tests.
@@ -291,7 +291,7 @@ cargo test -p domain_projects --test integration_test
 cargo test -p domain_projects --test handler_test
 
 # E2E (browser, whole todo stack)
-just e2e
+task e2e
 ```
 
 ### Run Specific Test
@@ -555,7 +555,7 @@ jobs:
 
       # E2E (browser, whole todo stack; needs docker + Chromium)
       - name: E2E Tests
-        run: just e2e
+        run: task e2e
 ```
 
 ---

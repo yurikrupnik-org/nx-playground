@@ -1,6 +1,6 @@
 /**
  * `scope:` tag for every graph node the plugin touches — the declared ownership
- * map that `just boundaries` (tools/nx/check-boundaries.ts) enforces.
+ * map that `task boundaries` (tools/nx/check-boundaries.ts) enforces.
  *
  * The scope is DECLARED here, never derived from the dependency graph: a tag
  * computed from who-depends-on-whom would follow every new edge, and a lint

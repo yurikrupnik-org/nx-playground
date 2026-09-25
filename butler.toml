@@ -3,7 +3,8 @@
 # THREE consumers read these files, so every fact lives in exactly one of them:
 #   butler            renders Tiltfiles and, with the `app` KCL package, the
 #                     k8s manifests under manifests/k8s/apps/
-#   tools/nx/*.ts     infers each app's nx `container`/`scan` target
+#   tools/nx/*.ts     infers each app's nx `container`/`scan` target (butler's
+#                     Rust port of it infers the same graph natively)
 #   the KCL package   validates the workload payload against its typed schema
 #
 # Two levels, one fact per place:
@@ -14,8 +15,8 @@
 #                            kind default), its dev-loop facts (`[tilt]`), and an
 #                            `[image]` only when it departs from the convention
 #
-# `just container-check` and `just k8s-check` fail if a generated artifact stops
-# matching these files.
+# `task graph-check` and `task k8s-check` fail if an inferred target or a
+# generated artifact stops matching these files.
 #
 # A single-app repo uses this file alone: add an `[app]` section describing the
 # app that lives at the repo root (see docs/tilt-generators.md).
@@ -58,6 +59,27 @@ prod = "main"
 # tools/nx/container-targets.ts).
 [container]
 extra = ["apps/zerg/vector"]
+
+# Project-graph inference. Unset `infer` = butler's native Rust port of
+# tools/nx/plugin.ts; `infer = ["bun", "tools/nx/infer.ts"]` runs the
+# TypeScript plugin itself instead. `butler graph verify` (task graph-check)
+# diffs butler's graph against `nx graph --file` and skips only the targets
+# below.
+#
+# `nx-release-publish`: the publish step of `nx release`, which stays nx's job —
+# butler neither releases nor runs these executors. Two sources add it, neither
+# of them this repo's plugin: nx's own package.json layer (`@nx/js:release-publish`
+# on every package.json not marked `"private": true`, once @nx/js is installed)
+# and @monodon/rust (`@monodon/rust:release-publish` on every crate whose
+# `publish` is not `false`). Everything ELSE those plugins contribute is compared:
+# @monodon/rust's crate names and cargo-metadata edges equal the repo plugin's
+# (no `[target.*]` dependency tables or `package =` renames in this repo), and
+# @nx-tools/nx-container adds `container` only to a directory holding both a
+# `Dockerfile` and a project/package.json — none exists (the one file named
+# `Dockerfile` is manifests/dockers/Dockerfile). If either stops holding, verify
+# reports it.
+[graph]
+verifyIgnoreTargets = ["nx-release-publish"]
 
 # Build stage for an image that pins none itself. NOT Tilt-only: the stage
 # reaches CI too, through the `target` option of the inferred nx `container`

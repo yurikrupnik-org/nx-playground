@@ -14,7 +14,7 @@ conditions that would force a real evaluation.
 
 | class | finding |
 |---|---|
-| install | none. No `istioctl`, no helm release, no `IstioOperator`, no `istio-system` namespace. `scripts/just/k8s.just` installs CNPG + the Atlas operator; `scripts/just/platform.just` installs Crossplane providers/functions/XRDs; `devkit.toml` adds the Gateway API CRDs. That is every installer in the repo. |
+| install | none. No `istioctl`, no helm release, no `IstioOperator`, no `istio-system` namespace. `scripts/tasks/k8s.yml` installs CNPG + the Atlas operator; `scripts/tasks/platform.yml` installs Crossplane providers/functions/XRDs; `devkit.toml` adds the Gateway API CRDs. That is every installer in the repo. |
 | API objects | none live. `manifests/k8s/base/namespace.yaml` carries `istio-injection: enabled` on the `gateway` and `zerg` namespaces and a commented-out `AuthorizationPolicy` + `DestinationRule`. The labels are inert without a control plane, and that file exists to stay byte-identical to gitops-v1's `infrastructure/platform/networking-config/base/namespace.yaml` so a later Flux apply is a no-op — **do not delete them**. |
 | runtime | unverifiable: no cluster was reachable during the audit. |
 | gate | none. Nothing would have gone red if a mesh had silently disappeared — which is exactly how the claim survived. |
@@ -66,6 +66,6 @@ Any one of these turns the mesh into a scored evaluation under
 4. progressive delivery needs automated analysis/rollback — and even then,
    score Argo Rollouts (no data plane) against a mesh, not instead of it.
 
-Prerequisite for any of the above: a cluster gate. Today nothing in `just
+Prerequisite for any of the above: a cluster gate. Today nothing in `task
 verify` or CI starts a cluster (registry gap `no-cluster-in-ci`), so a mesh
 would be adopted blind — the same condition that let the Istio claim stand.

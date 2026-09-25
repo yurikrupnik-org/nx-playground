@@ -284,9 +284,9 @@ Endpoint::from_shared(addr)?
 just bench-tasks-compare
 
 # Individual tests
-just bench-tasks-grpc          # GET gRPC
+task bench-tasks-grpc          # GET gRPC
 just bench-tasks-direct        # GET Direct DB
-just bench-tasks-grpc-post     # POST gRPC
+task bench-tasks-grpc-post     # POST gRPC
 just bench-tasks-direct-post   # POST Direct DB
 ```
 

@@ -1,12 +1,12 @@
-// Zellij workspace for this repo — `just zj` (or, from the repo root,
+// Zellij workspace for this repo — `task zj` (or, from the repo root,
 // `zellij --layout manifests/zellij/nx-playground.kdl`).
 //
 // NO absolute paths on purpose: every pane inherits the cwd of the process that
 // launched zellij, so the layout only works when started from the repo root —
-// which is exactly what `just zj` guarantees.
+// which is exactly what `task zj` guarantees.
 //
 // Relationship to manifests/mprocs/*.yaml: mprocs is the headless runner behind
-// `just dev`. This layout runs the same process set plus the infra/cluster
+// `task dev`. This layout runs the same process set plus the infra/cluster
 // views, in panes you can scroll, search and detach from.
 //
 // Pane policy:
@@ -26,25 +26,25 @@ layout {
         }
     }
 
-    // App processes. `just run <job>` = `vals exec -f manifests/secrets/.vals.yaml
+    // App processes. `task run -- <job>` = `vals exec -f manifests/secrets/.vals.yaml
     // -- bacon <job>`, so these inherit GCP-resolved secrets on top of .env —
-    // same source as `just dev`. Requires: `just docker-up` (postgres, redis,
+    // same source as `task dev`. Requires: `task docker-up` (postgres, redis,
     // nats, mailhog) for anything that touches a backing service.
     tab name="svc" {
         pane split_direction="vertical" {
             pane split_direction="horizontal" {
                 // http://localhost:8080
-                pane name="zerg-api" command="just" {
-                    args "run" "zerg-api"
+                pane name="zerg-api" command="task" {
+                    args "run" "--" "zerg-api"
                 }
-                pane name="zerg-tasks" command="just" {
-                    args "run" "zerg-tasks"
+                pane name="zerg-tasks" command="task" {
+                    args "run" "--" "zerg-tasks"
                 }
             }
             pane split_direction="horizontal" {
                 // JetStream worker — needs nats on :4222, so it waits for you.
-                pane name="zerg-email" command="just" {
-                    args "run" "zerg-email-nats"
+                pane name="zerg-email" command="task" {
+                    args "run" "--" "zerg-email-nats"
                     start_suspended true
                 }
                 // http://localhost:3000
@@ -115,7 +115,7 @@ layout {
     }
 
     // The gates: `bacon clippy-workspace` for the tight loop, a shell for
-    // `just check` / `just verify`.
+    // `task check` / `task verify`.
     tab name="gate" {
         pane split_direction="horizontal" {
             pane name="bacon" command="bacon" {

@@ -11,7 +11,7 @@
 # immutable caching, compression) and benchmarked as its own path — for a WASM
 # arm that file, not the JS shim, is the payload.
 #
-# Invoked by `just test-web-servers` / `just bench-web-compare`.
+# Invoked by `task test-web-servers` / `task bench-web-compare`.
 set -euo pipefail
 
 MODE="${1:-bench}"

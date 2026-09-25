@@ -6,7 +6,7 @@
 #   - gzip compression
 #   - /api reverse proxy to $UPSTREAM_HOST:$UPSTREAM_PORT (nginx + caddy only;
 #     static-web-server is static-only)
-# Compare them with: just test-web-servers / just bench-web-compare
+# Compare them with: task test-web-servers / task bench-web-compare
 
 # Using nginx-unprivileged for better K8s security
 # - Runs as non-root (UID 101)

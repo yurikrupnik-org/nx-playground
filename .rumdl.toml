@@ -1,7 +1,7 @@
-# Markdown formatter/linter config — `just fmt` (rewrite) / `just fmt-check` (gate).
+# Markdown formatter/linter config — `task fmt` (rewrite) / `task fmt-check` (gate).
 #
 # rumdl owns markdown NORMALISATION for the whole workspace. `monodocs lint`
-# (scripts/just/docs.just) owns the things rumdl cannot know: link/anchor
+# (scripts/tasks/docs.yml) owns the things rumdl cannot know: link/anchor
 # resolution against the rendered document, fence languages the renderer can
 # actually highlight, and per-project README coverage. Two formatters over one
 # file fight, so `monodocs fmt` is no longer wired into any recipe.

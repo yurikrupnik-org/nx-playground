@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# https://taskfile.dev — task runner (go-task). Run `task --list` for every task.
+#
+# This file is only the entry point: every task lives in scripts/tasks/<area>.yml.
+# The includes are FLATTENED, so task names are global (`task check`, not
+# `task flows:check`) and must be unique across all included files. Included
+# tasks run from the repository root, whatever directory you invoke `task` from.
+#
+# Composite tasks call their steps as sequential `cmds: - task: <name>`, never
+# `deps:` — go-task runs deps in parallel, and the gates share cargo's
+# target-dir lock and the nx daemon.
+#
+# Parameters are named, upper-case vars: `task migrate-add DB=terran NAME=add_col`.
+# Pass-through arguments go after `--`: `task run -- zerg-api`.
+version: '3'
+
+# `.env` into every task's environment (so `task dev` etc. see REDIS_HOST,
+# DATABASE_URL, ... even without direnv). direnv (.envrc) also loads it for shells.
+dotenv: ['.env']
+
+includes:
+  flows: { taskfile: ./scripts/tasks/flows.yml, flatten: true }
+  dev: { taskfile: ./scripts/tasks/dev.yml, flatten: true }
+  rust: { taskfile: ./scripts/tasks/rust.yml, flatten: true }
+  python: { taskfile: ./scripts/tasks/python.yml, flatten: true }
+  nu: { taskfile: ./scripts/tasks/nu.yml, flatten: true }
+  web: { taskfile: ./scripts/tasks/web.yml, flatten: true }
+  docs: { taskfile: ./scripts/tasks/docs.yml, flatten: true }
+  db: { taskfile: ./scripts/tasks/db.yml, flatten: true }
+  proto: { taskfile: ./scripts/tasks/proto.yml, flatten: true }
+  email: { taskfile: ./scripts/tasks/email.yml, flatten: true }
+  bench: { taskfile: ./scripts/tasks/bench.yml, flatten: true }
+  k8s: { taskfile: ./scripts/tasks/k8s.yml, flatten: true }
+  k8s-apps: { taskfile: ./scripts/tasks/k8s-apps.yml, flatten: true }
+  local-env: { taskfile: ./scripts/tasks/local-env.yml, flatten: true }
+  kube-run: { taskfile: ./scripts/tasks/kube-run.yml, flatten: true }
+  platform: { taskfile: ./scripts/tasks/platform.yml, flatten: true }
+  tilt: { taskfile: ./scripts/tasks/tilt.yml, flatten: true }
+  todo: { taskfile: ./scripts/tasks/todo.yml, flatten: true }
+  zellij: { taskfile: ./scripts/tasks/zellij.yml, flatten: true }
+  graph: { taskfile: ./scripts/tasks/graph.yml, flatten: true }
+  flags: { taskfile: ./scripts/tasks/flags.yml, flatten: true }

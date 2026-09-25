@@ -270,14 +270,14 @@ With optimized configuration:
 
 ```bash
 # Run GET + POST
-just bench-tasks-all
+task bench-tasks-all
 
 # Individual endpoints
-just bench-tasks-grpc           # gRPC GET
-just bench-tasks-grpc-post      # gRPC POST
+task bench-tasks-grpc           # gRPC GET
+task bench-tasks-grpc-post      # gRPC POST
 
 # Quick test (10s, lighter load)
-just bench-tasks-quick
+task bench-tasks-quick
 ```
 
 ---
@@ -286,7 +286,7 @@ just bench-tasks-quick
 
 To compare future results against this baseline:
 
-1. Run `just bench-tasks-all`
+1. Run `task bench-tasks-all`
 2. Compare against "Scenario 1: Optimized" results above
 3. Expected variance: ±5% due to system load
 4. Investigate if > 10% regression

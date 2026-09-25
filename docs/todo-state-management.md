@@ -121,8 +121,8 @@ have multiple instances of Solid"`) in all three production bundles.
 ## Running it
 
 ```bash
-just docker-up && just migrate todo     # Postgres + the NOTIFY trigger
-just run todo-api
+task docker-up && task migrate DB=todo     # Postgres + the NOTIFY trigger
+task run -- todo-api
 cd apps/todo/web && bun run dev         # http://localhost:3100
 ```
 

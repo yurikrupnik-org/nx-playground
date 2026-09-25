@@ -15,10 +15,10 @@ DevEnvironment claim ──► XDevEnvironment ──► function-kcl pipeline
 ## Usage
 
 ```bash
-just platform-install          # one-time per cluster: CNPG + providers + XRD + composition
-just env-create myenv          # or: kubectl apply -f platform/dev-env/examples/demo.yaml
-just env-status myenv
-just env-delete myenv          # tears down everything, namespace included
+task platform-install          # one-time per cluster: CNPG + providers + XRD + composition
+task env-create NAME=myenv     # or: kubectl apply -f platform/dev-env/examples/demo.yaml
+task env-status NAME=myenv
+task env-delete NAME=myenv     # tears down everything, namespace included
 ```
 
 Claim spec (all optional, defaults on):
@@ -78,9 +78,9 @@ CloudInventory claim ──► XCloudInventory ──► function-kcl ──► 
 ```
 
 ```bash
-just inventory-create            # applies platform/cloud-inventory/examples/demo.yaml
-just inventory-status demo
-just inventory-delete demo       # observed resources survive
+task inventory-create            # applies platform/cloud-inventory/examples/demo.yaml
+task inventory-status NAME=demo
+task inventory-delete NAME=demo  # observed resources survive
 ```
 
 Claim spec — `targets` is required; `cluster` selects an in-cluster k8s object.

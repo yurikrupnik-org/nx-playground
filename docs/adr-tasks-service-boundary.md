@@ -188,7 +188,7 @@ The service gets its own database, so the bypass becomes *impossible* rather tha
 
 - New `manifests/db/tasks/{schema.sql,seed.sql}` in declarative mode (matching zerg).
   Add `CREATE DATABASE tasks;` to `manifests/dockers/config/postgres-init/01-create-databases.sql`
-  and `tasks-local`/`tasks-cluster` to `_db-url` in `manifests/db/db.just`.
+  and `tasks-local`/`tasks-cluster` to `_db-url` in `scripts/tasks/db.yml`.
 - Drop the `tasks` table from `manifests/db/zerg/schema.sql`.
 - **Cross-service references become IDs, not foreign keys** — the defining trade of a
   service boundary. We give up referential integrity across it deliberately:
@@ -206,7 +206,7 @@ The service gets its own database, so the bypass becomes *impossible* rather tha
   existing NATS infrastructure, or accept orphans. **Decision: accept orphans for now** —
   tasks are cheap, and account deletion isn't implemented. Revisit when it is.
 
-Dev migration is `just db-fresh`. No production data exists; if that changes before this
+Dev migration is `task db-fresh`. No production data exists; if that changes before this
 lands, it becomes a one-time ETL joining `tasks → users/organizations` to resolve refs
 *before* the table moves.
 

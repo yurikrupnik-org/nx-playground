@@ -32,7 +32,7 @@ the target may be the cwd itself or `~/gitorgs/kcl-packages` / `~/dotconfig`).
 
 | repo | gate (must pass BEFORE and AFTER) | regenerate |
 |---|---|---|
-| nx-playground | `just tilt-check`, `just k8s-check`, `just container-check`, `just boundaries`, `just gen-ci` (its output is gitignored — the gate is that the KCL CI generator still renders) | `just tilt-gen`, `just k8s-gen` |
+| nx-playground | `task tilt-check`, `task k8s-check`, `task graph-check`, `task boundaries`, `task gen-ci` (its output is gitignored — the gate is that the KCL CI generator still renders) | `task tilt-gen`, `task k8s-gen` |
 | kcl-packages | `just mod-check`, `just fmt-check`, `just check` (nx build/test/lint, providers excluded) | `just fmt` |
 | dotconfig | `just generate` exits 0 (`output/` is gitignored — nothing to diff); `nu --ide-check 100 config/scripts/*.nu` prints no `diagnostic`; `just brew-preflight` | none — the generator is the artifact |
 
@@ -44,13 +44,13 @@ Never edit generated trees by hand (`libs/**/types`, `libs/rpc/src/generated`,
 - nx-playground `butler.toml` `[k8s] tag` vs `~/gitorgs/kcl-packages/packages/app/kcl.mod`
   `version` (in CI: `npm view` is useless here — read the checked-out
   kcl-packages or `kcl mod metadata` on `oci://docker.io/yurikrupnik/app`).
-  Behind → bump, `just k8s-gen tilt-gen`, gate with `just k8s-check tilt-check`.
+  Behind → bump, `task k8s-gen tilt-gen`, gate with `task k8s-check tilt-check`.
   Keep it PINNED.
 - `testcontainers = "=0.27…"` unpin condition: `curl -s
   https://index.crates.io/te/st/testcontainers-modules | tail -1` requires
   `^0.28` → unpin per the `deps-maintenance` skill; else leave.
-- advisory ignores: for each RUSTSEC id in `.cargo/deny.toml`, the justfile
-  `audit` recipe and any `osv-scanner.toml`, drop it if the scanner that owns it
+- advisory ignores: for each RUSTSEC id in `.cargo/deny.toml`, the
+  `audit` task in `scripts/tasks/rust.yml` and any `osv-scanner.toml`, drop it if the scanner that owns it
   reports it unused (`cargo audit`/`cargo deny` = `advisory-not-detected`,
   osv-scanner = `unused ignores`). Ignores are per-lockfile, not global.
 - kcl-packages: every `composition.yaml` `source: …?tag=` equals its package's
@@ -61,7 +61,7 @@ Never edit generated trees by hand (`libs/**/types`, `libs/rpc/src/generated`,
 
 ### deps — the mandated path only
 
-Read `skill://deps-maintenance` first. nx-playground and kcl-packages:
+Read `skill://deps-maintenance` first. nx-playground: `task upkg`; kcl-packages:
 `just upkg` (safe mode; needs docker for testcontainers — present on
 ubuntu-latest). dotconfig: `just outdated` is report-only; no auto-bump.
 Handle the `BEGIN-UPKG-DIAGNOSIS` block per that skill. A cross-major bump that
@@ -78,7 +78,8 @@ version table.
   version, close obvious duplicates with a link. Never argue; never close a
   non-duplicate.
 - PRs idle > 14 days with failing/red CI: one comment naming the failing job
-  and the `just` recipe that reproduces it. Idle > 30 days, author is a bot:
+  and the `task` (nx-playground) / `just` (kcl-packages, dotconfig) recipe that
+  reproduces it. Idle > 30 days, author is a bot:
   close with a note. Human-authored stale PRs are commented, never closed.
 - One summary comment per run on the tracking issue titled
   `Maintenance log` (create it if missing, label `maintenance`).

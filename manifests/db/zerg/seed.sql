@@ -1,5 +1,5 @@
 -- Seed data for local development
--- Applied after schema.sql via: just db-fresh or just db-seed
+-- Applied after schema.sql via: task db-fresh DB=zerg or task db-seed DB=zerg
 
 -- =============================================================================
 -- Seed Users

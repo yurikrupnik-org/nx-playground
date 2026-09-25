@@ -52,7 +52,7 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Emitted by `just gen-ci` (kcl); the hand-maintained workflow is ci-optimized.yml
+# Emitted by `task gen-ci` (kcl); the hand-maintained workflow is ci-optimized.yml
 .github/workflows/generated-ci.yml
 
 # Environment files with secrets

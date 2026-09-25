@@ -1,0 +1,205 @@
+graph LR
+  classDef broken fill:#fde8e8,stroke:#d33,stroke-width:2px
+  classDef softgate stroke:#e69100,stroke-width:2px,stroke-dasharray:4 3
+  classDef suspended fill:#eee,stroke:#999,color:#777
+  classDef dormant stroke:#999,stroke-dasharray:5 4,color:#777
+  subgraph local["local"]
+    local_flux_system_role["role"]
+    local_flux_system_cert_manager["cert-manager"]
+    local_flux_system_cloudnative_pg["cloudnative-pg"]
+    local_flux_system_crossplane["crossplane"]
+    local_flux_system_external_secrets["external-secrets"]
+    local_flux_system_gateway_api["gateway-api"]
+    local_flux_system_keycloak_namespace["keycloak-namespace"]
+    local_flux_system_packages["packages"]
+    local_flux_system_apps["apps"]
+    local_flux_system_backstage_database["backstage-database"]
+    local_flux_system_cert_manager_issuers["cert-manager-issuers"]
+    local_flux_system_crossplane_aws["crossplane-aws"]
+    local_flux_system_crossplane_azure["crossplane-azure"]
+    local_flux_system_crossplane_functions["crossplane-functions"]
+    local_flux_system_crossplane_gcp["crossplane-gcp"]
+    local_flux_system_external_secrets_store["external-secrets-store<br/>wait:false"]:::softgate
+    local_flux_system_gateway_api_crds["gateway-api-crds"]
+    local_flux_system_istio_base["istio-base"]
+    local_flux_system_keycloak_operator["keycloak-operator"]
+    local_flux_system_metrics_server["metrics-server"]
+    local_flux_system_monitoring["monitoring"]
+    local_flux_system_app_first_rust_app_namespace["app-first-rust-app-namespace"]
+    local_flux_system_app_nx_playground_namespaces["app-nx-playground-namespaces"]
+    local_flux_system_backstage["backstage"]
+    local_flux_system_istiod["istiod"]
+    local_flux_system_keycloak["keycloak"]
+    local_flux_system_notifications["notifications"]
+    local_flux_system_webhooks["webhooks<br/>wait:false"]:::softgate
+    local_flux_system_app_first_rust_app["app-first-rust-app"]
+    local_flux_system_app_nx_playground["app-nx-playground"]
+    local_flux_system_backstage_exposure["backstage-exposure"]
+    local_flux_system_istio_gateway["istio-gateway"]
+    local_flux_system_keycloak_exposure["keycloak-exposure"]
+    local_flux_system_webhooks_exposure["webhooks-exposure"]
+  end
+  subgraph manager["manager"]
+    manager_flux_system_role["role"]
+    manager_flux_system_cert_manager["cert-manager"]
+    manager_flux_system_cloudnative_pg["cloudnative-pg"]
+    manager_flux_system_crossplane["crossplane"]
+    manager_flux_system_external_secrets["external-secrets"]
+    manager_flux_system_flux["flux"]
+    manager_flux_system_gateway_api["gateway-api"]
+    manager_flux_system_keycloak_namespace["keycloak-namespace"]
+    manager_flux_system_packages["packages"]
+    manager_flux_system_apps["apps"]
+    manager_flux_system_cert_manager_issuers["cert-manager-issuers"]
+    manager_flux_system_crossplane_aws["crossplane-aws"]
+    manager_flux_system_crossplane_azure["crossplane-azure"]
+    manager_flux_system_crossplane_functions["crossplane-functions"]
+    manager_flux_system_crossplane_gcp["crossplane-gcp"]
+    manager_flux_system_external_secrets_store["external-secrets-store<br/>wait:false"]:::softgate
+    manager_flux_system_ingress_nginx["ingress-nginx"]
+    manager_flux_system_keycloak_operator["keycloak-operator"]
+    manager_flux_system_metrics_server["metrics-server"]
+    manager_flux_system_app_first_rust_app_namespace["app-first-rust-app-namespace"]
+    manager_flux_system_app_nx_playground_namespaces["app-nx-playground-namespaces"]
+    manager_flux_system_fleet["fleet"]
+    manager_flux_system_keycloak["keycloak"]
+    manager_flux_system_notifications["notifications"]
+    manager_flux_system_webhooks["webhooks<br/>wait:false"]:::softgate
+    manager_flux_system_app_first_rust_app["app-first-rust-app"]
+    manager_flux_system_app_nx_playground["app-nx-playground"]
+    manager_flux_system_fleet_client_a_flux["fleet-client-a-flux"]
+    manager_flux_system_fleet_client_b_flux["fleet-client-b-flux"]
+    manager_flux_system_fleet_client_c_serverless["fleet-client-c-serverless"]
+    manager_flux_system_fleet_client_d_serverless["fleet-client-d-serverless<br/>not rendered"]:::dormant
+    manager_flux_system_fleet_client_e_serverless["fleet-client-e-serverless<br/>not rendered"]:::dormant
+    manager_flux_system_fleet_git_auth["fleet-git-auth"]
+    manager_flux_system_flux_system["flux-system<br/>not rendered"]:::dormant
+    manager_flux_system_keycloak_exposure["keycloak-exposure"]
+    manager_flux_system_webhooks_exposure["webhooks-exposure"]
+    manager_flux_system_fleet_client_a_sync["fleet-client-a-sync"]
+    manager_flux_system_fleet_client_b_sync["fleet-client-b-sync"]
+  end
+  local_flux_system_apps -. applies .-> local_flux_system_app_first_rust_app
+  local_flux_system_app_first_rust_app_namespace --> local_flux_system_app_first_rust_app
+  local_flux_system_apps -. applies .-> local_flux_system_app_first_rust_app_namespace
+  local_flux_system_apps -. applies .-> local_flux_system_app_nx_playground
+  local_flux_system_app_nx_playground_namespaces --> local_flux_system_app_nx_playground
+  local_flux_system_apps -. applies .-> local_flux_system_app_nx_playground_namespaces
+  local_flux_system_packages --> local_flux_system_apps
+  local_flux_system_packages -. applies .-> local_flux_system_backstage
+  local_flux_system_backstage_database --> local_flux_system_backstage
+  local_flux_system_packages -. applies .-> local_flux_system_backstage_database
+  local_flux_system_cloudnative_pg --> local_flux_system_backstage_database
+  local_flux_system_packages -. applies .-> local_flux_system_backstage_exposure
+  local_flux_system_backstage --> local_flux_system_backstage_exposure
+  local_flux_system_gateway_api --> local_flux_system_backstage_exposure
+  local_flux_system_role -. applies .-> local_flux_system_cert_manager
+  local_flux_system_role -. applies .-> local_flux_system_cert_manager_issuers
+  local_flux_system_cert_manager --> local_flux_system_cert_manager_issuers
+  local_flux_system_role -. applies .-> local_flux_system_cloudnative_pg
+  local_flux_system_role -. applies .-> local_flux_system_crossplane
+  local_flux_system_role -. applies .-> local_flux_system_crossplane_aws
+  local_flux_system_crossplane --> local_flux_system_crossplane_aws
+  local_flux_system_role -. applies .-> local_flux_system_crossplane_azure
+  local_flux_system_crossplane --> local_flux_system_crossplane_azure
+  local_flux_system_role -. applies .-> local_flux_system_crossplane_functions
+  local_flux_system_crossplane --> local_flux_system_crossplane_functions
+  local_flux_system_role -. applies .-> local_flux_system_crossplane_gcp
+  local_flux_system_crossplane --> local_flux_system_crossplane_gcp
+  local_flux_system_role -. applies .-> local_flux_system_external_secrets
+  local_flux_system_role -. applies .-> local_flux_system_external_secrets_store
+  local_flux_system_external_secrets --> local_flux_system_external_secrets_store
+  local_flux_system_role -. applies .-> local_flux_system_gateway_api
+  local_flux_system_gateway_api -. applies .-> local_flux_system_gateway_api_crds
+  local_flux_system_packages -. applies .-> local_flux_system_istio_base
+  local_flux_system_packages -. applies .-> local_flux_system_istio_gateway
+  local_flux_system_istiod --> local_flux_system_istio_gateway
+  local_flux_system_packages -. applies .-> local_flux_system_istiod
+  local_flux_system_istio_base --> local_flux_system_istiod
+  local_flux_system_role -. applies .-> local_flux_system_keycloak
+  local_flux_system_keycloak_operator --> local_flux_system_keycloak
+  local_flux_system_external_secrets --> local_flux_system_keycloak
+  local_flux_system_cert_manager_issuers --> local_flux_system_keycloak
+  local_flux_system_role -. applies .-> local_flux_system_keycloak_exposure
+  local_flux_system_keycloak --> local_flux_system_keycloak_exposure
+  local_flux_system_gateway_api --> local_flux_system_keycloak_exposure
+  local_flux_system_role -. applies .-> local_flux_system_keycloak_namespace
+  local_flux_system_role -. applies .-> local_flux_system_keycloak_operator
+  local_flux_system_keycloak_namespace --> local_flux_system_keycloak_operator
+  local_flux_system_packages -. applies .-> local_flux_system_metrics_server
+  local_flux_system_packages -. applies .-> local_flux_system_monitoring
+  local_flux_system_role -. applies .-> local_flux_system_notifications
+  local_flux_system_external_secrets_store --> local_flux_system_notifications
+  local_flux_system_role --> local_flux_system_packages
+  local_flux_system_role -. applies .-> local_flux_system_webhooks
+  local_flux_system_external_secrets_store --> local_flux_system_webhooks
+  local_flux_system_role -. applies .-> local_flux_system_webhooks_exposure
+  local_flux_system_webhooks --> local_flux_system_webhooks_exposure
+  local_flux_system_gateway_api --> local_flux_system_webhooks_exposure
+  local_flux_system_cert_manager_issuers --> local_flux_system_webhooks_exposure
+  manager_flux_system_apps -. applies .-> manager_flux_system_app_first_rust_app
+  manager_flux_system_app_first_rust_app_namespace --> manager_flux_system_app_first_rust_app
+  manager_flux_system_apps -. applies .-> manager_flux_system_app_first_rust_app_namespace
+  manager_flux_system_apps -. applies .-> manager_flux_system_app_nx_playground
+  manager_flux_system_app_nx_playground_namespaces --> manager_flux_system_app_nx_playground
+  manager_flux_system_apps -. applies .-> manager_flux_system_app_nx_playground_namespaces
+  manager_flux_system_packages --> manager_flux_system_apps
+  manager_flux_system_role -. applies .-> manager_flux_system_cert_manager
+  manager_flux_system_role -. applies .-> manager_flux_system_cert_manager_issuers
+  manager_flux_system_cert_manager --> manager_flux_system_cert_manager_issuers
+  manager_flux_system_role -. applies .-> manager_flux_system_cloudnative_pg
+  manager_flux_system_role -. applies .-> manager_flux_system_crossplane
+  manager_flux_system_role -. applies .-> manager_flux_system_crossplane_aws
+  manager_flux_system_crossplane --> manager_flux_system_crossplane_aws
+  manager_flux_system_role -. applies .-> manager_flux_system_crossplane_azure
+  manager_flux_system_crossplane --> manager_flux_system_crossplane_azure
+  manager_flux_system_role -. applies .-> manager_flux_system_crossplane_functions
+  manager_flux_system_crossplane --> manager_flux_system_crossplane_functions
+  manager_flux_system_role -. applies .-> manager_flux_system_crossplane_gcp
+  manager_flux_system_crossplane --> manager_flux_system_crossplane_gcp
+  manager_flux_system_role -. applies .-> manager_flux_system_external_secrets
+  manager_flux_system_role -. applies .-> manager_flux_system_external_secrets_store
+  manager_flux_system_external_secrets --> manager_flux_system_external_secrets_store
+  manager_flux_system_role -. applies .-> manager_flux_system_fleet
+  manager_flux_system_external_secrets --> manager_flux_system_fleet
+  manager_flux_system_flux --> manager_flux_system_fleet
+  manager_flux_system_crossplane_gcp --> manager_flux_system_fleet
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_client_a_flux
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_client_a_sync
+  manager_flux_system_fleet_client_a_flux --> manager_flux_system_fleet_client_a_sync
+  manager_flux_system_fleet_git_auth --> manager_flux_system_fleet_client_a_sync
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_client_b_flux
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_client_b_sync
+  manager_flux_system_fleet_client_b_flux --> manager_flux_system_fleet_client_b_sync
+  manager_flux_system_fleet_git_auth --> manager_flux_system_fleet_client_b_sync
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_client_c_serverless
+  manager_flux_system_crossplane_gcp --> manager_flux_system_fleet_client_c_serverless
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_client_d_serverless
+  manager_flux_system_crossplane_aws --> manager_flux_system_fleet_client_d_serverless
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_client_e_serverless
+  manager_flux_system_crossplane_azure --> manager_flux_system_fleet_client_e_serverless
+  manager_flux_system_fleet -. applies .-> manager_flux_system_fleet_git_auth
+  manager_flux_system_role -. applies .-> manager_flux_system_flux
+  manager_flux_system_fleet -. applies .-> manager_flux_system_flux_system
+  manager_flux_system_role -. applies .-> manager_flux_system_gateway_api
+  manager_flux_system_packages -. applies .-> manager_flux_system_ingress_nginx
+  manager_flux_system_role -. applies .-> manager_flux_system_keycloak
+  manager_flux_system_keycloak_operator --> manager_flux_system_keycloak
+  manager_flux_system_external_secrets --> manager_flux_system_keycloak
+  manager_flux_system_cert_manager_issuers --> manager_flux_system_keycloak
+  manager_flux_system_role -. applies .-> manager_flux_system_keycloak_exposure
+  manager_flux_system_keycloak --> manager_flux_system_keycloak_exposure
+  manager_flux_system_gateway_api --> manager_flux_system_keycloak_exposure
+  manager_flux_system_role -. applies .-> manager_flux_system_keycloak_namespace
+  manager_flux_system_role -. applies .-> manager_flux_system_keycloak_operator
+  manager_flux_system_keycloak_namespace --> manager_flux_system_keycloak_operator
+  manager_flux_system_packages -. applies .-> manager_flux_system_metrics_server
+  manager_flux_system_role -. applies .-> manager_flux_system_notifications
+  manager_flux_system_external_secrets_store --> manager_flux_system_notifications
+  manager_flux_system_role --> manager_flux_system_packages
+  manager_flux_system_role -. applies .-> manager_flux_system_webhooks
+  manager_flux_system_external_secrets_store --> manager_flux_system_webhooks
+  manager_flux_system_role -. applies .-> manager_flux_system_webhooks_exposure
+  manager_flux_system_webhooks --> manager_flux_system_webhooks_exposure
+  manager_flux_system_gateway_api --> manager_flux_system_webhooks_exposure
+  manager_flux_system_cert_manager_issuers --> manager_flux_system_webhooks_exposure

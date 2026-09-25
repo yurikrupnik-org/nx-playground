@@ -1,7 +1,7 @@
 //! Runs the publisher examples as processes and asserts what landed in JetStream.
 //!
 //! `examples/publish_test.rs` and `examples/publish_bulk.rs` are the entry points
-//! `just email-publish-one` and `just email-scale-check` shell out to, so a break
+//! `task email-publish-one` and `task email-scale-check` shell out to, so a break
 //! here breaks the email work-queue harness in docs/architecture-backlog.md. We
 //! boot a throwaway NATS with JetStream, run each example exactly as documented,
 //! and check the stream — not just the exit code.
@@ -59,7 +59,7 @@ async fn publish_test_example_enqueues_one_job() {
         "example did not report a publish\n--- stdout ---\n{stdout}",
     );
 
-    // Exactly one: `just email-replica-check` counts deliveries against this
+    // Exactly one: `task email-replica-check` counts deliveries against this
     // assumption, and a publisher that emits two would make that gate lie.
     assert_eq!(
         stream_messages(&nats).await,

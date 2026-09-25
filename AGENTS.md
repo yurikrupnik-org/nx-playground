@@ -1,56 +1,76 @@
 # Agent notes — nx-playground
 
 Rust + web (Solid/vite) monorepo. Nx manages the project graph/CI/containers;
-cargo manages Rust builds. Task runner is `just`.
+cargo manages Rust builds. Task runner is go-task (`task`, <https://taskfile.dev>).
 
 ## Task runner layout
 
-Root `justfile` holds cross-ecosystem flows and aggregates; domain recipes are
-imported (flat namespace, `just -l` shows everything):
+Root `Taskfile.yml` is only the entry point (`dotenv`, includes); every task lives
+in `scripts/tasks/<area>.yml`, included flattened (one global namespace, names
+must be unique, `task --list` shows everything). `scripts/tasks/flows.yml` holds
+cross-ecosystem flows and aggregates, `scripts/tasks/dev.yml` the run/dev/scaffold
+tasks. Parameters are named upper-case vars (`task migrate-add DB=terran
+NAME=add_col`); pass-through args go after `--` (`task run -- zerg-api`).
+Domain tasks:
 
-- `scripts/just/rust.just` — all cargo commands (lint-rust, test-rust, test-doc, doc-check, deps-unused, fmt-rust, audit, crates-*)
-- `scripts/just/web.just` — nx/biome/ncu (lint-web, test-web, fmt-web, outdated-node)
-- `scripts/just/python.just` — uv/ruff/pytest via nx, scoped by TAG not project name
+- `scripts/tasks/rust.yml` — all cargo commands (lint-rust, test-rust, test-doc, doc-check, deps-unused, fmt-rust, audit, crates-*)
+- `scripts/tasks/web.yml` — nx/biome/ncu (lint-web, test-web, fmt-web, outdated-node)
+- `scripts/tasks/python.yml` — uv/ruff/pytest via nx, scoped by TAG not project name
   (`-p tag:lang:python`): lint-py, test-py, fmt-py, fmt-check-py, outdated-py
-- `scripts/just/docs.just` — `monodocs` (EXTERNAL: lives in yurikrupnik/wasm-and-k8s,
-  published to crates.io, installed by `just docs-install` at the version pinned in
+- `scripts/tasks/nu.yml` — the script-language rule. bash runs INLINE in `cmds:`
+  (go-task's built-in mvdan/sh interpreter; no shebang). Nushell is never inline
+  (go-task has no interpreter/shebang option): it lives in `scripts/<area>/<name>.nu`
+  with `def main [...]` and the task calls `nu --no-config-file scripts/<area>/<name>.nu
+  {{.NAME | shellQuote}} {{.CLI_ARGS}}` — `--no-config-file` so a personal config.nu
+  never changes a task's behavior. `lint-nu` (`scripts/nu/ide-check.nu`, in `lint`)
+  parses and type-checks every .nu file.
+- `scripts/tasks/kube-run.yml` — one-off runs INSIDE kind as `kubectl run --rm` pods:
+  `kube-run CRATE=<package> [NS=] [ENV='K=V ...'] -- <args>` builds any workspace
+  binary through `manifests/dockers/rust.Dockerfile` (`BIN_NAME` build arg when the
+  bin is not the package name; the `openapi` named context carries docs/openapi for
+  `x_cli`), kind-loads and runs it, with a TTY when stdin is a terminal (`x ui`);
+  `kube-sh` is a bash+nu toolbox pod; `kube-nu SCRIPT=<file.nu>` ships the script's
+  directory as a ConfigMap. Every kubectl call pins `--context kind-<cluster>`. Apps
+  that stay up belong in butler.toml, not here.
+- `scripts/tasks/docs.yml` — `monodocs` (EXTERNAL: lives in yurikrupnik/wasm-and-k8s,
+  published to crates.io, installed by `task docs-install` at the version pinned in
   that file — never vendored here again): docs-html/-api/-open, docs-list, docs-lint,
   plus the rumdl leaves fmt-docs/fmt-check-docs. Renders every project README +
   docs/*.md into one self-contained `dist/docs/index.html`.
   `docs-lint` is NOT in `verify`: 36 of 60 projects have no README, so it is the
   worklist, not yet a gate. Markdown formatting is rumdl's (`.rumdl.toml`), not
   `monodocs fmt`'s — one formatter per file.
-- `scripts/just/platform.just` — DevEnvironment manager (Crossplane): platform-install,
+- `scripts/tasks/platform.yml` — DevEnvironment manager (Crossplane): platform-install,
   env-create/status/delete. XRD+KCL composition in `platform/dev-env/`, SDKs in
   `libs/platform/devenv-sdk` (rust) and `platform/sdk/{python,node}` — see `platform/README.md`.
   Node SDK examples must run under `node`, not bun (client-node TLS agent incompatibility).
-- `scripts/just/{k8s,local-env}.just`, `manifests/grpc/proto.just`,
-  `manifests/db/db.just`, `manifests/kustomize/backstage/backstage.just`,
-  `scripts/wrk/bench.just`, `apps/zerg/email-nats/email.just`
+- `scripts/tasks/{k8s,k8s-apps,local-env,tilt,graph,todo,zellij,flags}.yml`,
+  `scripts/tasks/proto.yml`, `scripts/tasks/db.yml`,
+  `scripts/tasks/bench.yml`, `scripts/tasks/email.yml`
 
-Flows: `just check` (everyday gate) · `just verify` (pre-push: check + proto-lint
+Flows: `task check` (everyday gate) · `task verify` (pre-push: check + proto-lint
 
-- Tiltfile/container-target/k8s-manifest drift + OSV scan) · `just fix`
-(auto-format all, then verify) · `just weekly` (upkg-paranoid + outdated).
+- Tiltfile/container-target/k8s-manifest drift + OSV scan) · `task fix`
+(auto-format all, then verify) · `task weekly` (upkg-paranoid + outdated).
 Aggregates `fmt`/`fmt-check`/`lint`/`test` fan out to their leaves —
 `fmt-rust proto-fmt fmt-web fmt-py fmt-docs fmt-spell` /
-`lint-rust doc-check deps-unused lint-web lint-py` /
+`lint-rust doc-check deps-unused lint-web lint-py lint-nu` /
 `test-rust test-doc test-web test-napi test-py`; new ecosystems (go) add a leaf + append to the
-aggregate. `just fmt` is the ONLY formatting entry point: rustfmt + cargo-sort,
+aggregate. `task fmt` is the ONLY formatting entry point: rustfmt + cargo-sort,
 buf, biome, rumdl (markdown), typos (spelling, whole tree).
 
 ## Hard-won rules
 
 - **Never run a WHOLE-WORKSPACE Rust task through nx** (`nx run-many -t lint test
   -p tag:lang:rust`). Re-measured while adding the per-crate targets, warm target dir,
-  45 crates / 90 tasks: `just lint-rust` + `just test-rust` (one cargo process
+  45 crates / 90 tasks: `task lint-rust` + `task test-rust` (one cargo process
   each) **2m13s** (20s + 1m53s, 488 tests), the same work as nx tasks **4m06s**
   at `--parallel=4` and **10m09s** at `--parallel=1` — per-crate cargo processes
   serialize on the target-dir lock and each re-checks the shared dep closure.
-  `just lint-rust`/`test-rust` are therefore cargo-direct one-invocation gates,
-  and they are what `just check` and a push to main run.
+  `task lint-rust`/`test-rust` are therefore cargo-direct one-invocation gates,
+  and they are what `task check` and a push to main run.
 - **The one Rust path that DOES go through nx is affected-scoped**:
-  `just check-rust-affected` (the CI PR path) asks nx which crates a diff touched
+  `task check-rust-affected` (the CI PR path) asks nx which crates a diff touched
   (`nx show projects --affected -p tag:lang:rust`) and runs the inferred per-crate
   `lint` (`cargo clippy --package X --all-targets -- -D warnings`), `test`
   (`cargo nextest run --package X --no-tests=pass`), `doc`, `doc-test` and
@@ -64,7 +84,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   dev-profile artifacts nextest just built) — so the
   recipe is bounded by the workspace gate, never a 10-minute fan-out.
   That handover runs the recipes through the **`rust_workspace_gate`** targets
-  (`scripts/rust/gate/`), not as bare `just` calls, because a bare call runs
+  (`scripts/rust/gate/`), not as bare `task` calls, because a bare call runs
   outside nx and therefore outside Nx Cloud. Measured on one commit with both
   workflows triggered in the same second (runs `35605711835` / `35605711733`):
   cargo-direct workspace leaves **8m56s** (`Compiling proc-macro2 … serde …`,
@@ -90,11 +110,11 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   project filter, it FORWARDS `-p` to the command (`-p tag:lang:rust` arrives as a
   cargo argument and fails every task), so the crate list must come from `nx show
   projects` and be handed to `run-many`; the `lang:rust` tag (`RUST_TAG` in
-  `tools/nx/rust-targets.ts` — the selector in `scripts/just/rust.just` is a
+  `tools/nx/rust-targets.ts` — the selector in `scripts/tasks/rust.yml` is a
   string on both sides, so that recipe asserts the tag still matches something
   rather than reporting an empty affected set) is withheld from a crate
   whose `lint`/`test` come from a package.json script — the N-API addons, whose
-  `test` is vitest and whose gate is `just test-napi`;
+  `test` is vitest and whose gate is `task test-napi`;
   and `test` passes `--no-tests=pass`, because nextest exits 4 on a crate with no
   test binaries, which `--workspace` never hits but a single `--package` often
   does. `lint`/`test` on crates carry `outputs: []` on purpose: cargo writes
@@ -102,7 +122,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   "these inputs passed", never "an artifact was restored" (`build` still inherits
   the JS-shaped `{projectRoot}/dist` from `targetDefaults`, which wins over an
   inferred value — that target stays graph/CI SHAPE only).
-- **Dependency updates go through `upkg`** (`just upkg` / `upkg-fast` / `upkg-paranoid`),
+- **Dependency updates go through `upkg`** (`task upkg` / `upkg-fast` / `upkg-paranoid`),
   never raw `cargo upgrade --incompatible` — it bulldozes range pins and skips
   OSV scans / post-checks. upkg lives in dotconfig (`config/scripts/upkg.nu`).
 - **`testcontainers = "=0.27.3"` is exact-pinned** on purpose: latest
@@ -115,12 +135,12 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `bunx biome ci <projectRoot>` — read-only, contributed by
   `tools/nx/polyglot-targets.ts`. The per-app `"lint": "biome check --write ."`
   scripts and the `project.json` wrappers that called them are GONE: a mutating
-  formatter must never answer to a gate's name. `just lint-web` (`biome ci .`)
+  formatter must never answer to a gate's name. `task lint-web` (`biome ci .`)
   stays the whole-tree pass.
 - **Generated files, do not edit or lint**: `libs/**/types` (ts-rs bindings from
   `export_bindings_*` tests), `libs/rpc/src/generated` (buf), `docs/openapi`
   (OpenAPI v1 specs from `export_openapi_*` tests), and every `Tiltfile`
-  (`just tilt-gen`). biome.json ignores the first three.
+  (`task tilt-gen`). biome.json ignores the first three.
 - **`butler.toml` is the CLI's config, at two levels — root required, per-app optional.** Root
   `butler.toml` owns everything repo-wide (registry, `env`, infra port-forwards,
   shared cluster resources, per-kind image conventions
@@ -179,7 +199,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   (`libs/contracts/tasks`, `libs/domains/todo`, `libs/native/field-selector`)
   get the commands COMPOSED under the one name, which is why `lint` does not
   live in `rust-targets.ts`. `lint` is cached with `outputs: []`, `fmt` is
-  never cached (it rewrites the tree) and is NOT a leaf of `just fmt` — the
+  never cached (it rewrites the tree) and is NOT a leaf of `task fmt` — the
   whole-repo pass stays one cargo and one biome process; these targets are the
   `nx affected -t lint`/`-t fmt` scope.
   App-level targets are keyed on
@@ -196,14 +216,14 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   also contributes a `scope:` tag to every node it touches (declared ownership map
   in `tools/nx/scope-tags.ts` — verticals for `apps/**`, `scope:tasks` for the
   extracted service + its domain, `scope:shared` for libs), enforced by
-  `just boundaries` (`tools/nx/check-boundaries.ts` over `nx graph --file`): an
-  edge may stay inside its scope or point at `scope:shared`. It runs in `just
+  `task boundaries` (`tools/nx/check-boundaries.ts` over `nx graph --file`): an
+  edge may stay inside its scope or point at `scope:shared`. It runs in `task
   verify` and CI; `.github/CODEOWNERS` mirrors the same map.
   project.json AND package.json scripts OVERRIDE inferred targets — a leftover
   copy silently shadows inference — so the hand-written copies were deleted (27
   files, 1347 lines). The modules share `tools/nx/butler-config.ts`: they read the root
-  `butler.toml` in TS while butler resolves the same facts in Rust, and `just
-  container-check` (`butler container verify --graph`) is the gate that stops the
+  `butler.toml` in TS while butler resolves the same facts in Rust, and `task
+  graph-check` (`butler graph verify --graph`) is the gate that stops the
   two drifting.
 - **The crate graph must not need a cargo subprocess.** `@monodon/rust` reads
   `cargo metadata`, so on a runner that installs bun and nothing else (CI's
@@ -220,12 +240,31 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `zerg_api` dependency list, same `--affected --with-target=scan` answer for a
   `libs/core/config` change. Without the edges `nx affected` would silently
   stop rebuilding the image of an app whose library a diff touched.
-- **Tiltfiles and manifests: nx owns the app list, butler owns the content.**
+- **butler infers the same graph natively; `task graph-check` holds it equal
+  to nx's.** `apps/butler/cli/src/infer` is a Rust port of `tools/nx/*.ts` (plus
+  nx's own `package.json`/`project.json`/`targetDefaults` layers), so butler
+  builds the project graph with no node process. The TS plugin stays because nx
+  computes its graph before any binary here is guaranteed built and must not
+  wait on cargo (header of `tools/nx/butler-config.ts`). Two implementations
+  drift, so `task graph-check` (`scripts/tasks/graph.yml`, in `task verify`)
+  runs `butler graph verify --graph <nx graph --file dump>` — every project,
+  target and edge (59 / 441 / 117), ignoring only `nx-release-publish`
+  (`butler.toml` `[graph] verifyIgnoreTargets`) — once natively and once with
+  `--infer 'bun tools/nx/infer.ts'`, where butler runs the TS plugin itself
+  (the example of the external-inferrer protocol,
+  `apps/butler/cli/src/infer/external.rs`). A change to `tools/nx/*.ts`
+  inference MUST be mirrored in the Rust port, or graph-check fails.
+  `butler run-many`/`affected`/`show projects|project` are the LOCAL runner —
+  the `task tilt-*`/`k8s-*` gates use them and skip nx's graph boot; CI keeps
+  `bun nx` + Nx Cloud everywhere else (a decision, not a gap), and `nx release`
+  stays on nx.
+- **Tiltfiles and manifests: the project graph owns the app list, butler owns the content.**
   `tilt-targets.ts` and `k8s-targets.ts` share one predicate — the app declares a
   `[workload]` in its own `butler.toml` and has a recognizable kind
   (`Cargo.toml` → service, `vite.config.ts` → web, `astro.config.mjs` → node — an
   Astro SSR app, a Node process rendering every request, not a static `dist`
-  behind nginx) — so `nx show projects --with-target tilt-gen` is the app set,
+  behind nginx) — so `butler show projects --with-target tilt-gen` (identical to
+  nx's answer, `task graph-check`) is the app set,
   identical to `--with-target k8s-gen`, currently 11. It grew by
   `todo-astro-web` (`apps/todo/web-astro`) and `todo_web_htmx`
   (`apps/todo/web-htmx`): web-htmx needed nothing but a workload, being
@@ -234,10 +273,12 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `butler k8s gen --app <dir>`; the generated k8s stanza is the live package
   render (`k8s_yaml(local('kcl run "oci://docker.io/yurikrupnik/app?tag=0.1.2"
   -D env=dev -q', dir='k8s'))`), not a kustomize build.
-  `just tilt-gen` runs `nx run-many -t tilt-gen` then writes the root Tiltfile
-  with `--root --apps "$(just _tilt-apps)"`, the roots of those same graph nodes,
-  so the include list is nx's answer; `just k8s-gen` does the same with
-  `just _k8s-apps` for `manifests/k8s/apps/kustomization.yaml`.
+  `task tilt-gen` runs `butler run-many -t tilt-gen` then writes the root Tiltfile
+  with `--root --apps "$tilt_apps"` (set by `TILT_APPS_SH` in
+  `scripts/tasks/tilt.yml` from `butler graph --json`), the roots of those same
+  graph nodes, so the include list is the graph's answer; `task k8s-gen` does the
+  same with `K8S_APPS_SH` (`scripts/tasks/k8s-apps.yml`) for
+  `manifests/k8s/apps/kustomization.yaml`.
 - **`nx show projects --with-target scan` IS the image/scan set CI matrixes
   over.** 12 apps: a recognizable kind (service, web or node) AND (a `[workload]`
   in the app's `butler.toml` OR root `butler.toml` `[container] extra`). It grew
@@ -258,7 +299,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
 - **A manifest is never hand-written and never hand-edited.**
   `manifests/k8s/apps/**` (11 rendered apps + the aggregate kustomization),
   every `<app>/k8s/values.yaml` and `values.<env>.yaml`, and every `Tiltfile` are
-  generated from `butler.toml` and gated by `just k8s-check` / `just tilt-check`.
+  generated from `butler.toml` and gated by `task k8s-check` / `task tilt-check`.
   The image reference has exactly ONE home: butler injects it, and declaring
   `image` in any `[workload]` is a hard error — it used to be spelled three ways
   (`yurikrupnik/todo-api:dev`, `yurikrupnik/zerg-api:main`,
@@ -296,7 +337,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   reports success. Rust source changes rebuild the image; the tight `only=` list
   is what keeps that cheap.
 - **N-API addons live in `libs/native/*`** and are the one crate kind whose nx
-  targets are NOT cargo: the deliverable is a JS package, so `just test-napi` drives
+  targets are NOT cargo: the deliverable is a JS package, so `task test-napi` drives
   `nx run-many -t build test -p '@native/*'` (build outputs `index.js`,
   `index.d.ts`, `*.node` are declared in the project's `project.json` — the
   `dist` targetDefault would cache nothing). They build with the workspace
@@ -339,7 +380,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   backend `jsonwebtoken` already requires). Copy that line into any new binary
   that gains a kube dependency.
 - **Crossplane composition functions come from `xpkg.upbound.io`**
-  (`platform/functions.yaml`, applied by `just crossplane-functions-install`):
+  (`platform/functions.yaml`, applied by `task crossplane-functions-install`):
   anonymous in-cluster pulls of `docker.io/kcllang/function-kcl` now fail with
   `401 UNAUTHORIZED`, leaving the Function stuck `Installed=False`.
 - **Crossplane 2.x still serves the claim-based XRDs here.** `apiextensions/v1`
@@ -348,7 +389,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `scope: LegacyCluster`, so claims keep working. Do not add `scope:` to them
   unless migrating to v2 namespaced XRs — that drops the claim API.
 - **Every platform tool is a row in `docs/tooling/registry.toml`, gated by
-  `just tooling-check`** (in `verify`; `tools/tooling/check-registry.ts`). A row
+  `task tooling-check`** (in `verify`; `tools/tooling/check-registry.ts`). A row
   states what INSTALLS the tool, what USES it and which gate catches it
   breaking; cited paths must resolve (no line numbers — they rot), an `adopted`
   row with `gate = "none"` must be covered by a declared `[[gap]]`, and
@@ -361,12 +402,12 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   inert `istio-injection` labels in `manifests/k8s/base/namespace.yaml` stay —
   that file is byte-mirrored from gitops-v1 so Flux's apply is a no-op. Playbook:
   `skill://cncf-manager`.
-- **A non-trivial commit is reviewed twice, and `just review-bundle` is what
+- **A non-trivial commit is reviewed twice, and `task review-bundle` is what
   both passes read** (`tools/review/bundle.ts` → gitignored
   `dist/review/bundle.md`): the STAGED diff, a class per file, the gates that
   diff implies, the generated output with the command that produces it and a
-  proof that can actually FAIL (`just proto-check` is `cargo check -p rpc`, so
-  the proof for generated protobuf is `just proto-gen` + `git diff
+  proof that can actually FAIL (`task proto-check` is `cargo check -p rpc`, so
+  the proof for generated protobuf is `task proto-gen` + `git diff
   --exit-code`), and what the working tree adds on top — because
   `coderabbit review --uncommitted` and `codex exec review --uncommitted`
   transmit the working tree, not the index. It writes NOTHING and exits 1 on a
@@ -382,8 +423,8 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `tools/agents/gen.ts` renders every adapter: `.gemini/commands/skill/<name>.toml`
   (`/skill:<name>`), `.gemini/GEMINI.md`, `docs/agents/README.md` and
   `docs/agents/skills.html` (the human explainer, "why we have these skills").
-  `just agents-check` (in `verify`) fails on drift, on an evidence path that
-  stopped existing, and on a skill dir with no row; `just agents-gen`
+  `task agents-check` (in `verify`) fails on drift, on an evidence path that
+  stopped existing, and on a skill dir with no row; `task agents-gen`
   regenerates. Same evidence bar as the tool registry: `gate = "none"` is legal
   only with a declared `[[gap]]` (currently `repo-maintenance`, whose rails ARE
   Claude Code hooks and therefore do not port). Three traps: a Gemini custom
@@ -392,7 +433,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   silently gets no procedure); a hosted agent has no checkout, so Bedrock/Vertex
   get a SHORT instruction (capped at Bedrock's 4000-char `instruction` limit,
   enforced by the generator) plus the SKILL.md as a retrieval document, written
-  to gitignored `dist/agents/` by `just agents-export`; and `.gemini/settings.json`
+  to gitignored `dist/agents/` by `task agents-export`; and `.gemini/settings.json`
   loads `AGENTS.md` itself via `context.fileName`, so this file is never copied
   into a second always-on context that could drift.
 - **`x` (`apps/x/cli`) has no route table — it reads the committed OpenAPI
@@ -425,7 +466,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   collection path as `""`. **Two gates stop a stale document**: the inferred
   per-crate `openapi-gate` (`tools/nx/openapi-targets.ts`, the affected/PR
   path — it re-exports and `git diff --exit-code`s exactly the documents that
-  crate writes) and `just openapi-check` over the workspace (in `verify` and
+  crate writes) and `task openapi-check` over the workspace (in `verify` and
   the main-branch CI step). It matters more than a usual generated-file gate: a
   stale document is a CLI that addresses routes the server no longer serves.
   Note `utoipa`'s `nest` is a string concat while axum's `nest` is not, so
@@ -451,15 +492,15 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   things — `--token`/`$X_TOKEN` as `Authorization: Bearer`, or
   `--session`/`$X_SESSION` as the declared cookie — which are the two ingress
   paths `auth_required` accepts (`libs/core/oidc-auth/src/middleware.rs`,
-  `extract_credentials`). `just x-token` mints a Keycloak access token from the
-  local realm; `just x-session` logs in through an API's own
+  `extract_credentials`). `task x-token` mints a Keycloak access token from the
+  local realm; `task x-session` logs in through an API's own
   `POST /api/auth/login/password` and prints the session id. An annotation that
   omits `security(...)` on a guarded route does not fail a gate — it degrades
   the CLI to a bare 401, which is exactly how every zerg route looked until the
   44 guarded operations were annotated.
 - **`apps/todo/web-leptos` is the ONE crate outside the cargo workspace, and
   that is load-bearing in four places.** Every Rust gate here is a single
-  host-target `cargo --workspace` run (`scripts/just/rust.just`), and a Leptos
+  host-target `cargo --workspace` run (`scripts/tasks/rust.yml`), and a Leptos
   CSR crate only compiles for `wasm32-unknown-unknown`, so it is in
   `[workspace] exclude` with its own `Cargo.lock` and its own
   `.cargo/config.toml` pinning the target. Consequences, all of which look like
@@ -467,13 +508,13 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   dependency rule (an excluded crate cannot resolve workspace deps); its
   advisories are ignored in its OWN `apps/todo/web-leptos/osv-scanner.toml`
   (osv-scanner loads the config sitting next to each scanned lockfile — a root
-  one is reported as `unused ignores` here) and NOT mirrored into the justfile
-  `audit` list, because `just scan` reads every `Cargo.lock` while
+  one is reported as `unused ignores` here) and NOT mirrored into the `audit`
+  task's list (`scripts/tasks/rust.yml`), because `task scan` reads every `Cargo.lock` while
   `cargo audit` reads exactly one that does not contain them; `rust-toolchain.toml`
   carries `targets = ["wasm32-unknown-unknown"]` so every entrypoint installs it
   rather than each developer; and `tools/nx/plugin.ts` reads the exclude list so
   the crate gets neither the `rust` tag nor cargo targets — without that,
-  `just check-rust-affected` would run `cargo clippy --package todo_web_leptos`
+  `task check-rust-affected` would run `cargo clippy --package todo_web_leptos`
   from the root and fail on a crate cargo cannot see. Its `build` is
   `trunk build --release` from an explicit `project.json`, because the plugin's
   inferred `cargo build` is wrong for a trunk app.
@@ -490,10 +531,10 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `docs/todo-state-management.md`, the `stack_profiles` seed) was hand-measured
   and transcribed, on bases that cannot be compared to each other — raw
   uncompressed transfer in one place, gzipped per-entry closure in another.
-  `just bench-assets` fixes the basis (first-render closure = `index.html` plus
+  `task bench-assets` fixes the basis (first-render closure = `index.html` plus
   what it references; each file compressed alone, because one file is one
   response; raw / `gzip -9` / `brotli -q 11`, and brotli is mandatory because
-  it takes another 18% off a wasm module that gzip cannot). `just bench-ops`
+  it takes another 18% off a wasm module that gzip cannot). `task bench-ops`
   measures bytes per API call, which is the only number on which a CLI and a
   browser app are comparable. Two traps it exists to prevent, both hit while
   writing it: summing a `dist` directory overstates first render by 2.6× (lazy
@@ -503,20 +544,21 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
 
 ## Environment gotchas
 
-- `set dotenv-load` in the root justfile injects `.env`/`.env.local` into every
-  recipe. `.env` contains an **empty** `SOCKET_CLI_API_TOKEN=` — a non-empty
+- `dotenv: ['.env']` in the root `Taskfile.yml` injects `.env` into every task
+  (only `.env`: neither go-task nor `.envrc` loads `.env.local`). `.env`
+  contains an **empty** `SOCKET_CLI_API_TOKEN=` — a non-empty
   env var overrides `socket login`'s stored token and can cause
   "Organization not found" (org is `yuri`; token must be created for it).
 - `devkit secrets fetch -o .env.local` names vars after the GCP secret names, so
   it writes a crates.io token as **`CARGO=<token>`**. Anything that spawns
-  `$CARGO` as the cargo binary (napi-cli, and just/nx inject the var) dies with
+  `$CARGO` as the cargo binary (napi-cli, and nx injects the var from `.env.local`) dies with
   `spawn ci… ENOENT`; `libs/native/*/package.json` scripts prefix `CARGO=cargo`
   to neutralise it. Same class of trap as the empty `SOCKET_CLI_API_TOKEN`.
-- Secrets come from vals + GCP Secret Manager (`just run`, `just dev` wrap with
+- Secrets come from vals + GCP Secret Manager (`task run`, `task dev` wrap with
   `vals exec -i`). Never write plaintext secrets; `.claude/hooks/guard-secrets.js`
   guards this.
 - `devkit` (external CLI from ~/dotconfig) is the ONLY local-env engine: it backs
-  `just docker-*` (compose) and `just local-*` (kind). The old `scripts/nu/`
+  `task docker-*` (compose) and `task local-*` (kind). The old `scripts/nu/`
   diverged fork was deleted — it hardcoded another machine's paths.
 
 ## Testing
@@ -524,11 +566,11 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
 - `cargo nextest run --workspace` — 384 tests, ~60s warm; many use testcontainers
   (docker must be running). `test-utils` provides TestPostgres/TestRedis/TestNats
   wrappers around testcontainers-modules.
-- Web: `just test-web` = nx `build test typecheck` for every `*-web` app plus the
+- Web: `task test-web` = nx `build test typecheck` for every `*-web` app plus the
   shared `web-auth` lib. `typecheck` (`tsc --noEmit`) is the TS gate — `vite build`
   is not, since esbuild strips types without checking them.
-- Python: `just test-py` = nx `build test` (uv wheel + pytest/coverage) for every
-  project tagged `lang:python`, `just lint-py`/`fmt-check-py` = ruff check/format.
+- Python: `task test-py` = nx `build test` (uv wheel + pytest/coverage) for every
+  project tagged `lang:python`, `task lint-py`/`fmt-check-py` = ruff check/format.
   `build` is in the leaf for the same reason it is in `test-web`: it is the only
   gate on PACKAGING — remove the README that `[project].readme` declares and
   `nx test` still passes while `nx build` fails in `uv_build.build_sdist`.
@@ -561,7 +603,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   DB-sourced bus as SSE. Never add a separate gRPC binary over the todo tables.
   `docs/todo-delivery-options.md` compares every delivery option with measured
   bytes (JSON vs protobuf: 247 B vs 110 B per todo, 2.2×).
-- **Browser e2e lives in `apps/todo/e2e` (`just e2e`, in `verify`, not `check`).**
+- **Browser e2e lives in `apps/todo/e2e` (`task e2e`, in `verify`, not `check`).**
   Playwright owns the whole stack via `webServer` (docker Postgres → todo-api
   with migrations on its readiness path → vite SPA → built Astro node server →
   axum htmx), on ports 55433/18090/3110/3210/3310 so dev servers are never

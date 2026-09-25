@@ -20,7 +20,7 @@ choices go through the normal comparison-doc route, e.g.
 ## The registry — `docs/tooling/registry.toml`
 
 Single source of truth; hand-written, reviewed like code, and enforced by
-`just tooling-check` (`tools/tooling/check-registry.ts`, inside `just verify`).
+`task tooling-check` (`tools/tooling/check-registry.ts`, inside `task verify`).
 The row count is whatever the gate prints; do not restate it here.
 
 ```toml
@@ -32,7 +32,7 @@ cncf        = "incubating"            # graduated|incubating|sandbox|not-cncf|un
 install     = "devkit.toml"           # WHAT INSTALLS IT — recipe, dep, manifest, workflow step
 key         = "[[deps]] gateway-api-crds"  # optional grep token pinning the fact inside that file
 usage       = ["manifests/k8s/base/gateway/zerg-api.yaml"]  # 1-3 real consumers
-gate        = "just k8s-check"        # the check that fails if it breaks; "none" needs a [[gap]]
+gate        = "task k8s-check"        # the check that fails if it breaks; "none" needs a [[gap]]
 paid        = false                   # true => `approval` REQUIRED (human, never the agent)
 owner       = "scope:infra"           # scope tag, per tools/nx/scope-tags.ts
 decision    = "docs/tooling/….md"     # comparison doc; omit for pre-existing rows
@@ -70,7 +70,7 @@ Status semantics, and the only legal transitions:
 | `external` | real, but owned by another repo/cluster (e.g. the `main-gateway` Gateway and anything Flux applies from `gitops-v1`) — this repo may reference but MUST NOT install it | `adopted` |
 | `claimed` | named in prose, zero install, zero usage — always a defect | `candidate`, `rejected`, or deleted with the prose |
 
-`just tooling-check` enforces: unique names, closed enums, every cited path
+`task tooling-check` enforces: unique names, closed enums, every cited path
 resolves, `key` tokens present in the cited install file, `adopted` ⇒ non-empty
 `usage`, a gate starting with `none` ⇒ declared in exactly one `[[gap]]`,
 `paid = true` ⇒ an `approval` record. It never contacts a cluster — a repo-only
@@ -98,14 +98,14 @@ reviewer, not the gate, has to catch.
    blog posts and CNCF maturity are *inputs to one criterion*, never the
    verdict.
    Minimum measurements for a platform tool: install time on a fresh `kind`
-   cluster (`just local-up`), steady-state CPU/memory added per node and per
+   cluster (`task local-up`), steady-state CPU/memory added per node and per
    pod, p50/p99 latency delta on one real route, image pull bytes, and the
-   delta to `just check` / `just verify` wall time.
+   delta to `task check` / `task verify` wall time.
 4. **Must-pass filters** (fail any → `rejected`, no score needed):
    OSI licence or an approved commercial one · works offline in `kind` (no
    mandatory SaaS) · no second convention (AGENTS.md: a new tool that duplicates
    `butler.toml` → KCL → generated manifests is a rewrite, not an addition) ·
-   attaches to an existing gate (`just check`/`verify`/CI matrix) · clean
+   attaches to an existing gate (`task check`/`verify`/CI matrix) · clean
    `trivy` + `osv-scanner` on its images · an exit path that is not a rewrite.
 5. **Score the survivors** (weights fixed; total 100):
 
@@ -169,7 +169,7 @@ Four independent evidence classes; run all four before answering.
 
 | # | class | how to check (repo-only; add the cluster check when one is reachable) |
 |---|---|---|
-| 1 | **install** | `grep` the tool in `justfile`, `scripts/just/*.just`, `devkit.toml` `[[deps]]`, `.github/workflows/**`, `platform/**`, `Cargo.toml`, `package.json`. No installer ⇒ nothing put it in a cluster. |
+| 1 | **install** | `grep` the tool in `Taskfile.yml`, `scripts/tasks/*.yml`, `devkit.toml` `[[deps]]`, `.github/workflows/**`, `platform/**`, `Cargo.toml`, `package.json`. No installer ⇒ nothing put it in a cluster. |
 | 2 | **API objects** | its CRDs/CRs/labels in `manifests/**`, `apps/**/k8s/**`, `platform/**`. Commented-out YAML is evidence of *absence*. |
 | 3 | **runtime** | `kubectl get ns/<ns>`, `kubectl api-resources --api-group=<group>`, `kubectl get <cr> -A`. Unreachable cluster ⇒ say so; do not upgrade a repo-only conclusion into a cluster claim. |
 | 4 | **gate** | does anything go red if it vanishes? A tool no gate covers is unowned regardless of what is installed. |
@@ -191,7 +191,7 @@ to match what Flux ships).
 
 | class | finding |
 |---|---|
-| install | none. No `istioctl`, no helm release, no `IstioOperator`, no `istio-system`; `scripts/just/k8s.just` installs CNPG + Atlas only, `devkit.toml` adds gateway-api CRDs only |
+| install | none. No `istioctl`, no helm release, no `IstioOperator`, no `istio-system`; `scripts/tasks/k8s.yml` installs CNPG + Atlas only, `devkit.toml` adds gateway-api CRDs only |
 | API objects | none live. `manifests/k8s/base/namespace.yaml` holds a commented-out `AuthorizationPolicy` + `DestinationRule`; the two `istio-injection: enabled` labels are inert without a control plane and present only to mirror gitops-v1 |
 | runtime | unverifiable — no cluster reachable |
 | gate | none |
@@ -209,7 +209,7 @@ the mirrored namespace labels were left alone.
 ## Deliverable
 
 Every run of this skill ends with a registry diff **or** an explicit "no change,
-here is the evidence" — and with `just tooling-check` green either way. Report:
+here is the evidence" — and with `task tooling-check` green either way. Report:
 
 ```text
 question:   <what was asked>

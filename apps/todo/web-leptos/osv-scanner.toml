@@ -1,10 +1,10 @@
 # Advisories acknowledged as not actionable for THIS crate's lockfile.
 #
 # This crate is in the root Cargo.toml `[workspace] exclude` list, which is what
-# gives it a second, separate Cargo.lock. `cargo audit` (the `just audit`
-# recipe) only ever opens the root lock, so these ids must NOT be added to its
+# gives it a second, separate Cargo.lock. `cargo audit` (run by `task audit`)
+# only ever opens the root lock, so these ids must NOT be added to its
 # --ignore list: cargo-audit would report them as unused and someone would later
-# delete them as noise. `just scan` (osv-scanner --recursive) does read this
+# delete them as noise. `task scan` (osv-scanner --recursive) does read this
 # lock, and osv-scanner resolves its config per scanned file — the root
 # osv-scanner.toml does not apply here, hence this second file.
 

@@ -13,15 +13,16 @@
  *
  * The inputs come from the same place butler's Tiltfile generator reads them:
  * the app's own `[image]` if it departs from the convention, else the repo
- * convention in the root `butler.toml` `[tilt.imageDefaults.<kind>]`. Those
- * files are the single source; this module and `butler container verify` are two
- * readers of it, and `just container-check` fails if they ever disagree.
+ * convention in the root `butler.toml` `[imageDefaults.<kind>]`. Those files
+ * are the single source; this module and butler's Rust port of it
+ * (`apps/butler/cli/src/infer/native/apps.rs`) are two readers of it, and
+ * `task graph-check` fails if they ever disagree.
  * The build STAGE is part of those shared facts, not a Tilt detail: the web
  * Dockerfile ends on `static-web-server`, which serves the SPA but drops the
  * `/api` reverse proxy every web Deployment configures through its proxy-envs
  * ConfigMap, so a target-less build silently shipped a different server than
  * dev validated. `[dockerfileTarget]` and `[imageDefaults.<kind>].target` sit at
- * the root of butler.toml for exactly that reason, and `butler container verify`
+ * the root of butler.toml for exactly that reason, and `butler graph verify`
  * compares the emitted `target`.
  *
  * `plugin.ts` owns the nx registration; this file is imported into that single

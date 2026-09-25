@@ -1,6 +1,6 @@
 # Local Docker development workflow
-# Usage: just dev (or: mprocs -c manifests/mprocs/local.yaml)
-# For Kind/Kubernetes workflow: just dev-kind
+# Usage: task dev (or: mprocs -c manifests/mprocs/local.yaml)
+# For Kind/Kubernetes workflow: task dev-kind
 
 procs:
   # =============================================================================
@@ -59,10 +59,10 @@ procs:
   # How to run:
   #   1. start `email-replica-a` and `email-replica-b` (no env needed; they
   #      default to MailHog on localhost:1025)
-  #   2. `just email-replica-check`  -> PASS: one job, one delivery
-  #      `just email-scale-check`    -> same assertion under N jobs
+  #   2. `task email-replica-check`  -> PASS: one job, one delivery
+  #      `task email-scale-check`    -> same assertion under N jobs
   #
-  # Both recipes purge the stream and clear MailHog first — a freshly created
+  # Both tasks purge the stream and clear MailHog first — a freshly created
   # consumer replays history, which would otherwise pollute the count.
   # ---------------------------------------------------------------------------
   email-replica-a:

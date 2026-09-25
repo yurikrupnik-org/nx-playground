@@ -106,12 +106,15 @@ impl Cache {
 }
 
 /// Expand an output spec into concrete workspace-relative paths. Concrete
-/// paths pass through; a glob component expands against the filesystem.
+/// paths pass through; a glob (`*` within one path segment, `**` across,
+/// as nx's minimatch) expands against the filesystem.
 fn expand_output_spec(root: &Path, spec: &str) -> Result<Vec<String>> {
     if !spec.contains('*') {
         return Ok(vec![spec.to_string()]);
     }
-    let glob = globset::Glob::new(spec)
+    let glob = globset::GlobBuilder::new(spec)
+        .literal_separator(true)
+        .build()
         .map_err(|e| eyre::eyre!("output glob `{spec}`: {e}"))?
         .compile_matcher();
     // Walk only the non-glob parent prefix.

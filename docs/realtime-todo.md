@@ -100,9 +100,9 @@ flowchart LR
 ## Running it
 
 ```bash
-just docker-up            # Postgres + NATS
-just migrate todo         # applies the trigger
-just run todo-api         # or: cargo run -p todo_api
+task docker-up            # Postgres + NATS
+task migrate DB=todo      # applies the trigger
+task run -- todo-api      # or: cargo run -p todo_api
 cd apps/todo/web && bun run dev
 ```
 

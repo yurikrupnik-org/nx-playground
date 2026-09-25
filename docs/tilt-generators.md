@@ -1,4 +1,4 @@
-# Generated from one config surface: nx owns the lists, butler owns the logic
+# Generated from one config surface: the project graph owns the lists, butler owns the logic
 
 Three tracks come out of `butler.toml` — every app's `Tiltfile`, every app's nx
 `container`/`scan` target, and every app's k8s manifests. Nine pieces, each doing
@@ -10,24 +10,24 @@ the one thing it is good at:
 | `tools/nx/tilt-targets.ts` | decides **which projects are Tilt apps** — an app that declares a `[workload]` in its own `butler.toml` plus a recognizable kind (`Cargo.toml` → service, `vite.config.ts` → web, `astro.config.mjs` → node) — and gives each a cached `tilt-gen` / `tilt-check` target. `nx show projects --with-target tilt-gen` *is* the app set. |
 | `tools/nx/k8s-targets.ts` | same predicate, one track over: a cached `k8s-gen` / `k8s-check` target on every app that declares a `[workload]`. `nx show projects --with-target k8s-gen` *is* the manifest set — 11 apps. |
 | `tools/nx/container-targets.ts` | gives every **deployable app** a `container` / `scan` target, derived from the same `butler.toml` facts. `nx show projects --with-target scan` *is* the image set CI matrixes over. |
-| `tools/nx/rust-targets.ts` | gives every cargo crate its `build` (+`production`), `test` (nextest), `doc` (`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`) and the `rust` tag, plus `doc-test` (`cargo test --doc`, only for a crate with a library — nextest has no rustdoc harness and `--doc` errors on a bin-only package), `run` for a crate with a binary and `install` for one whose `[package] publish` is set (`cargo install --path <dir> --locked --force`, uncached, today only `butler`) — `@monodon/rust` infers nodes and dep edges but only the `nx-release-publish` target. These targets exist for ONE caller, `just check-rust-affected`: nx scopes a diff to crates, cargo still owns the full-workspace gate. |
+| `tools/nx/rust-targets.ts` | gives every cargo crate its `build` (+`production`), `test` (nextest), `doc` (`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`) and the `rust` tag, plus `doc-test` (`cargo test --doc`, only for a crate with a library — nextest has no rustdoc harness and `--doc` errors on a bin-only package), `run` for a crate with a binary and `install` for one whose `[package] publish` is set (`cargo install --path <dir> --locked --force`, uncached, today only `butler`) — `@monodon/rust` infers nodes and dep edges but only the `nx-release-publish` target. These targets exist for ONE caller, `task check-rust-affected`: nx scopes a diff to crates, cargo still owns the full-workspace gate. |
 | `tools/nx/openapi-targets.ts` | gives `openapi-gate` to the four crates that WRITE a committed document — a `utoipa` dependency plus an `export_openapi*` test under `src/` naming a `docs/openapi/*.json` path. The target re-runs that test and `git diff --exit-code`s exactly those documents, because the export rides inside the normal suite: a changed annotation rewrites the file and the suite still passes. |
-| `tools/nx/polyglot-targets.ts` | owns the two names both ecosystems answer to, for every crate and every `{apps,libs}/**/package.json` project: `lint` (cached — `cargo clippy --package <crate> --all-targets -- -D warnings` and/or `bunx biome ci <dir>`) and `fmt` (uncached — `cargo fmt --package <crate>` + `cargo sort <dir>`, `biome check --write --linter-enabled=false <dir>`). A directory that is both gets the commands composed under one name. An excluded crate is formatted through `--manifest-path` (the only formatter that reaches `apps/todo/web-leptos`) and not clippy'd. `just lint-rust`/`lint-web`/`fmt-rust`/`fmt-web` stay the whole-repo passes; these are the affected-scoped ones. |
+| `tools/nx/polyglot-targets.ts` | owns the two names both ecosystems answer to, for every crate and every `{apps,libs}/**/package.json` project: `lint` (cached — `cargo clippy --package <crate> --all-targets -- -D warnings` and/or `bunx biome ci <dir>`) and `fmt` (uncached — `cargo fmt --package <crate>` + `cargo sort <dir>`, `biome check --write --linter-enabled=false <dir>`). A directory that is both gets the commands composed under one name. An excluded crate is formatted through `--manifest-path` (the only formatter that reaches `apps/todo/web-leptos`) and not clippy'd. `task lint-rust`/`lint-web`/`fmt-rust`/`fmt-web` stay the whole-repo passes; these are the affected-scoped ones. |
 | `butler tilt gen` (Rust) | derives and renders the Tiltfile content — image inputs, k8s backend, and the tight `docker_build(only=...)` |
 | `butler k8s gen` (Rust) | merges the workload payload, injects the facts an app must never hand-type, writes `<app>/k8s/values*.yaml`, and renders them through the pinned KCL package into `manifests/k8s/apps/` |
-| `butler container verify` (Rust) | re-resolves the image facts and diffs them against the inferred nx targets, so the TS mirror cannot drift |
+| `butler graph verify` (Rust) | infers the whole project graph natively (`apps/butler/cli/src/infer/native`, the Rust port of `tools/nx/plugin.ts`) and diffs it against `nx graph --file` — every project, target and edge, the `container`/`scan` targets included — so the TS plugin and the port cannot drift |
 | `butler.toml`, two levels | the facts that cannot be derived: the per-kind image conventions `[imageDefaults.{service,web,node}]`, the per-kind workload shape `[workloadDefaults.{service,web,node}]`, and the renderer under `[k8s]` (`package`, `tag`, the per-env `[k8s.imageTag]`, `extraResources`). The node image's `buildArg` is `"APP_DIR"` — the app *directory*, not a `dist` path, because that image installs and builds the app itself: its N-API addon must be compiled for the image's platform, so a locally built `dist/` cannot be copied in |
 
 ```bash
-just tilt-gen                  # nx run-many -t tilt-gen, then the root Tiltfile
-just tilt-gen-app zerg_api     # one app, nx-native and cached
-just tilt-check                # drift gate; part of `just verify`
-just container-check           # container/scan drift gate; part of `just verify`
-just k8s-gen                   # nx run-many -t k8s-gen, then the aggregate kustomization
-just k8s-gen-app zerg_api      # one app, nx-native and cached
-just k8s-check                 # manifest drift gate; part of `just verify`
+task tilt-gen                  # butler run-many -t tilt-gen, then the root Tiltfile
+task tilt-gen-app APP=zerg_api # one app, through butler and cached
+task tilt-check                # drift gate; part of `task verify`
+task graph-check               # butler vs nx project-graph parity (incl. container/scan); part of `task verify`
+task k8s-gen                   # butler run-many -t k8s-gen, then the aggregate kustomization
+task k8s-gen-app APP=zerg_api  # one app, through butler and cached
+task k8s-check                 # manifest drift gate; part of `task verify`
 nx run zerg_api:tilt-gen       # or straight through nx
-nx affected -t tilt-gen        # only apps whose inputs changed
+nx affected -t tilt-gen        # only apps whose inputs changed (butler affected -t tilt-gen too)
 ```
 
 ## Why the plugin does not generate the content itself
@@ -83,14 +83,14 @@ one app wider — a workload is not required there, see below.
 
 The root `Tiltfile` is a workspace-level artifact (infra port-forwards, shared
 resources, one `include()` per app) and this workspace has no root project —
-adding one would change `nx affected` semantics for every file. So `just tilt-gen`
+adding one would change `nx affected` semantics for every file. So `task tilt-gen`
 reads the same graph and passes the list explicitly:
 
 ```bash
-butler tilt gen --root --apps "$(just _tilt-apps)"   # roots of nodes having tilt-gen
+butler tilt gen --root --apps "$tilt_apps"   # roots of nodes having tilt-gen (TILT_APPS_SH in scripts/tasks/tilt.yml)
 ```
 
-nx therefore decides the include list too; butler never second-guesses it.
+The graph therefore decides the include list too; butler never second-guesses it.
 
 ## The rule that keeps it collapsed
 
@@ -216,21 +216,21 @@ for both readers, which is why those two tables sit at the ROOT of `butler.toml`
 rather than under `[tilt]`: a name that says "tilt" is what hid the bug.
 
 Two implementations of one truth — the plugin resolves these facts from the root
-`butler.toml` in TypeScript, butler resolves them again in Rust to render
-Tiltfiles — so there is a gate:
+`butler.toml` in TypeScript, butler resolves them again in Rust (its native port
+of the plugin, and to render Tiltfiles) — so there is a gate:
 
 ```bash
-just container-check     # part of `just verify`
-# nx graph --file=$g  |  butler container verify --graph $g
+task graph-check     # part of `task verify`
+# nx graph --file=$g  |  butler graph verify --graph $g   (native, then --infer 'bun tools/nx/infer.ts')
 ```
 
-butler recomputes the expected `container`/`scan` facts and diffs them against
-the graph dump. A divergence fails the gate instead of shipping an image built
-two different ways depending on who asked.
+butler infers the whole graph, `container`/`scan` facts included, and diffs it
+against the graph dump. A divergence fails the gate instead of shipping an image
+built two different ways depending on who asked.
 
 ## The k8s manifest track
 
-Third track, same division. nx owns the LIST (`tools/nx/k8s-targets.ts`), butler
+Third track, same division. The graph owns the LIST (`tools/nx/k8s-targets.ts`), butler
 owns the LOGIC, and a published KCL package — `oci://docker.io/yurikrupnik/app`,
 pinned at `tag = "0.1.2"` in the root `[k8s]` — owns the Kubernetes shape. This
 is the KCL half of the split argued for above: structured data in, objects out,
@@ -278,12 +278,12 @@ butler k8s gen [--app DIR] [--root] [--check] [--apps CSV]
 | `manifests/k8s/apps/<app>.yaml` | stdout of `kcl run "<package>?tag=<tag>" -D env=<env> -q`, run in a scratch directory holding nothing but the freshly computed values |
 | `manifests/k8s/apps/kustomization.yaml` | one entry per app, sorted, plus the `[k8s] extraResources` |
 
-All four are committed and drift-gated: `just k8s-check` ("11 k8s artifacts up
-to date") sits in `just verify` beside `tilt-check` and `container-check`. The
+All four are committed and drift-gated: `task k8s-check` ("11 k8s artifacts up
+to date") sits in `task verify` beside `tilt-check` and `graph-check`. The
 aggregate is written from the graph, exactly as the root Tiltfile is:
 
 ```bash
-butler k8s gen --root --apps "$(just _k8s-apps)"   # roots of nodes having k8s-gen
+butler k8s gen --root --apps "$k8s_apps"   # roots of nodes having k8s-gen (K8S_APPS_SH in scripts/tasks/k8s-apps.yml)
 ```
 
 There is a `values.<env>.yaml` for **every** env, not only for the envs an app
@@ -500,7 +500,7 @@ tight `only=` list is what makes that affordable.
 | `manifests/tilt/tilt.toml` | superseded by the root `butler.toml`; the CLI's config belongs at the repo root next to the repo it configures |
 | `metadata.tilt` in six `project.json` files | app config now lives in `<app>/butler.toml`, so the CLI does not require nx-shaped files |
 | `scripts/kcl/tilt/**` (KCL generator, ~800 lines) | it was a second process with a second config place: `main.k` hand-transcribed the registry, the three infra port-forwards, the shared ConfigMap, and every app's crate name / port / image / stage — all of which the root and app `butler.toml` (or project.json) already own. Its one unique feature, per-language presets for standalone repos, is now the `[app]` section above. Restore with `git checkout 3001a15 -- scripts/kcl/tilt` if ever needed. |
-| `just tilt-gen-kcl`, `tilt-lint-kcl`, `tilt-gen-diff`, `s-kcl` | no second generator to drive or diff against |
+| `tilt-gen-kcl`, `tilt-lint-kcl`, `tilt-gen-diff`, `s-kcl` recipes | no second generator to drive or diff against |
 | `tools/tilt/plugin.ts` (the path, not the plugin) | split into `tools/nx/tilt-targets.ts` and registered through `tools/nx/plugin.ts`, next to `rust-targets.ts`, `container-targets.ts` and `k8s-targets.ts`; the four share `tools/nx/butler-config.ts` for reading the root `butler.toml`, so one directory holds every local plugin and `nx.json` holds one entry |
 | hand-written `build` / `run` / `container` / `scan` targets in 27 `project.json` files (1347 lines) | now inferred: `tools/nx/rust-targets.ts` from each `Cargo.toml`, `tools/nx/container-targets.ts` from the root `butler.toml`. project.json targets *override* inferred ones, so a leftover copy silently shadows inference — deleting them was the cutover, not tidying. `@monodon/rust` still infers the nodes and dep edges (it only ever inferred the `nx-release-publish` target), so the projects themselves are untouched. |
 | every `apps/*/*/k8s/kustomize/**` tree for the 11 workload apps | the workload is a `[workload]` table rendered by the pinned KCL package; a hand-written overlay beside it is a second spelling of the same fact. `apps/zerg/shared/k8s/kustomize` STAYS — it has no app kind and the root `[[tilt.sharedResource]]` references it by path. |

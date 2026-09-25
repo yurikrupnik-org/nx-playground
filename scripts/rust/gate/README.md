@@ -1,25 +1,25 @@
 # `rust_workspace_gate` — the cached whole-workspace Rust gate
 
 Five nx targets wrapping the cargo-direct workspace leaves in
-`scripts/just/rust.just`, so that Nx Cloud caches their verdict:
+`scripts/tasks/rust.yml`, so that Nx Cloud caches their verdict:
 
-| target | recipe | cargo command |
+| target | task | cargo command |
 |---|---|---|
-| `lint-workspace` | `just lint-rust` | `cargo clippy --workspace --all-targets -- -D warnings` |
-| `test-workspace` | `just test-rust` | `cargo nextest run --workspace` |
-| `doc-test-workspace` | `just test-doc` | `cargo test --doc --workspace` |
-| `doc-workspace` | `just doc-check` | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace` |
-| `openapi-workspace` | `just openapi-check` | `cargo test --workspace export_openapi` + `git diff --exit-code -- docs/openapi` |
+| `lint-workspace` | `task lint-rust` | `cargo clippy --workspace --all-targets -- -D warnings` |
+| `test-workspace` | `task test-rust` | `cargo nextest run --workspace` |
+| `doc-test-workspace` | `task test-doc` | `cargo test --doc --workspace` |
+| `doc-workspace` | `task doc-check` | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace` |
+| `openapi-workspace` | `task openapi-check` | `cargo test --workspace export_openapi` + `git diff --exit-code -- docs/openapi` |
 
-The command is the `just` recipe, not the cargo line, so a developer running
-`just lint-rust` and CI running `lint-workspace` execute the same string —
+The command is the `task` invocation, not the cargo line, so a developer running
+`task lint-rust` and CI running `lint-workspace` execute the same string —
 the property the `ci-optimized.yml` header claims for the whole workflow.
 
 ## Why this project exists
 
-`just check-rust-affected` hands over to the whole-workspace gate past `max`
+`task check-rust-affected` hands over to the whole-workspace gate past `MAX`
 crates (default 20), because past that point one shared `--workspace` compile
-beats a per-crate fan-out. That handover used to call the recipes **directly**,
+beats a per-crate fan-out. That handover used to call the tasks **directly**,
 which meant it ran outside nx — and therefore outside Nx Cloud.
 
 Measured on one commit, two workflows triggered in the same second
@@ -59,7 +59,7 @@ goes green from cache. It is deliberately **coarse** — all of `apps/**` and
 `libs/**`, not a `.rs`/`.toml` extension filter — because crates read non-Rust
 files through `include_str!`:
 
-```
+```text
 libs/ui/todo-theme/todo.css
 apps/todo/web-htmx/assets/htmx.min.js
 libs/core/oidc-auth/testdata/test_jwks.json, test_key.pem

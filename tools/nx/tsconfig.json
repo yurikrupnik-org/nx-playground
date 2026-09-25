@@ -18,6 +18,7 @@
     "container-targets.ts",
     "k8s-targets.ts",
     "scope-tags.ts",
-    "check-boundaries.ts"
+    "check-boundaries.ts",
+    "infer.ts"
   ]
 }

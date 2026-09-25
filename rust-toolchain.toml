@@ -5,21 +5,21 @@
 # MUST live at the repo root — rustup does not look in .cargo/ and there is no
 # env var or flag to relocate it (unlike clippy.toml / deny.toml / rustfmt.toml).
 #
-# Bumping: change `channel`, run `just check`, and update the `rust_channel` /
+# Bumping: change `channel`, run `task check`, and update the `rust_channel` /
 # rust image in scripts/kcl/ci so CI does not pre-install a second toolchain.
 
 [toolchain]
 channel = "1.97.1"
 profile = "default"
 
-# clippy + rustfmt back `just lint` and `just fmt-check`.
+# clippy + rustfmt back `task lint` and `task fmt-check`.
 # rust-src is what rust-analyzer needs to resolve std.
 components = ["clippy", "rustfmt", "rust-src"]
 
 # wasm32-unknown-unknown backs the Leptos CSR arm of the delivery-surface
 # comparison (`apps/todo/web-leptos`, built by trunk). That crate is
-# `[workspace] exclude`d, so the host-target gates (`just lint-rust`,
-# `just test-rust`, both `--workspace`) never try to compile it — but the
+# `[workspace] exclude`d, so the host-target gates (`task lint-rust`,
+# `task test-rust`, both `--workspace`) never try to compile it — but the
 # target must be installed for every entrypoint, hence here and not a
 # per-developer `rustup target add`.
 targets = ["wasm32-unknown-unknown"]

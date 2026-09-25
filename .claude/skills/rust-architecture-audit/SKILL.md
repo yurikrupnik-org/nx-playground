@@ -41,7 +41,7 @@ models`. Lower never imports higher.
 1. **Domains compose only at the app layer.** No `domain_*` crate depends on
    another `domain_*` crate. The one grandfathered edge is
    `domain_cloud_resources -> domain_projects` (SeaORM FK, undecided context
-   seam — `GRANDFATHERED` in `tools/nx/scope-tags.ts`). `just boundaries`
+   seam — `GRANDFATHERED` in `tools/nx/scope-tags.ts`). `task boundaries`
    enforces scope; this audit checks the stricter no-domain-imports-domain rule.
 2. **A caller of an extracted service depends on its contract, never its
    domain crate.** `grep -rn "domain_tasks" apps/zerg/api/` must be empty.
@@ -130,8 +130,8 @@ for d in libs/domains/*/; do
   echo "$d unit=$(grep -rl '#\[cfg(test)\]' "$d/src" | wc -l | tr -d ' ') it=$(ls "$d/tests" 2>/dev/null | wc -l | tr -d ' ')"; done
 
 # Executable gates that already encode architecture rules
-just boundaries        # scope tags over the nx graph
-just proto-breaking    # wire-contract additivity
+task boundaries        # scope tags over the nx graph
+task proto-breaking    # wire-contract additivity
 ```
 
 Baseline as of 2026-09-19, so a drift is visible: I1 → only

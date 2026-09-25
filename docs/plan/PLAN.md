@@ -11,14 +11,14 @@ to tooling already wired into the workspace — no new tools, no generic advice.
 
 | Concern | Tool | Entry point |
 | --- | --- | --- |
-| Updates | `upkg` (nu script in dotconfig `config/scripts/upkg.nu`) | `just upkg` (daily: OSV scans + build/lint/test) · `just upkg-fast` (bump only) · `just upkg-paranoid` (adds cargo-vet + Socket). Never raw `cargo upgrade --incompatible` — it bulldozes range pins and skips OSV scans and post-checks. |
-| Vulnerability audit | cargo-audit + cargo-deny | `just audit` (defined in `scripts/just/rust.just`), deny config `.cargo/deny.toml` |
-| OSV scanning | OSV-Scanner | part of `just verify`; ignores are per-lockfile — currently only `apps/todo/web-leptos/osv-scanner.toml` |
-| Outdated preview | cargo-outdated | `just outdated-rust` (read-only); `just outdated` covers every ecosystem |
+| Updates | `upkg` (nu script in dotconfig `config/scripts/upkg.nu`) | `task upkg` (daily: OSV scans + build/lint/test) · `task upkg-fast` (bump only) · `task upkg-paranoid` (adds cargo-vet + Socket). Never raw `cargo upgrade --incompatible` — it bulldozes range pins and skips OSV scans and post-checks. |
+| Vulnerability audit | cargo-audit + cargo-deny | `task audit` (defined in `scripts/tasks/rust.yml`), deny config `.cargo/deny.toml` |
+| OSV scanning | OSV-Scanner | part of `task verify`; ignores are per-lockfile — currently only `apps/todo/web-leptos/osv-scanner.toml` |
+| Outdated preview | cargo-outdated | `task outdated-rust` (read-only); `task outdated` covers every ecosystem |
 | License policy | cargo-deny `[licenses]` allowlist | `.cargo/deny.toml` — MIT, Apache-2.0 (+ LLVM-exception), BSD-2/3-Clause, ISC, Zlib, 0BSD, Unicode-3.0, CC0-1.0, MPL-2.0, BSL-1.0, OpenSSL, CDLA-Permissive-2.0 |
 | Registry sources | cargo-deny `[sources]` | `.cargo/deny.toml` — `unknown-registry = "deny"`, only the crates.io index allowed; unknown git sources warn |
-| Dep table hygiene | cargo-sort | `just fmt-rust` (`cargo fmt --all`, then `cargo sort --workspace`); gated by `just fmt-check-rust` with `--check --check-format` |
-| Cadence | just aggregates | `just check` (everyday gate) · `just verify` (pre-push) · `just weekly` (paranoid update + remaining cross-major preview) |
+| Dep table hygiene | cargo-sort | `task fmt-rust` (`cargo fmt --all`, then `cargo sort --workspace`); gated by `task fmt-check-rust` with `--check --check-format` |
+| Cadence | task aggregates | `task check` (everyday gate) · `task verify` (pre-push) · `task weekly` (paranoid update + remaining cross-major preview) |
 
 ## Standing policies
 
@@ -33,7 +33,7 @@ to tooling already wired into the workspace — no new tools, no generic advice.
   `apps/todo/web-leptos/Cargo.lock` (a crate excluded from the cargo workspace, hence a
   second lock) must live in `apps/todo/web-leptos/osv-scanner.toml`; a root-level entry
   is simply reported as `unused ignores`. Root-lock ignore lists — `cargo audit --ignore`
-  in `scripts/just/rust.just` and `[advisories] ignore` in `.cargo/deny.toml` — are
+  in `scripts/tasks/rust.yml` and `[advisories] ignore` in `.cargo/deny.toml` — are
   currently EMPTY. **Ignores expire:** RUSTSEC-2023-0071 (rsa), RUSTSEC-2026-0235 (rkyv),
   RUSTSEC-2025-0134 (rustls-pemfile) and the root-lock copy of RUSTSEC-2026-0173
   (proc-macro-error2, once via sea-orm-rc) were all dropped after the crate left
@@ -59,26 +59,26 @@ to tooling already wired into the workspace — no new tools, no generic advice.
 
 ### Practice the update loop
 
-- [ ] Run `just outdated-rust` and `just outdated` (both read-only) and read what would move.
-- [ ] On a throwaway branch, run `just upkg-fast`, then `just check` — upkg-fast skips scans
+- [ ] Run `task outdated-rust` and `task outdated` (both read-only) and read what would move.
+- [ ] On a throwaway branch, run `task upkg-fast`, then `task check` — upkg-fast skips scans
       and tests on purpose, so the gate afterwards is mandatory.
-- [ ] Compare against a full `just upkg` run and note which extra scans it performs.
+- [ ] Compare against a full `task upkg` run and note which extra scans it performs.
 
 ### Triage an advisory
 
-- [ ] Next time `just audit` or the OSV scan in `just verify` flags something, decide between
+- [ ] Next time `task audit` or the OSV scan in `task verify` flags something, decide between
       fix (upgrade), pin, or ignore.
 - [ ] If the decision is ignore: write the reason inline and add it to exactly the
-      scanners that report it — the justfile `audit` recipe / `.cargo/deny.toml` for the
+      scanners that report it — the `audit` task in `scripts/tasks/rust.yml` / `.cargo/deny.toml` for the
       root `Cargo.lock`, or an `osv-scanner.toml` NEXT TO the lockfile osv-scanner named.
-- [ ] If the decision is fix: confirm with `just check` that the upgrade is behaviour-neutral.
+- [ ] If the decision is fix: confirm with `task check` that the upgrade is behaviour-neutral.
 
 ### Pin/unpin decisions
 
 - [ ] Check whether testcontainers-modules has released 0.28 support (inspect the sparse
       index dependencies of testcontainers-modules). *Last checked 2026-08-31: latest
       modules is still 0.15.0 requiring testcontainers `^0.27.0` — the pin stays.*
-- [ ] If it has: remove the `=` pin on `testcontainers`, run `just upkg`, confirm
+- [ ] If it has: remove the `=` pin on `testcontainers`, run `task upkg`, confirm
       `cargo nextest run --workspace` is green (testcontainers-backed tests need Docker
       running), and delete the now-stale pin note in `AGENTS.md`.
 
@@ -86,6 +86,6 @@ Clearing the last item is the exit criterion for this roadmap.
 
 ## Cadence
 
-- Everyday: `just check` — formatting + all linters + all tests + supply-chain audit.
-- Before push: `just verify` — everything in `check` plus proto lint and the OSV scan.
-- Weekly: `just weekly` — `upkg-paranoid` followed by a preview of remaining cross-major bumps.
+- Everyday: `task check` — formatting + all linters + all tests + supply-chain audit.
+- Before push: `task verify` — everything in `check` plus proto lint and the OSV scan.
+- Weekly: `task weekly` — `upkg-paranoid` followed by a preview of remaining cross-major bumps.

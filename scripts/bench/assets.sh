@@ -55,7 +55,7 @@
 # back to perl Time::HiRes, which adds one fork per timestamp — the header
 # records which timer produced the numbers.
 #
-# Invoked by `just bench-assets`.
+# Invoked by `task bench-assets`.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -439,7 +439,7 @@ echo "# Shipped assets and startup, one basis"
 echo
 echo "## $(date -u +%F) — $HOST_DESC"
 echo
-echo "- Reproduce: \`just bench-assets\` (\`scripts/bench/assets.sh\`), $(date -u +%FT%TZ)."
+echo "- Reproduce: \`task bench-assets\` (\`scripts/bench/assets.sh\`), $(date -u +%FT%TZ)."
 echo "- Compressors: \`$GZIP_VERSION\` at \`-9\`, \`$BROTLI_VERSION\` at \`-q 11\`, every file compressed on its own (one file = one response)."
 echo "- Web arm = FIRST-RENDER CLOSURE: \`index.html\` + the \`.js\`/\`.css\`/\`.wasm\` it references (+ the \`.wasm\` named inside that JS). Lazily imported route chunks are excluded; whole-directory totals are the separate table below."
 echo "- Binary arm = artifact size + wall time of each named invocation over $RUNS runs (min/median) with that invocation's peak RSS. \`--version\` is measured, not assumed to be free: a spec-driven CLI builds its command tree before it can answer, and the note column says when that is what you are reading. A binary is installed once, not downloaded per render, so its bytes are NOT the browser arms' bytes; the comparable number is \`scripts/bench/ops.sh\` (bytes per operation)."

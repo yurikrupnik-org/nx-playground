@@ -1,6 +1,6 @@
 ---
 description: Two-pass pre-commit review (author pass + independent pass) then commit
-allowed-tools: Bash(just:*), Bash(git diff:*), Bash(git status:*), Bash(coderabbit:*), Bash(codex:*), Bash(gemini:*)
+allowed-tools: Bash(task:*), Bash(git diff:*), Bash(git status:*), Bash(coderabbit:*), Bash(codex:*), Bash(gemini:*)
 ---
 
 # Pre-Commit Review
@@ -11,7 +11,7 @@ the report format. Do not re-invent a review flow here.
 
 Short form:
 
-1. `just review-bundle` — freezes the STAGED diff into `dist/review/bundle.md`
+1. `task review-bundle` — freezes the STAGED diff into `dist/review/bundle.md`
    (file table, class per file, the gates that diff implies). Exit 1 = hard
    stop (secret-shaped path); exit 2 = nothing staged.
 2. Run the gates the bundle listed, plus any proof gate for generated output.

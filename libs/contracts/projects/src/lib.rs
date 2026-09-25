@@ -9,7 +9,7 @@
 //!
 //! It deliberately lives **here** rather than in `domain_projects`: the tasks
 //! service depending on another vertical's domain crate is the shared-kernel
-//! coupling Phase 2 removed, and `just boundaries` now rejects it outright
+//! coupling Phase 2 removed, and `task boundaries` now rejects it outright
 //! (`scope:tasks` may not depend on `scope:zerg`).
 //!
 //! # Stream shape

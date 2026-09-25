@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# NOT included by the root Taskfile.yml (the old ci.just was never imported by the
+# justfile either): its `test` would collide with the `test` aggregate in flows.yml.
+# Run it directly: `task -t scripts/tasks/ci.yml test`.
+version: '3'
+
+tasks:
+  test:
+    desc: cargo test, then cargo fmt
+    cmds:
+      - cargo test
+      - cargo fmt

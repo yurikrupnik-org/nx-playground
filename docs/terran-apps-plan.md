@@ -58,7 +58,7 @@ one ownership-scoped sample resource, then grow the domain as we go.
 
 ## Supporting services
 
-Added to `manifests/dockers/compose.yaml` (started via `just docker-up`); all share the existing
+Added to `manifests/dockers/compose.yaml` (started via `task docker-up`); all share the existing
 Postgres (extra DBs created by `manifests/dockers/postgres-init/10-create-extra-databases.sh`):
 
 - **Keycloak** (`:8088`) — identity provider; realm imported from
@@ -244,7 +244,7 @@ Reuse the Keycloak compose setup from the auth investigation:
   OAuth App: `http://localhost:8088/realms/terran/broker/{google,github}/endpoint`.
 - `manifests/mprocs/local.yaml`: add `terran-api` (`bacon`) and `terran-web` (`bun nx dev terran-web`)
   procs.
-- `justfile`: add a `keycloak-token` helper (direct-access grant) for smoke-testing the verifier.
+- `scripts/tasks/`: add a `keycloak-token` task (direct-access grant) for smoke-testing the verifier.
 
 Env (terran api): `OIDC_ISSUER=http://localhost:8088/realms/terran`,
 `OIDC_JWKS_URL=.../protocol/openid-connect/certs`, `OIDC_CLIENT_ID=terran-api`,
@@ -276,7 +276,7 @@ Env (terran api): `OIDC_ISSUER=http://localhost:8088/realms/terran`,
 4. **Web** — Solid app: auth-api/auth-context, protected route, Google/GitHub buttons via
    `kc_idp_hint`, sample resource page. Component tests for the auth guard.
 5. **Local dev** — Keycloak `terran-realm.json` (client + Google/GitHub brokering), compose/mprocs/
-   justfile wiring; end-to-end smoke: `just keycloak-token` → call a protected endpoint; browser
+   Taskfile wiring; end-to-end smoke: `task keycloak-token` → call a protected endpoint; browser
    login round-trip.
 6. **Verify** — `cargo test`/`clippy` for new crates, `vitest` for web, manual e2e login. Gates run
    once across the union of changed projects.

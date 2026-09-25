@@ -13,14 +13,14 @@
  * biome is the only JS/TS linter and formatter in this workspace (no eslint, no
  * prettier) and there is exactly one `biome.json` at the root, so a per-project
  * invocation is the same tool with a narrower path — no per-project config to
- * discover, which is also why `just lint-web` / `just fmt-web` stay whole-tree
+ * discover, which is also why `task lint-web` / `task fmt-web` stay whole-tree
  * single-process passes and are NOT built on these targets.
  *
- * Division of labour, same as `rust-targets.ts` describes for cargo: the `just`
- * recipes are the authoritative whole-repo gates (`cargo clippy --workspace`,
- * `biome ci .`, `cargo fmt --all`); these targets are the scope those recipes
- * cannot express — what a diff touched, with Nx Cloud caching the answer per
- * project.
+ * Division of labour, same as `rust-targets.ts` describes for cargo: the tasks
+ * in scripts/tasks/*.yml are the authoritative whole-repo gates (`cargo clippy
+ * --workspace`, `biome ci .`, `cargo fmt --all`); these targets are the scope
+ * those tasks cannot express — what a diff touched, with Nx Cloud caching the
+ * answer per project.
  *
  * `plugin.ts` owns the nx registration; this file is imported into that single
  * plugin worker rather than registered as a plugin of its own.
@@ -59,9 +59,9 @@ export function polyglotTargets(
   const lintInputs: unknown[] = ['default', '^default'];
 
   if (crate) {
-    // `just fmt-rust`'s `cargo fmt --all` never reaches an excluded crate
+    // `task fmt-rust`'s `cargo fmt --all` never reaches an excluded crate
     // either, so for `apps/todo/web-leptos` this target is the ONLY formatter
-    // that does. `cargo sort` rides along because `just fmt-check-rust` gates
+    // that does. `cargo sort` rides along because `task fmt-check-rust` gates
     // rustfmt AND dependency-table order — formatting without sorting hands you
     // a green target and a red gate. Same flags as the recipe (no `--grouped`):
     // a second spelling would rewrite what the workspace pass rewrites back.
@@ -73,7 +73,7 @@ export function polyglotTargets(
     );
     technologies.push('rust');
     if (!excluded) {
-      // Same flags as `just lint-rust`, one crate at a time.
+      // Same flags as `task lint-rust`, one crate at a time.
       lint.push(
         `cargo clippy --package ${crate.name} --all-targets -- -D warnings`,
       );
@@ -126,7 +126,7 @@ export function polyglotTargets(
       cache: true,
       inputs: lintInputs,
       outputs: [],
-      options: { commands: lint, cwd: '{workspaceRoot}', parallel: false },
+      options: { commands: lint, cwd: '{workspaceRoot}', parallel: true },
       metadata: {
         description: `lint ${dir} (${technologies.join(' + ')})`,
         technologies,

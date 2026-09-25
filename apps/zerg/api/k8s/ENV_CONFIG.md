@@ -2,7 +2,7 @@
 
 This guide explains how to manage environment-specific configurations for the zerg API across different deployment environments.
 
-All of it is declared in `apps/zerg/api/butler.toml` — `[config]` and `[env.<env>.config]` for values, `[env.prod.externalSecret]` for secret references — and rendered by `just k8s-gen` into `k8s/values*.yaml` and `manifests/k8s/apps/zerg-api.yaml`.
+All of it is declared in `apps/zerg/api/butler.toml` — `[config]` and `[env.<env>.config]` for values, `[env.prod.externalSecret]` for secret references — and rendered by `task k8s-gen` into `k8s/values*.yaml` and `manifests/k8s/apps/zerg-api.yaml`.
 
 ## Environment Variables
 
@@ -164,11 +164,11 @@ spec:
 ## Deploying Configuration Changes
 
 Every environment starts the same way: edit `apps/zerg/api/butler.toml`, then regenerate.
-`just k8s-check` (part of `just verify`) fails if you commit one without the other.
+`task k8s-check` (part of `task verify`) fails if you commit one without the other.
 
 ```bash
-just k8s-gen-app zerg_api   # this app only (nx project name, not the image name)
-just k8s-gen                # every app + the aggregate kustomization
+task k8s-gen-app APP=zerg_api   # this app only (nx project name, not the image name)
+task k8s-gen                    # every app + the aggregate kustomization
 ```
 
 ### Dev (Tilt)
@@ -184,7 +184,7 @@ tilt up
 # Apply this app alone…
 kubectl apply -f manifests/k8s/apps/zerg-api.yaml
 
-# …or every app plus the dev-only Secret fixtures, as `just todo-apply` does
+# …or every app plus the dev-only Secret fixtures, as `task todo-apply` does
 kubectl apply -k manifests/k8s/apps
 
 # Verify deployment
@@ -196,7 +196,7 @@ kubectl logs -n zerg deployment/zerg-api
 
 Configuration changes are automatically synchronized when committed to the main branch.
 What is synchronized is the **generated** output under `manifests/k8s/apps`, so a
-`butler.toml` edit committed without `just k8s-gen` deploys nothing.
+`butler.toml` edit committed without `task k8s-gen` deploys nothing.
 
 ## Troubleshooting
 

@@ -4,7 +4,7 @@
 -- credentials for it: the only way to reach these rows is the gRPC service. See
 -- `docs/adr-tasks-service-boundary.md`.
 --
--- Local dev:  `just db-fresh tasks` drops/recreates from this file
+-- Local dev:  `task db-fresh DB=tasks` drops/recreates from this file
 -- K8s:        Atlas Operator reconciles it declaratively (AtlasSchema + tasks-schema ConfigMap)
 --
 -- PostgreSQL 18 (uuidv7() is a built-in function, no extension required)

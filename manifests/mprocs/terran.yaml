@@ -1,10 +1,10 @@
 # Terran group — local Docker development workflow
-# Usage: just dev-terran (or: mprocs -c manifests/mprocs/terran.yaml)
+# Usage: task dev-terran (or: mprocs -c manifests/mprocs/terran.yaml)
 #
 # Starts the whole terran vertical: Keycloak-auth API (bacon hot-reload) +
 # SolidJS web (vite). Requires the compose infra (postgres/redis/keycloak):
 #   docker compose -f manifests/dockers/compose.yaml up -d postgres redis keycloak
-# Reset the `terran` database with `just db-fresh terran`.
+# Reset the `terran` database with `task db-fresh DB=terran`.
 
 procs:
   # Rust API (bacon hot-reload). Env matches manifests/mprocs/local.yaml:

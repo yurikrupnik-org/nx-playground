@@ -16,7 +16,7 @@ pre-commit:
       glob: "*.rs"
       run: cargo fmt -- --check
 
-    # Rust linting (--all-targets so tests/benches are linted too, as `just lint-rust` does)
+    # Rust linting (--all-targets so tests/benches are linted too, as `task lint-rust` does)
     clippy:
       glob: "*.rs"
       run: cargo clippy --workspace --all-targets -- -D warnings
@@ -25,7 +25,7 @@ pre-commit:
 pre-push:
   parallel: true
   commands:
-    # Rust tests (nextest, matching `just test-rust`)
+    # Rust tests (nextest, matching `task test-rust`)
     cargo-test:
       run: cargo nextest run --workspace
 

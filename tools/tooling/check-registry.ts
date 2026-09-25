@@ -1,5 +1,5 @@
 /**
- * Drift gate for the platform tool registry — `just tooling-check`.
+ * Drift gate for the platform tool registry — `task tooling-check`.
  *
  * Usage: bun tools/tooling/check-registry.ts [registry.toml]
  *

@@ -1,6 +1,6 @@
 ---
-description: Run quality checks via just flows (cargo-native for Rust, nx for web)
-allowed-tools: Bash(just:*), Bash(git diff:*)
+description: Run quality checks via task flows (cargo-native for Rust, nx for web)
+allowed-tools: Bash(task:*), Bash(git diff:*)
 ---
 
 # Quality Checks
@@ -14,20 +14,20 @@ the shared `dist/target`).
 ## Standard gate (lint + build + test, all ecosystems)
 
 ```bash
-just check
+task check
 ```
 
 ## Full pre-push gate (check + proto lint + OSV scan)
 
 ```bash
-just verify
+task verify
 ```
 
 ## Quick iteration (no tests/audit)
 
 ```bash
-just check-quick
+task check-quick
 ```
 
-**Critical**: Stop if any gate fails. `just fix` auto-formats (`just fmt`: rust
+**Critical**: Stop if any gate fails. `task fix` auto-formats (`task fmt`: rust
 fmt + cargo sort + buf + biome --write + rumdl + typos) and re-runs the full gate.
