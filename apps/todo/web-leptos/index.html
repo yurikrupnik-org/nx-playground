@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <title>Todo App</title>
+    <!--
+      The same stylesheet the Solid SPA, the Astro app and web-htmx render
+      against, so a visual diff between the delivery surfaces is a bug. Trunk
+      copies it to the dist root as `todo-<hash>.css`.
+      The Solid app additionally carries `src/index.css`'s `.app-nav` rules; this
+      app has no router and therefore no nav, so those would be dead bytes.
+    -->
+    <link data-trunk rel="css" href="../../../libs/ui/todo-theme/todo.css" />
+    <!--
+      `-Oz` to match the crate's `opt-level = 'z'`. The two `--enable-*` flags
+      are not optional: rustc emits `memory.copy`/`memory.fill` for
+      wasm32-unknown-unknown by default, and the binaryen trunk downloads
+      refuses to validate them unless bulk memory is enabled explicitly.
+    -->
+    <link
+      data-trunk
+      rel="rust"
+      data-wasm-opt="z"
+      data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int"
+    />
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <!--
+      `root`, not `app`: `scripts/wrk/web-servers.sh` asserts the SPA fallback by
+      grepping the served HTML for exactly `<div id="root">`, and reusing that
+      harness unchanged is what makes the two arms comparable.
+    -->
+    <div id="root"></div>
+  </body>
+</html>

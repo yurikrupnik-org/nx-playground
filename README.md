@@ -11,17 +11,19 @@ Nx monorepo with Rust backend services, a React frontend, and Kubernetes-native 
 | [Docker](https://docs.docker.com/get-docker/) | Container builds | Desktop or CLI |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/) | Kubernetes CLI | `brew install kubectl` |
 | [Tilt](https://tilt.dev/) | Local k8s dev environment | `brew install tilt` |
-| [just](https://github.com/casey/just) | Command runner | `brew install just` |
+| [Task](https://taskfile.dev/) | Task runner (`Taskfile.yml` + `scripts/tasks/*.yml`) | `brew install go-task` |
+| [Nushell](https://www.nushell.sh/) | Script language for tasks too big for inline sh (`scripts/<area>/*.nu`; `task lint-nu`) | `brew install nushell` |
 | [Atlas](https://atlasgo.io/) | Database schema management | `brew install ariga/tap/atlas` |
 | [KCL](https://kcl-lang.io/) | CI/CD config generation | `brew install kcl-lang/tap/kcl` |
 | [cargo-nextest](https://nexte.st/) | Fast Rust test runner | `cargo install cargo-nextest` |
+| [protoc](https://protobuf.dev/installation/) | Build dep of the Temporal SDK crates (`prost-wkt-types` build script) | `brew install protobuf` |
 | [direnv](https://direnv.net/) | Auto-load env vars | `brew install direnv` |
 
 ### Optional
 
-- [sccache](https://github.com/mozilla/sccache) - Shared compilation cache (used in CI with GCS backend)
-- [bacon](https://github.com/Canop/bacon) - Background Rust code checker (`just run`)
-- [Istio](https://istio.io/) - Service mesh (for gateway / observability)
+- [sccache](https://github.com/mozilla/sccache) - Shared compilation cache, opt-in via `RUSTC_WRAPPER=sccache` (exported by `.envrc` when installed; the CI Rust job sets it with a GCS backend). Deliberately not in `.cargo/config.toml` — a wrapper declared there is mandatory for every cargo run.
+- [bacon](https://github.com/Canop/bacon) - Background Rust code checker (`task run`)
+- [Gateway API](https://gateway-api.sigs.k8s.io/) - North–south routing (CRDs installed by `devkit`; the `main-gateway` Gateway itself is owned by the gitops repo). No service mesh is installed by this repo.
 - [Kind](https://kind.sigs.k8s.io/) / [k3d](https://k3d.io/) - Local Kubernetes cluster
 
 ## Quick Start
@@ -31,15 +33,15 @@ Nx monorepo with Rust backend services, a React frontend, and Kubernetes-native 
 bun install
 
 # Run full quality checks (fmt + lint + test + audit)
-just check
+task check
 
 # Start local k8s dev environment (requires a running cluster)
 tilt up
 
 # Or run services without k8s
-just _docker-up        # Start Postgres, Redis, NATS via Docker Compose
+task docker-up        # Start Postgres, Redis, NATS via Docker Compose
 cargo run -p api       # Start the API service
-just web               # Start the web frontend
+task web               # Start the web frontend
 ```
 
 ## Environment Variables
@@ -60,7 +62,7 @@ direnv allow
 
 ## Project Structure
 
-```
+```text
 apps/zerg/
   api/              # REST + gRPC API service (Axum)
   tasks/            # Background task processor
@@ -105,26 +107,32 @@ manifests/
 tilt up
 ```
 
-Tilt manages port-forwards automatically:
+Tilt forwards each app's container port; the datastores come from
+`task docker-up` (Docker Compose), not from Tilt:
 
-| Service | Port | Notes |
-|---------|------|-------|
-| PostgreSQL | `localhost:5432` | User: `myuser` / DB: `mydatabase` |
-| Redis | `localhost:6379` | |
-| Mailhog | `localhost:8025` | Email testing UI |
-| Istio Gateway | `localhost:8080` | API gateway |
-| Kiali | `localhost:20001` | Service mesh dashboard |
+| Service | Port | Source |
+|---------|------|--------|
+| PostgreSQL | `localhost:5432` | compose (`myuser` / `mydatabase`) |
+| Redis | `localhost:6379` | compose |
+| Mailhog | `localhost:8025` | compose (email testing UI) |
+| zerg-api | `localhost:5221` | Tilt |
+| zerg-web | `localhost:5206` | Tilt |
+| zerg-tasks (gRPC) | `localhost:50051` | Tilt |
+| terran-api | `localhost:5231` | Tilt |
+| terran-web | `localhost:5230` | Tilt |
+| todo-web-astro | `localhost:5252` | Tilt |
+| todo-web-htmx | `localhost:5253` | Tilt |
 
 Tilt also handles schema ConfigMap regeneration, database seeding, and auto-rebuild of all zerg apps on code changes.
 
 ### Database Schema (Atlas)
 
 ```bash
-just schema-validate         # Validate HCL schema
-just schema-sql              # Generate SQL from HCL
-just schema-apply            # Apply schema to local DB
-just migrate-diff <name>     # Generate migration from schema diff
-just migrate-apply           # Apply pending migrations
+task db-list                              # List configured databases (manifests/db/*)
+task db-fresh DB=<db>                     # Reset <db> locally from schema.sql + seed.sql
+task migrate-add DB=<db> NAME=<name>      # Create a forward-only migration (.up.sql)
+task migrate DB=<db>                      # Apply pending migrations locally
+task migrate-validate DB=<db>             # Verify schema.sql == migrations result
 ```
 
 ## Nx Commands
@@ -147,20 +155,20 @@ bun nx run kcl_ci:build      # Generate CI pipeline output
 ## Quality Checks
 
 ```bash
-just check          # Full: fmt + lint + test + audit
-just check-quick    # Compile + lint only (no tests)
-just fmt            # Format all Rust code
-just lint           # Run Clippy
-just test           # Run tests with nextest
-just audit          # Security audit + cargo deny
-just outdated       # Show outdated dependencies
+task check          # Full: fmt + lint + test + audit
+task check-quick    # Compile + lint only (no tests)
+task fmt            # Format everything: rust + Cargo.toml + proto + web + markdown + spelling
+task lint           # Run Clippy
+task test           # Run tests with nextest
+task audit          # Security audit + cargo deny
+task outdated       # Show outdated dependencies
 ```
 
 ## Architecture
 
 The backend follows a **modular monolith** pattern with 4 layers per domain:
 
-```
+```text
 Models -> Repository -> Service -> Handlers
 ```
 

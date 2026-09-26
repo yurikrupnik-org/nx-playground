@@ -1,0 +1,18 @@
+[submodule "first-rust-app"]
+	path = first-rust-app
+	url = https://github.com/yurikrupnik/first-rust-app
+[submodule "submodules/dotconfig"]
+	path = submodules/dotconfig
+	url = https://github.com/yurikrupnik/dotconfig
+[submodule "submodules/fiber-mongo"]
+	path = submodules/fiber-mongo
+	url = https://github.com/yurikrupnik/fiber-mongo
+[submodule "submodules/gitops"]
+	path = submodules/gitops
+	url = https://github.com/yurikrupnik/gitops
+[submodule "gitops"]
+	path = gitops
+	url = https://github.com/yurikrupnik/gitops
+[submodule "toolkit"]
+	path = toolkit
+	url = https://github.com/shluviza/toolkit.git

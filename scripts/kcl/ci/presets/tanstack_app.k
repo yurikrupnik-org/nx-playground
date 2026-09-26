@@ -8,7 +8,6 @@ import ..schemas.config as cfg
 # =============================================================================
 # PRESET GENERATORS
 # =============================================================================
-
 default_config = lambda name: str, pm: str = "bun" -> cfg.NodeAppConfig {
     """
     Standard TanStack app CI.
@@ -59,7 +58,7 @@ with_ssr = lambda name: str, pm: str = "bun" -> cfg.NodeAppConfig {
 }
 
 minimal = lambda name: str -> cfg.NodeAppConfig {
-    """Minimal config - just lint and build"""
+    """Minimal config - task lint and build"""
     cfg.NodeAppConfig {
         name = name
         main_branch = "main"

@@ -1,6 +1,6 @@
 // Tenant-scoped cloud asset inventory (the Phase 3 sample resource), via the BFF.
 
-import { csrfHeaders } from './csrf';
+import { csrfHeaders } from './auth';
 
 const API_BASE_URL = '/api';
 

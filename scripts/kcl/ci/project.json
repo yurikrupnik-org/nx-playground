@@ -3,11 +3,16 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "scripts/kcl/ci",
+  "tags": ["scope:infra", "lang:kcl"],
   "targets": {
     "build": {
       "cache": true,
       "executor": "nx:run-commands",
-      "inputs": ["{projectRoot}/**/*.k", "{projectRoot}/kcl.mod", "{projectRoot}/kcl.mod.lock"],
+      "inputs": [
+        "{projectRoot}/**/*.k",
+        "{projectRoot}/kcl.mod",
+        "{projectRoot}/kcl.mod.lock"
+      ],
       "options": {
         "command": "kcl run scripts/kcl/ci/main.k",
         "cwd": "{workspaceRoot}"
@@ -16,7 +21,11 @@
     "test": {
       "cache": true,
       "executor": "nx:run-commands",
-      "inputs": ["{projectRoot}/**/*.k", "{projectRoot}/kcl.mod", "{projectRoot}/kcl.mod.lock"],
+      "inputs": [
+        "{projectRoot}/**/*.k",
+        "{projectRoot}/kcl.mod",
+        "{projectRoot}/kcl.mod.lock"
+      ],
       "options": {
         "command": "kcl test",
         "cwd": "{workspaceRoot}/scripts/kcl/ci"
@@ -42,7 +51,11 @@
       "cache": true,
       "executor": "nx:run-commands",
       "dependsOn": ["test", "lint"],
-      "inputs": ["{projectRoot}/**/*.k", "{projectRoot}/kcl.mod", "{projectRoot}/kcl.mod.lock"],
+      "inputs": [
+        "{projectRoot}/**/*.k",
+        "{projectRoot}/kcl.mod",
+        "{projectRoot}/kcl.mod.lock"
+      ],
       "outputs": ["{projectRoot}/*.tar"],
       "options": {
         "command": "kcl mod pkg --target .",
@@ -65,6 +78,5 @@
         "cwd": "{workspaceRoot}/scripts/kcl/ci"
       }
     }
-  },
-  "tags": ["scope:infra", "lang:kcl"]
+  }
 }

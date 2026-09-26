@@ -170,31 +170,18 @@ mod tests {
     #[derive(Clone, Serialize, Deserialize)]
     struct TestJob {
         id: Uuid,
-        retry_count: u32,
     }
 
     impl Job for TestJob {
         fn job_id(&self) -> Uuid {
             self.id
         }
-        fn retry_count(&self) -> u32 {
-            self.retry_count
-        }
-        fn with_retry(&self) -> Self {
-            Self {
-                id: self.id,
-                retry_count: self.retry_count + 1,
-            }
-        }
     }
 
     #[tokio::test]
     async fn test_noop_processor() {
         let processor = NoOpProcessor;
-        let job = TestJob {
-            id: Uuid::new_v4(),
-            retry_count: 0,
-        };
+        let job = TestJob { id: Uuid::new_v4() };
 
         let result = Processor::<TestJob>::process(&processor, &job).await;
         assert!(result.is_ok());
@@ -204,10 +191,7 @@ mod tests {
     #[tokio::test]
     async fn test_failing_processor_transient() {
         let processor = FailingProcessor::transient("test failure");
-        let job = TestJob {
-            id: Uuid::new_v4(),
-            retry_count: 0,
-        };
+        let job = TestJob { id: Uuid::new_v4() };
 
         let result = Processor::<TestJob>::process(&processor, &job).await;
         assert!(result.is_err());
@@ -219,10 +203,7 @@ mod tests {
     #[tokio::test]
     async fn test_failing_processor_permanent() {
         let processor = FailingProcessor::permanent("test failure");
-        let job = TestJob {
-            id: Uuid::new_v4(),
-            retry_count: 0,
-        };
+        let job = TestJob { id: Uuid::new_v4() };
 
         let result = Processor::<TestJob>::process(&processor, &job).await;
         assert!(result.is_err());

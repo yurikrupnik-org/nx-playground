@@ -1,0 +1,18 @@
+# Crossplane composition functions shared by every XRD in this repo
+# (platform/dev-env, platform/cloud-inventory).
+#
+# Pulled from xpkg.upbound.io, not docker.io: anonymous in-cluster pulls of
+# docker.io/kcllang/function-kcl fail with `401 UNAUTHORIZED`.
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-kcl
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-kcl:v0.11.5
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-auto-ready
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-auto-ready:v0.4.2

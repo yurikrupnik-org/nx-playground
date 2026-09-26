@@ -8,7 +8,6 @@ import k8s.apimachinery.pkg.apis.meta.v1 as metav1
 # =============================================================================
 # TEKTON TASK SCHEMAS
 # =============================================================================
-
 schema TektonTask:
     """Tekton Task resource"""
     apiVersion: str = "tekton.dev/v1"
@@ -55,7 +54,6 @@ schema TektonResult:
 # =============================================================================
 # TEKTON PIPELINE SCHEMAS
 # =============================================================================
-
 schema TektonPipeline:
     """Tekton Pipeline resource"""
     apiVersion: str = "tekton.dev/v1"

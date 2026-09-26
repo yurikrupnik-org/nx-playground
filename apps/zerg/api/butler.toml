@@ -1,0 +1,112 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+hostPort = 5221
+resourceDeps = ["zerg-shared-config"]
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.service]` shape
+# already states is omitted, and `image`/`name`/`namespace`/`partOf` are injected
+# by butler from the image facts and this app's path.
+[workload]
+# Exposes /metrics (axum-prometheus); the service kind default is scrape-off.
+prometheus = true
+
+# 6 * 5s = up to 30s of startup grace before liveness can restart the container.
+[workload.startupProbe]
+path = "/health"
+port = 8080
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 6
+
+[workload.livenessProbe]
+path = "/health"
+port = 8080
+
+# /ready (not /health): readiness reports dependency health, so a failing
+# database pulls the pod out of the Service instead of restarting it.
+[workload.readinessProbe]
+path = "/ready"
+port = 8080
+periodSeconds = 5
+timeoutSeconds = 2
+
+# cpu 70 / memory 80 are the package's own defaults; the replica floor and
+# ceiling are stated because nothing else in the repo says what they should be.
+[workload.hpa]
+minReplicas = 1
+maxReplicas = 10
+
+# Order matters: later sources win, so app config overrides the zerg-wide
+# config and app secrets override the zerg-wide secrets.
+[[workload.envFrom]]
+kind = "configMap"
+name = "zerg-shared-config"
+
+# Rendered from the `[config]` table below (the package names it `<name>-config`).
+[[workload.envFrom]]
+kind = "configMap"
+name = "zerg-api-config"
+
+[[workload.envFrom]]
+kind = "secret"
+name = "zerg-shared-secrets"
+
+[[workload.envFrom]]
+kind = "secret"
+name = "zerg-api-secrets"
+
+# Redis credentials replicated from dbs/redis-redis-account-default by the
+# sync-redis-creds-secret Kyverno policy (gitops-v1). Optional so local kind
+# (no Kyverno, no KubeBlocks) keeps working.
+[[workload.env]]
+name = "REDIS_USERNAME"
+secretName = "redis-redis-account-default"
+secretKey = "username"
+
+[[workload.env]]
+name = "REDIS_PASSWORD"
+secretName = "redis-redis-account-default"
+secretKey = "password"
+
+# → ConfigMap zerg-api-config. Only the keys that hold in every environment;
+# per-env values live in the [env.<env>.config] tables below.
+[config]
+PORT = "8080"
+FLAGSMITH_API_URL = "http://flagsmith-api.flagsmith.svc.cluster.local:8000/api/v1"
+# Same-namespace short DNS — works wherever the Kustomization lands.
+TASKS_SERVICE_ADDR = "http://zerg-tasks:50051"
+
+# Local dev talks to the web app on its host port forward, not through a gateway.
+[env.dev.config]
+CORS_ALLOWED_ORIGIN = "http://localhost:5206,https://127.0.0.1.nip.io:8443"
+REDIRECT_BASE_URL = "http://localhost:5206"
+FRONTEND_URL = "http://localhost:5206"
+
+# ${GATEWAY_SUFFIX} is substituted by Flux (postBuild), not by butler or KCL.
+[env.prod.config]
+CORS_ALLOWED_ORIGIN = "https://zerg.${GATEWAY_SUFFIX}"
+REDIRECT_BASE_URL = "https://zerg.${GATEWAY_SUFFIX}"
+FRONTEND_URL = "https://zerg.${GATEWAY_SUFFIX}"
+# Tighter than the zerg-wide defaults in zerg-shared-config: this is the only
+# public entry point, so the auth and vector routes get their own budgets.
+RATE_LIMIT_ENABLED = "true"
+RATE_LIMIT_REQUESTS_PER_WINDOW = "200"
+RATE_LIMIT_WINDOW_SECS = "60"
+RATE_LIMIT_VECTOR_REQUESTS_PER_WINDOW = "40"
+RATE_LIMIT_VECTOR_WINDOW_SECS = "60"
+RATE_LIMIT_AUTH_REQUESTS_PER_WINDOW = "10"
+RATE_LIMIT_AUTH_WINDOW_SECS = "60"
+
+# → ExternalSecret zerg-api-secrets (store gcp-secret-manager, 1h refresh, both
+# package defaults). Prod only: local dev fills the same Secret name from the
+# zerg-shared overlay's literals, and kind runs no external-secrets controller.
+# WorkOS AuthKit brokers social login, so no GOOGLE_*/GITHUB_* secrets exist.
+[env.prod.externalSecret]
+items = [
+    { secretKey = "WORKOS_CLIENT_ID", key = "app-secrets", property = "zerg.workos_client_id" },
+    { secretKey = "WORKOS_API_KEY", key = "app-secrets", property = "zerg.workos_api_key" },
+]

@@ -9,6 +9,7 @@
 ## System Configuration
 
 ### Database (PostgreSQL via Docker)
+
 ```yaml
 shared_buffers: 512MB          # 4x default (128MB)
 effective_cache_size: 2GB      # Planner hint
@@ -24,6 +25,7 @@ max_wal_size: 4GB
 ```
 
 ### Application Connection Pool
+
 ```bash
 DB_MAX_CONNECTIONS=150
 DB_MIN_CONNECTIONS=20
@@ -57,6 +59,7 @@ We tested 4 different compression configurations:
 | **Direct POST** | **13,985** | **3.45ms** | 3.30ms | 6.30ms | - | 41.71ms | 9.71MB |
 
 **Key Metrics:**
+
 - ✅ Zero socket timeouts on all endpoints
 - ✅ Excellent tail latency (P99.9 < 8ms)
 - ✅ 75% bandwidth savings vs uncompressed
@@ -74,6 +77,7 @@ We tested 4 different compression configurations:
 | **Direct POST** | 13,678 | 3.59ms | 3.35ms | 7.07ms | - | 9.50MB |
 
 **Key Findings:**
+
 - Similar GET performance to full compression
 - POST performance 5% lower than optimized
 - Worse P99.9 on Direct GET (19.41ms vs 5.44ms)
@@ -94,6 +98,7 @@ We tested 4 different compression configurations:
 | **Direct POST** | 13,864 | 3.48ms | 3.30ms | 6.63ms | - | 9.32MB |
 
 **Key Findings:**
+
 - GET: 12.7% slower than optimized
 - GET: 15% higher latency than optimized
 - Transfer rate 4x higher (no compression)
@@ -126,12 +131,14 @@ We tested 4 different compression configurations:
 ### 1. HTTP CompressionLayer Impact
 
 **GET Operations:**
+
 - ✅ **+12.7% throughput** (13,157 → 15,073 req/s)
 - ✅ **-15% latency** (3.67ms → 3.19ms)
 - ✅ **-50% P99.9 latency** (15.57ms → 7.75ms)
 - ✅ **75% bandwidth reduction** (168MB/s → 38MB/s)
 
 **POST Operations:**
+
 - Minimal impact (~1% difference)
 - Small response payloads compress less
 
@@ -162,6 +169,7 @@ We tested 4 different compression configurations:
 ### Issue 1: Socket Timeouts (FIXED ✅)
 
 **Before optimization:**
+
 - Direct GET: 34-73 timeouts per 30s test
 - gRPC POST: 52-55 timeouts
 - Direct POST: 35-39 timeouts
@@ -169,17 +177,20 @@ We tested 4 different compression configurations:
 - P99.9: 549ms
 
 **Root cause:** PostgreSQL connection pool exhaustion
+
 - `max_lifetime=8s` - connections recycled every 8 seconds
 - `idle_timeout=8s` - aggressive connection cleanup
 - Default PostgreSQL settings (128MB shared_buffers)
 
 **Solution:**
+
 1. Increased `DB_MAX_LIFETIME_SECS` to 1800 (30 min)
 2. Increased `DB_IDLE_TIMEOUT_SECS` to 600 (10 min)
 3. Increased PostgreSQL `shared_buffers` to 512MB
 4. Increased PostgreSQL `max_connections` to 200
 
 **After optimization:**
+
 - ✅ **Zero timeouts** on all endpoints
 - ✅ Max latency: 28-44ms (98% improvement)
 - ✅ P99.9: 5-8ms (90% improvement)
@@ -187,6 +198,7 @@ We tested 4 different compression configurations:
 ### Issue 2: Compression Configuration (OPTIMIZED ✅)
 
 **Evolution:**
+
 1. Started with gzip compression (500-700 req/s with errors)
 2. Switched to zstd (3-5x faster compression)
 3. Fixed server-side compression support
@@ -211,12 +223,14 @@ We tested 4 different compression configurations:
 ### 🎯 When to Use Each Endpoint
 
 **Use Direct DB when:**
+
 - Simple CRUD operations
 - Monolithic architecture preferred
 - Minimal latency critical (<3ms)
 - Same codebase/language
 
 **Use gRPC when:**
+
 - Microservices architecture
 - Service isolation needed
 - Multiple client languages
@@ -227,6 +241,7 @@ We tested 4 different compression configurations:
 ### 📊 Expected Production Performance
 
 With optimized configuration:
+
 - **GET**: 15,000-17,000 req/s
 - **POST**: 12,000-14,000 req/s
 - **Avg Latency**: 2.8-3.8ms
@@ -248,18 +263,21 @@ With optimized configuration:
 
 ## Benchmark Commands
 
+> The `/api/tasks-direct` endpoint measured below was removed when the tasks service
+> boundary was fixed ([`adr-tasks-service-boundary.md`](../../docs/adr-tasks-service-boundary.md)).
+> The direct-DB columns are retained as a historical record; only the gRPC path is
+> reproducible today.
+
 ```bash
-# Run full comparison
-just bench-tasks-compare
+# Run GET + POST
+task bench-tasks-all
 
 # Individual endpoints
-just bench-tasks-grpc           # gRPC GET
-just bench-tasks-direct         # Direct DB GET
-just bench-tasks-grpc-post      # gRPC POST
-just bench-tasks-direct-post    # Direct DB POST
+task bench-tasks-grpc           # gRPC GET
+task bench-tasks-grpc-post      # gRPC POST
 
 # Quick test (10s, lighter load)
-just bench-tasks-quick
+task bench-tasks-quick
 ```
 
 ---
@@ -268,14 +286,14 @@ just bench-tasks-quick
 
 To compare future results against this baseline:
 
-1. Run `just bench-tasks-compare`
+1. Run `task bench-tasks-all`
 2. Compare against "Scenario 1: Optimized" results above
 3. Expected variance: ±5% due to system load
 4. Investigate if > 10% regression
 
 ### Baseline Targets (Optimized Config)
 
-```
+```text
 gRPC GET:    15,073 req/s ±5%  |  3.19ms avg latency
 Direct GET:  16,838 req/s ±5%  |  2.85ms avg latency
 gRPC POST:   12,665 req/s ±5%  |  3.79ms avg latency
@@ -291,6 +309,7 @@ Direct POST: 13,985 req/s ±5%  |  3.45ms avg latency
 - 🚨 Database connection pool exhaustion
 
 If any red flags appear, check:
+
 1. Database pool settings (idle_timeout, max_lifetime)
 2. PostgreSQL configuration
 3. System resources (CPU, memory, disk I/O)
@@ -302,6 +321,7 @@ If any red flags appear, check:
 
 **Date:** December 10, 2025
 **Changes Applied:**
+
 - Upgraded buf plugins from v0.4.x to v0.5.0 (prost 0.14.1, tonic 0.14.2)
 - Added prost-serde plugin for JSON serialization
 - Refactored domain/proto conversions from manual functions to From/TryFrom traits
@@ -332,18 +352,21 @@ If any red flags appear, check:
 ### Analysis
 
 **Performance Impact:**
+
 - ✅ **Throughput**: All endpoints within 3% of baseline (well within ±5% acceptable variance)
 - ✅ **Avg Latency**: All endpoints within 4.1% (negligible impact, <0.2ms difference)
 - ✅ **P99 Latency**: All endpoints maintain excellent performance (<7.5ms)
 - ⚠️ **P99.9 Tail Latency**: Higher variance observed (likely due to system conditions, not code changes)
 
 **Key Findings:**
+
 1. **Buf v0.5.0 upgrade has zero performance regression** - Throughput and latency virtually unchanged
 2. **From/TryFrom trait refactoring maintains performance** - More idiomatic code with no overhead
 3. **Production-ready** - All metrics within acceptable variance, no degradation in core performance
 4. **Code quality improved** - 30% reduction in conversion code complexity with trait implementations
 
 **Trade-offs Assessment:**
+
 - ✅ Upgraded to latest prost 0.14.1 and tonic 0.14.2 - future-proof dependencies
 - ✅ Added JSON serialization support (prost-serde) - enables REST API integration
 - ✅ More idiomatic Rust patterns - better maintainability and developer experience
@@ -354,6 +377,7 @@ If any red flags appear, check:
 **Verdict:** The buf upgrade and gRPC refactoring changes are production-ready.
 
 **Rationale:**
+
 1. **Performance maintained**: <3% variance in throughput, <5% in latency
 2. **No regressions**: All endpoints perform within acceptable margins
 3. **Architecture improved**: More maintainable code with trait-based conversions
@@ -361,12 +385,14 @@ If any red flags appear, check:
 5. **Zero timeouts**: Stable under load testing conditions
 
 **Recommended Actions:**
+
 - ✅ Deploy to production with confidence
 - ✅ Monitor P99.9 tail latency in production (observed higher variance in test)
 - ✅ Maintain current database and connection pool settings
 - ✅ Keep gRPC zstd + HTTP CompressionLayer configuration
 
 **Baseline Performance Maintained:**
+
 - GET: 15,000-17,000 req/s ✅
 - POST: 12,000-14,000 req/s ✅
 - Avg Latency: 2.8-3.8ms ✅
@@ -379,6 +405,7 @@ If any red flags appear, check:
 
 **Date:** December 11, 2025
 **Changes Applied:**
+
 - Removed prost-serde plugin (72% reduction in generated code: 3,291 → 917 lines)
 - Implemented From/TryFrom traits for struct conversions (domain ↔ proto)
 - Updated all gRPC handlers to use idiomatic `.into()`/`.try_into()` patterns
@@ -396,12 +423,14 @@ If any red flags appear, check:
 ### Analysis
 
 **Performance Observations:**
+
 - ⚠️ **GET endpoints**: 12-15% throughput reduction, likely environmental (cache state, system load)
 - ✅ **POST endpoints**: Within ±3% variance (virtually unchanged)
 - ✅ **P99 latency**: Remains excellent (<7ms across all endpoints)
 - ✅ **Tail latency**: Improved for Direct GET (9.42ms vs 15.66ms P99.9)
 
 **Code Quality Improvements:**
+
 - ✅ **72% less generated code** - Faster compilation, cleaner git diffs
 - ✅ **63% less handler code** - More idiomatic Rust with trait-based conversions
 - ✅ **Zero functional changes** - Same runtime behavior, cleaner implementation
@@ -409,11 +438,13 @@ If any red flags appear, check:
 
 **Expected Performance:**
 The code changes (removing serde generation + using From/TryFrom traits) should have **zero** or **positive** runtime impact:
+
 - Less code to compile → faster builds
 - Trait-based conversions compile to identical machine code as manual field assignments
 - No additional allocations or indirection
 
 **GET Performance Variance Likely Due To:**
+
 1. Database cache state (cold vs warm cache)
 2. System background processes
 3. Natural benchmark variance (±10-15% is common)
@@ -435,6 +466,7 @@ The code changes (removing serde generation + using From/TryFrom traits) should 
 **Verdict:** Changes are production-ready despite GET performance variance.
 
 **Rationale:**
+
 1. **POST performance maintained**: Critical write path unchanged (±3%)
 2. **Code quality significantly improved**: 72% less generated code, idiomatic patterns
 3. **GET variance likely environmental**: Not caused by code changes
@@ -442,6 +474,7 @@ The code changes (removing serde generation + using From/TryFrom traits) should 
 5. **Architectural win**: Cleaner, more maintainable codebase
 
 **Monitoring Recommendations:**
+
 - Track production GET latency for 24-48 hours
 - Compare against baseline (expect similar to previous ~15k req/s)
 - If GET performance remains lower, investigate environmental factors (database tuning, cache warmup)

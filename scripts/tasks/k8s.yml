@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Kubernetes operator installs (CNPG, Atlas, Crossplane) — included by the root Taskfile.yml.
+version: '3'
+
+tasks:
+  # Composition functions (shared by all XRDs) — see platform/functions.yaml
+  crossplane-functions-install:
+    desc: Install the Crossplane composition functions (platform/functions.yaml)
+    cmds:
+      - kubectl apply -f platform/functions.yaml
+      - kubectl wait --for=condition=Healthy --timeout=300s function.pkg.crossplane.io/function-kcl function.pkg.crossplane.io/function-auto-ready
+
+  cnpg-install:
+    desc: Install CNPG operator (using server-side apply for large CRDs)
+    cmds:
+      - kubectl apply --server-side -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.0.yaml
+      - cmd: echo "CNPG operator installed. Waiting for it to be ready..."
+        silent: true
+      - kubectl wait --for=condition=available --timeout=120s deployment/cnpg-controller-manager -n cnpg-system
+
+  atlas-operator-install:
+    desc: Install Atlas Kubernetes operator
+    cmds:
+      - helm install atlas-operator oci://ghcr.io/ariga/charts/atlas-operator --namespace atlas-operator --create-namespace
+      - cmd: echo "Atlas operator installed"
+        silent: true
+
+  operators-install:
+    desc: Install both operators (CNPG + Atlas) - run this first on a new cluster
+    cmds:
+      - cmd: echo "=== Installing Kubernetes Operators ==="
+        silent: true
+      - cmd: echo ""
+        silent: true
+      - cmd: echo "1. Installing CNPG operator..."
+        silent: true
+      - task: cnpg-install
+      - cmd: echo ""
+        silent: true
+      - cmd: echo "2. Installing Atlas operator..."
+        silent: true
+      - task: atlas-operator-install
+      - cmd: echo ""
+        silent: true
+      - cmd: echo "=== Operators Ready ==="
+        silent: true

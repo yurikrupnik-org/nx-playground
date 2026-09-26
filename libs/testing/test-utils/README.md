@@ -116,7 +116,7 @@ async fn test_create_project() {
     let builder = TestDataBuilder::from_test_name("create_project");
 
     let repo = ProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
 
     // Test logic...
 }
@@ -280,6 +280,7 @@ Testcontainers automatically assigns random ports, so conflicts are rare. If you
 ### Slow Tests
 
 Tests using real databases are slower than unit tests with mocks:
+
 - Unit tests (mocked): 0.00s
 - Integration tests (real DB): ~3s
 - Handler tests (real DB + HTTP): ~2-5s

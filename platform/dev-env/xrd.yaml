@@ -1,0 +1,59 @@
+# DevEnvironment API — the platform's "give me a dev environment" contract.
+# Claim (namespaced): DevEnvironment · Composite (cluster): XDevEnvironment
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xdevenvironments.platform.playground.io
+spec:
+  group: platform.playground.io
+  names:
+    kind: XDevEnvironment
+    plural: xdevenvironments
+  claimNames:
+    kind: DevEnvironment
+    plural: devenvironments
+  connectionSecretKeys:
+    - postgres-uri
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  default: {}
+                  properties:
+                    postgres:
+                      type: object
+                      default: {}
+                      properties:
+                        enabled: { type: boolean, default: true }
+                        instances: { type: integer, default: 1, minimum: 1, maximum: 3 }
+                        storageGB: { type: integer, default: 1, minimum: 1, maximum: 20 }
+                    redis:
+                      type: object
+                      default: {}
+                      properties:
+                        enabled: { type: boolean, default: true }
+                    nats:
+                      type: object
+                      default: {}
+                      properties:
+                        enabled: { type: boolean, default: true }
+                        jetstream: { type: boolean, default: true }
+            status:
+              type: object
+              properties:
+                environment:
+                  type: object
+                  properties:
+                    namespace: { type: string }
+                    postgresSecret: { type: string }
+                    redisHost: { type: string }
+                    natsUrl: { type: string }

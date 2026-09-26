@@ -75,6 +75,7 @@ pub fn router<R: ProjectRepository + 'static>(service: ProjectService<R>) -> Rou
     path = "",
     tag = entity::Model::TAG,
     params(ProjectFilter),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "List of projects", body = Vec<Project>),
         (status = 500, response = InternalServerErrorResponse)
@@ -94,6 +95,7 @@ async fn list_projects<R: ProjectRepository>(
     path = "",
     tag = entity::Model::TAG,
     request_body = CreateProject,
+    security(("session_cookie" = [])),
     responses(
         (status = 201, description = "Project created successfully", body = Project),
         (status = 400, response = BadRequestValidationResponse),
@@ -136,6 +138,7 @@ async fn create_project<R: ProjectRepository>(
     params(
         ("id" = Uuid, Path, description = "Project ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Project found", body = Project),
         (status = 400, response = BadRequestUuidResponse),
@@ -160,6 +163,7 @@ async fn get_project<R: ProjectRepository>(
         ("id" = Uuid, Path, description = "Project ID")
     ),
     request_body = UpdateProject,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Project updated successfully", body = Project),
         (status = 400, response = BadRequestValidationResponse),
@@ -184,6 +188,7 @@ async fn update_project<R: ProjectRepository>(
     params(
         ("id" = Uuid, Path, description = "Project ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 204, description = "Project deleted successfully"),
         (status = 400, response = BadRequestUuidResponse),
@@ -220,6 +225,7 @@ async fn delete_project<R: ProjectRepository>(
     params(
         ("id" = Uuid, Path, description = "Project ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Project activated successfully", body = Project),
         (status = 400, response = BadRequestUuidResponse),
@@ -243,6 +249,7 @@ async fn activate_project<R: ProjectRepository>(
     params(
         ("id" = Uuid, Path, description = "Project ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Project suspended successfully", body = Project),
         (status = 400, response = BadRequestUuidResponse),
@@ -266,6 +273,7 @@ async fn suspend_project<R: ProjectRepository>(
     params(
         ("id" = Uuid, Path, description = "Project ID")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Project archived successfully", body = Project),
         (status = 400, response = BadRequestUuidResponse),

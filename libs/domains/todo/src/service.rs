@@ -15,10 +15,22 @@ use crate::models::{CreateTodo, Todo, TodoFilter, UpdateTodo};
 use crate::repository::TodoRepository;
 
 /// Service layer for the Todo domain.
-#[derive(Clone)]
+///
+/// Cheap to clone (two `Arc`s), and cloneable for ANY repository: a derived
+/// `Clone` would demand `R: Clone`, which the Postgres-backed repositories do
+/// not offer and the transports (REST router + gRPC service) do not need.
 pub struct TodoService<R: TodoRepository> {
     repository: Arc<R>,
     publisher: Arc<dyn TodoEventPublisher>,
+}
+
+impl<R: TodoRepository> Clone for TodoService<R> {
+    fn clone(&self) -> Self {
+        Self {
+            repository: Arc::clone(&self.repository),
+            publisher: Arc::clone(&self.publisher),
+        }
+    }
 }
 
 impl<R: TodoRepository> TodoService<R> {
@@ -62,12 +74,7 @@ impl<R: TodoRepository> TodoService<R> {
         let completed_change = input.completed;
         let todo = self.repository.update(id, input).await?;
 
-        // Distinguish completion transitions for a richer event stream.
-        let kind = match completed_change {
-            Some(true) => TodoEventKind::Completed,
-            Some(false) => TodoEventKind::Uncompleted,
-            None => TodoEventKind::Updated,
-        };
+        let kind = TodoEventKind::for_update(completed_change);
         self.emit(TodoEvent::from_todo(kind, &todo)).await;
         Ok(todo)
     }

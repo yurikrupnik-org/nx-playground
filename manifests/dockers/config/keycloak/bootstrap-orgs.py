@@ -3,7 +3,7 @@
 
 Realm import enables Organizations (`organizationsEnabled`) and creates the
 `organization` client scope, but it does NOT carry organizations/members — so this
-script (run after `just reset-db` / `just _docker-up`) creates the demo organization,
+script (run after `task reset-db` / `task docker-up`) creates the demo organization,
 adds the seeded test user, and grants the `terran-api` client the `organization`
 scope so access tokens carry the org claim.
 
@@ -53,7 +53,12 @@ def main():
     status, tok = req(
         "POST",
         f"/realms/master/protocol/openid-connect/token",
-        form={"grant_type": "password", "client_id": "admin-cli", "username": ADMIN, "password": ADMIN_PW},
+        form={
+            "grant_type": "password",
+            "client_id": "admin-cli",
+            "username": ADMIN,
+            "password": ADMIN_PW,
+        },
     )
     if status != 200:
         raise SystemExit(f"admin login failed ({status}): {tok}")
@@ -71,7 +76,11 @@ def main():
         "POST",
         f"/admin/realms/{REALM}/organizations",
         token=token,
-        body={"name": ORG_NAME, "alias": ORG_ALIAS, "domains": [{"name": ORG_DOMAIN, "verified": True}]},
+        body={
+            "name": ORG_NAME,
+            "alias": ORG_ALIAS,
+            "domains": [{"name": ORG_DOMAIN, "verified": True}],
+        },
     )
     print(f"create org {ORG_ALIAS}: {s}")
     _, orgs = req("GET", f"/admin/realms/{REALM}/organizations", token=token)
@@ -80,10 +89,19 @@ def main():
         raise SystemExit("organization not found after create")
 
     # 3. Add the member (ignore if already a member).
-    s, uobj = req("GET", f"/admin/realms/{REALM}/users?username={urllib.parse.quote(MEMBER)}", token=token)
+    s, uobj = req(
+        "GET",
+        f"/admin/realms/{REALM}/users?username={urllib.parse.quote(MEMBER)}",
+        token=token,
+    )
     if uobj:
         uid = uobj[0]["id"]
-        s, _ = req("POST", f"/admin/realms/{REALM}/organizations/{org['id']}/members", token=token, body=uid)
+        s, _ = req(
+            "POST",
+            f"/admin/realms/{REALM}/organizations/{org['id']}/members",
+            token=token,
+            body=uid,
+        )
         print(f"add member {MEMBER}: {s}")
     else:
         print(f"member {MEMBER} not found (seed not applied?) — skipping")
@@ -91,7 +109,9 @@ def main():
     # 4. Grant terran-api the `organization` client scope (so it can request the claim).
     _, scopes = req("GET", f"/admin/realms/{REALM}/client-scopes", token=token)
     org_scope = next((sc for sc in scopes if sc["name"] == "organization"), None)
-    _, clients = req("GET", f"/admin/realms/{REALM}/clients?clientId={CLIENT_ID}", token=token)
+    _, clients = req(
+        "GET", f"/admin/realms/{REALM}/clients?clientId={CLIENT_ID}", token=token
+    )
     if org_scope and clients:
         s, _ = req(
             "PUT",

@@ -1,48 +1,6 @@
-//! ApiResource derive macro for automatic REST API resource trait implementation.
-//!
-//! This crate provides the [`ApiResource`](macro@ApiResource) derive macro that automatically
-//! implements resource metadata traits for API entities. It handles URL generation,
-//! collection naming, and API tagging with sensible defaults and customization options.
-//!
-//! # Examples
-//!
-//! Basic usage with automatic pluralization and URL generation:
-//!
-//! ```ignore
-//! use core_proc_macros::ApiResource;
-//!
-//! #[derive(ApiResource)]
-//! pub struct User {
-//!     id: String,
-//!     email: String,
-//! }
-//!
-//! // Auto-generated constants:
-//! assert_eq!(User::COLLECTION, "users");
-//! assert_eq!(User::URL, "/user");
-//! assert_eq!(User::TAG, "Users");
-//! ```
-//!
-//! Customizing resource configuration:
-//!
-//! ```ignore
-//! use core_proc_macros::ApiResource;
-//!
-//! #[derive(ApiResource)]
-//! #[api_resource(
-//!     collection = "people",
-//!     url = "/api/users",
-//!     tag = "User Management"
-//! )]
-//! pub struct User {
-//!     id: String,
-//! }
-//!
-//! assert_eq!(User::COLLECTION, "people");
-//! assert_eq!(User::URL, "/api/users");
-//! assert_eq!(User::TAG, "User Management");
-//! ```
+#![doc = include_str!("../README.md")]
 
+use core_strings::capitalize_first_letter;
 use darling::FromDeriveInput;
 use pluralizer::pluralize;
 use proc_macro::TokenStream;
@@ -135,14 +93,6 @@ pub fn api_resource_derive(input: TokenStream) -> TokenStream {
         Err(err) => return TokenStream::from(err.write_errors()),
     };
     impl_api_resource(receiver).into()
-}
-
-fn capitalize_first_letter(input: &str) -> String {
-    let mut chars = input.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
-    }
 }
 
 fn impl_api_resource(receiver: ApiResourceInput) -> proc_macro2::TokenStream {
@@ -286,15 +236,6 @@ mod tests {
         assert!(output_str.contains(r#"const COLLECTION : & 'static str = "stories""#));
         assert!(output_str.contains(r#"const URL : & 'static str = "/story""#));
         assert!(output_str.contains(r#"const TAG : & 'static str = "Stories""#));
-    }
-
-    #[test]
-    fn test_capitalize_first_letter() {
-        assert_eq!(capitalize_first_letter(""), "");
-        assert_eq!(capitalize_first_letter("a"), "A");
-        assert_eq!(capitalize_first_letter("hello"), "Hello");
-        assert_eq!(capitalize_first_letter("users"), "Users");
-        assert_eq!(capitalize_first_letter("API"), "API");
     }
 
     #[test]

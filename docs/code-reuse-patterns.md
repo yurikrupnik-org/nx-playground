@@ -222,6 +222,7 @@ impl ProjectRepository for PgProjectRepository {
 ```
 
 **Benefits:**
+
 - Eliminates ~50% of repository boilerplate
 - Type-safe (compiler enforces correct types)
 - Each domain still controls complex queries
@@ -340,6 +341,7 @@ impl<R: ProjectRepository> ProjectService<R> {
 ```
 
 **Benefits:**
+
 - Eliminate repetitive get/delete implementations
 - Domains only implement what's unique
 - Still allows custom behavior
@@ -693,7 +695,8 @@ pub fn router<R: ProjectRepository + 'static>(
 Use a combination based on what makes sense:
 
 ### Phase 1: Low Effort, High Value
-```
+
+```text
 libs/shared/
 ├── validators/      ← Start here (easiest win)
 └── db-utils/        ← Error mapping
@@ -702,7 +705,8 @@ libs/shared/
 **Savings**: ~20% code reduction with minimal complexity
 
 ### Phase 2: Medium Effort, Medium Value
-```
+
+```text
 libs/shared/
 ├── validators/
 ├── db-utils/
@@ -712,7 +716,8 @@ libs/shared/
 **Savings**: ~40% code reduction, some generics complexity
 
 ### Phase 3: High Effort, High Value
-```
+
+```text
 libs/shared/
 ├── validators/
 ├── db-utils/
@@ -727,7 +732,7 @@ libs/shared/
 
 ## Directory Structure Example
 
-```
+```text
 libs/
 ├── domains/              # Domain modules (unchanged)
 │   ├── projects/
@@ -779,12 +784,14 @@ libs/
 ## When NOT to Share
 
 ❌ **Don't share:**
+
 - Domain-specific business rules
 - Validation that differs between domains
 - Complex queries unique to one domain
 - Domain events (keep these local)
 
 ✅ **Do share:**
+
 - Generic CRUD operations
 - Common validation patterns
 - Error mapping utilities

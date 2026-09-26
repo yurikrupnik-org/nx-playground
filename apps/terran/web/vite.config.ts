@@ -1,12 +1,16 @@
 /// <reference types="vitest" />
 /// <reference types="vite/client" />
 
+import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import devtools from 'solid-devtools/vite';
-import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
+import { defineConfig } from 'vitest/config';
 
-export default defineConfig({
+// `command` gates the `development` export condition: solid-js resolves
+// `browser.development` to `dist/dev.js` (reactivity warnings, debug hooks), so
+// applying it unconditionally shipped that dev runtime in production builds.
+export default defineConfig(({ command }) => ({
   plugins: [devtools(), solidPlugin(), tailwindcss()],
   server: {
     port: 3001,
@@ -29,8 +33,16 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ['./vitest.setup.ts'],
+    watch: false,
   },
   resolve: {
-    conditions: ['development', 'browser'],
+    conditions: command === 'serve' ? ['development', 'browser'] : ['browser'],
+    alias: {
+      '@ui/web-auth': path.resolve(
+        import.meta.dirname,
+        '../../../libs/ui/web-auth/src/index.ts',
+      ),
+    },
   },
-});
+}));

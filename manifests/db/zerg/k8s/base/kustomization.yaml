@@ -3,6 +3,8 @@ kind: Kustomization
 
 # Namespace omitted on purpose — Flux's parent Kustomization sets targetNamespace.
 
+# zerg is declarative-only: schema.sql is the single source of truth, there is no
+# migrations directory. The operator diffs the live DB against zerg-schema.
 resources:
-  - migrations-configmap.yaml
-  - atlas-migration.yaml
+  - schema-configmap.yaml
+  - atlas-schema.yaml

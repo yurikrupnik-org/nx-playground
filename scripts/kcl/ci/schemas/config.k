@@ -7,7 +7,6 @@ import .common as c
 # =============================================================================
 # BASE CONFIGURATION
 # =============================================================================
-
 schema BaseConfig:
     """Base configuration shared by all app types"""
     name: str
@@ -30,7 +29,7 @@ schema BaseConfig:
     targets: [str] = ["lint", "test", "build"]
 
     # Extra environment variables
-    env: {str: str} = {}
+    env: {str:str} = {}
 
     # Extra secrets to inject
     secrets: [str] = []
@@ -38,7 +37,6 @@ schema BaseConfig:
 # =============================================================================
 # MONOREPO CONFIGURATION
 # =============================================================================
-
 schema MonorepoConfig(BaseConfig):
     """Configuration for monorepo projects"""
     monorepo_tool: c.MonorepoTool = "nx"
@@ -55,7 +53,6 @@ schema MonorepoConfig(BaseConfig):
 # =============================================================================
 # SINGLE APP CONFIGURATIONS
 # =============================================================================
-
 schema RustAppConfig(BaseConfig):
     """Configuration for single Rust applications"""
     cargo_features: [str] = []
@@ -66,7 +63,8 @@ schema RustAppConfig(BaseConfig):
 
     # Binary output
     binary_name?: str
-    target_triple?: str  # e.g., "x86_64-unknown-linux-gnu"
+    # e.g., "x86_64-unknown-linux-gnu"
+    target_triple?: str
 
 schema NodeAppConfig(BaseConfig):
     """Configuration for Node.js applications (TanStack, etc.)"""
@@ -96,13 +94,13 @@ schema TauriAppConfig(BaseConfig):
 
 schema GoServiceConfig(BaseConfig):
     """Configuration for Go backend services"""
-    go_private?: str  # GOPRIVATE env var
+    # GOPRIVATE env var
+    go_private?: str
     use_go_cache: bool = True
 
     # Build options
     binary_name?: str
     ldflags?: str
-
     # Docker
     build_docker: bool = False
     docker_registry?: str
@@ -122,7 +120,6 @@ schema PythonAppConfig(BaseConfig):
 # =============================================================================
 # CI GENERATION CONFIG
 # =============================================================================
-
 schema CIConfig:
     """Top-level CI generation configuration"""
     # Which providers to generate for
@@ -142,24 +139,22 @@ schema GitHubConfig:
     cancel_in_progress: bool = True
 
     # Matrix builds
-    matrix?: {str: [str]}
-
+    matrix?: {str:[str]}
     # Permissions
-    permissions: {str: str} = {
+    permissions: {str:str} = {
         actions = "read"
         contents = "read"
     }
 
     # Override GHA action pins by logical name (keys match common.GHA_ACTIONS),
     # e.g. {checkout = "actions/checkout@v5"}. Merged over the defaults.
-    action_versions: {str: str} = {}
+    action_versions: {str:str} = {}
 
 schema TektonConfig:
     """Tekton specific configuration"""
     namespace: str = "default"
     workspace_size: str = "1Gi"
     service_account?: str
-
     # Override container images by logical name (keys match common.TEKTON_IMAGES),
     # e.g. {rust = "rust:1.86"}. Merged over the defaults.
-    images: {str: str} = {}
+    images: {str:str} = {}

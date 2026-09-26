@@ -58,8 +58,8 @@ one ownership-scoped sample resource, then grow the domain as we go.
 
 ## Supporting services
 
-Added to `manifests/dockers/compose.yaml` (started via `just _docker-up`); all share the existing
-Postgres (extra DBs created by `manifests/dockers/config/postgres-init/01-create-databases.sql`):
+Added to `manifests/dockers/compose.yaml` (started via `task docker-up`); all share the existing
+Postgres (extra DBs created by `manifests/dockers/postgres-init/10-create-extra-databases.sh`):
 
 - **Keycloak** (`:8088`) — identity provider; realm imported from
   `manifests/dockers/config/keycloak/terran-realm.json` (client `terran-api`, roles, test user,
@@ -71,7 +71,7 @@ Postgres (extra DBs created by `manifests/dockers/config/postgres-init/01-create
 
 ## Target folder structure
 
-```
+```text
 apps/terran/
   api/
     Cargo.toml                 # package "terran_api", edition 2024
@@ -157,6 +157,7 @@ The provider-agnostic seam from the ADR. Dependencies already in the workspace:
   raw claims → `AuthIdentity`. This is the one piece of load-bearing security code; it gets the most
   unit tests.
 - **`IdentityProvider` trait** (login/acquisition, the only divergent layer):
+
   ```rust
   #[async_trait]
   pub trait IdentityProvider: Send + Sync {
@@ -168,6 +169,7 @@ The provider-agnostic seam from the ADR. Dependencies already in the workspace:
       fn issuer(&self) -> &str;
   }
   ```
+
   - `KeycloakProvider`: standard OIDC — `authorize_url` supports `kc_idp_hint` (direct Google/GitHub);
     `exchange_code`/`refresh` hit the realm's `/token`; `logout_url` hits `/protocol/openid-connect/logout`.
   - `WorkosProvider`: deferred stub; documents the proprietary `POST /user_management/authenticate`
@@ -242,7 +244,7 @@ Reuse the Keycloak compose setup from the auth investigation:
   OAuth App: `http://localhost:8088/realms/terran/broker/{google,github}/endpoint`.
 - `manifests/mprocs/local.yaml`: add `terran-api` (`bacon`) and `terran-web` (`bun nx dev terran-web`)
   procs.
-- `justfile`: add a `keycloak-token` helper (direct-access grant) for smoke-testing the verifier.
+- `scripts/tasks/`: add a `keycloak-token` task (direct-access grant) for smoke-testing the verifier.
 
 Env (terran api): `OIDC_ISSUER=http://localhost:8088/realms/terran`,
 `OIDC_JWKS_URL=.../protocol/openid-connect/certs`, `OIDC_CLIENT_ID=terran-api`,
@@ -274,7 +276,7 @@ Env (terran api): `OIDC_ISSUER=http://localhost:8088/realms/terran`,
 4. **Web** — Solid app: auth-api/auth-context, protected route, Google/GitHub buttons via
    `kc_idp_hint`, sample resource page. Component tests for the auth guard.
 5. **Local dev** — Keycloak `terran-realm.json` (client + Google/GitHub brokering), compose/mprocs/
-   justfile wiring; end-to-end smoke: `just keycloak-token` → call a protected endpoint; browser
+   Taskfile wiring; end-to-end smoke: `task keycloak-token` → call a protected endpoint; browser
    login round-trip.
 6. **Verify** — `cargo test`/`clippy` for new crates, `vitest` for web, manual e2e login. Gates run
    once across the union of changed projects.

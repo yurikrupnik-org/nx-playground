@@ -101,6 +101,7 @@ impl ProjectRepository for PgProjectRepository {
 ```
 
 **Characteristics:**
+
 - ✅ Full SQL control
 - ✅ Explicit queries
 - ❌ Manual enum conversions
@@ -311,6 +312,7 @@ fn map_sea_orm_error(err: DbErr) -> ProjectError {
 ### 1. Enum Handling
 
 #### SQLx
+
 ```rust
 // Manual conversion required
 #[derive(Clone, Serialize)]
@@ -326,6 +328,7 @@ cloud_provider: row.cloud_provider.parse()?,  // ← Manual parsing
 ```
 
 #### Sea-ORM
+
 ```rust
 // Automatic conversion! ✨
 #[derive(DeriveEntityModel)]
@@ -346,6 +349,7 @@ pub enum CloudProvider {
 ### 2. Query Building
 
 #### SQLx
+
 ```rust
 // SQL string interpolation
 sqlx::query_as(
@@ -363,6 +367,7 @@ sqlx::query_as(
 ```
 
 #### Sea-ORM
+
 ```rust
 // Type-safe query builder
 let mut query = Entity::find();
@@ -384,6 +389,7 @@ query
 ### 3. Relations
 
 #### SQLx
+
 ```rust
 // Manual JOIN
 pub async fn get_project_with_user(&self, id: Uuid) -> Result<(Project, User)> {
@@ -404,6 +410,7 @@ pub async fn get_project_with_user(&self, id: Uuid) -> Result<(Project, User)> {
 ```
 
 #### Sea-ORM
+
 ```rust
 // Built-in relation loading
 pub async fn get_project_with_user(&self, id: Uuid) -> Result<(Model, users::Model)> {
@@ -720,37 +727,44 @@ Entity::insert_many(models).exec(&db).await?;
 
 ## When to Use Each
 
-### Use SQLx When:
+### Use SQLx When
 
 ✅ **You need maximum control**
+
 - Complex SQL queries
 - Database-specific features
 - Performance-critical paths
 
 ✅ **You love SQL**
+
 - Team expertise in SQL
 - Want to see exact queries
 
 ✅ **Simple use case**
+
 - Few tables
 - No complex relations
 
-### Use Sea-ORM When:
+### Use Sea-ORM When
 
 ✅ **Rapid development**
+
 - Many entities with relations
 - Standard CRUD operations
 - Less boilerplate
 
 ✅ **Type safety critical**
+
 - Compile-time checking for enums
 - Automatic conversions
 
 ✅ **Complex relations**
+
 - JOINs, eager loading
 - Nested relationships
 
 ✅ **You prefer ORM style**
+
 - Active Record pattern
 - Query builder over SQL
 
@@ -824,28 +838,31 @@ let users_repo = SeaOrmUserRepository::new(sea_db.clone());
 
 ## Recommendation
 
-### For Your Modular Monolith:
+### For Your Modular Monolith
 
 **Option 1: Stay with SQLx** *(if current approach works)*
+
 - ✅ Already implemented
 - ✅ Team knows SQL well
 - ✅ Maximum control
 - ❌ More boilerplate
 
 **Option 2: Hybrid Approach** *(recommended)*
+
 - ✅ SQLx for complex domains (projects with enums, custom queries)
 - ✅ Sea-ORM for simple CRUD domains (tags, categories, etc.)
 - ✅ Best of both worlds
 - ❌ Two dependencies
 
 **Option 3: Migrate to Sea-ORM** *(if many domains)*
+
 - ✅ Less boilerplate for new domains
 - ✅ Better type safety for enums
 - ✅ Easier relations
 - ❌ Learning curve
 - ❌ Migration effort
 
-### Quick Decision Matrix:
+### Quick Decision Matrix
 
 | Your Situation | Recommendation |
 |----------------|----------------|
@@ -859,20 +876,23 @@ let users_repo = SeaOrmUserRepository::new(sea_db.clone());
 
 ## Code Reduction Estimate
 
-### Current (SQLx only):
-```
+### Current (SQLx only)
+
+```text
 Per domain: ~300 lines repository code
 5 domains: 1500 lines
 ```
 
-### With Sea-ORM:
-```
+### With Sea-ORM
+
+```text
 Per domain: ~150 lines repository code
 5 domains: 750 lines (50% reduction!)
 ```
 
-### With Sea-ORM + Base Repository:
-```
+### With Sea-ORM + Base Repository
+
+```text
 Per domain: ~80 lines repository code
 5 domains: 400 lines (73% reduction!)
 ```

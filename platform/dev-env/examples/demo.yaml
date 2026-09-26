@@ -1,0 +1,15 @@
+apiVersion: platform.playground.io/v1alpha1
+kind: DevEnvironment
+metadata:
+  name: demo
+  namespace: default
+spec:
+  parameters:
+    postgres:
+      enabled: true
+      storageGB: 1
+    redis:
+      enabled: true
+    nats:
+      enabled: true
+      jetstream: true

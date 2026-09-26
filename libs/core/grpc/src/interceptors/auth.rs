@@ -8,7 +8,7 @@ use tonic::{Request, Status};
 /// # Example
 /// ```ignore
 /// use grpc_client::interceptors::AuthInterceptor;
-/// use rpc::tasks::tasks_service_client::TasksServiceClient;
+/// use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 ///
 /// let auth = AuthInterceptor::bearer("my-jwt-token");
 /// let channel = create_channel("http://[::1]:50051").await?;

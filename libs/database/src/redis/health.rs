@@ -31,14 +31,14 @@ pub async fn check_health(conn: &mut ConnectionManager) -> Result<(), DatabaseEr
     debug!("Running Redis health check");
 
     // Execute PING command
-    let response: String = redis::cmd("PING").query_async(conn).await.map_err(|e| {
-        DatabaseError::HealthCheckFailed(format!("Redis health check failed: {}", e))
-    })?;
+    let response: String = redis::cmd("PING")
+        .query_async(conn)
+        .await
+        .map_err(|e| DatabaseError::HealthCheckFailed(format!("Redis health check failed: {e}")))?;
 
     if response != "PONG" {
         return Err(DatabaseError::HealthCheckFailed(format!(
-            "Redis PING returned unexpected response: {}",
-            response
+            "Redis PING returned unexpected response: {response}"
         )));
     }
 
@@ -70,9 +70,10 @@ pub async fn check_health_with_command(
 ) -> Result<(), DatabaseError> {
     debug!("Running Redis health check with custom command");
 
-    command.query_async::<String>(conn).await.map_err(|e| {
-        DatabaseError::HealthCheckFailed(format!("Redis health check failed: {}", e))
-    })?;
+    command
+        .query_async::<String>(conn)
+        .await
+        .map_err(|e| DatabaseError::HealthCheckFailed(format!("Redis health check failed: {e}")))?;
 
     debug!("Redis health check passed");
     Ok(())

@@ -14,8 +14,17 @@ permissions:
   security-events: write
   packages: write        # Push/pull buildx layer cache to GHCR
 
+# CI runs the same tasks developers run (see the "Flows" header in
+# scripts/tasks/flows.yml), so a green local `task verify` means a green CI.
+# Cargo owns the Rust build: the gates below are one `--workspace` invocation
+# each, never one nx task per crate — see the benchmark note in that same header.
+# nx is used for change detection on a PR (`task check-rust-affected` -> the
+# inferred per-crate `lint`/`test` targets, Nx Cloud-cached), while a push to
+# main always gates the whole workspace.
 jobs:
-  lint:
+  # cargo gates: `task fmt-check-rust audit` always, plus either the affected
+  # (PR) or the whole workspace (main).
+  rust:
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
@@ -25,28 +34,18 @@ jobs:
       SCCACHE_GCS_KEY_PREFIX: sccache
       SCCACHE_LOG: error          # Only show errors
     steps:
-      # Free up disk space FIRST - remove unused software
-#      - name: Free Disk Space
-#        uses: jlumbroso/free-disk-space@main
-#        with:
-#          tool-cache: false
-#          android: true
-#          dotnet: true
-#          haskell: true
-#          large-packages: true
-#          docker-images: true
-#          swap-storage: true
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-#          filter: tree:0
 
-      - name: Derive appropriate SHAs for base and head for `nx affected` commands
-        uses: nrwl/nx-set-shas@v5
-
+      # No toolchain NAME on purpose: rust-toolchain.toml is the pin, and it now
+      # carries `targets` (wasm32-unknown-unknown, for the Leptos arm) as well as
+      # the channel and components. Naming `stable` here installed a SECOND
+      # toolchain that no cargo invocation in this repo ever used — every proxied
+      # cargo/rustc call resolves through the toolchain file — and that toolchain
+      # had neither the pinned version nor the wasm target.
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal
+        run: rustup toolchain install
 
       # Authenticate to GCP using a service account key
       - name: Authenticate to Google Cloud
@@ -58,99 +57,82 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.10
 
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Binaries the tasks below invoke: nextest for tests, cargo-sort for the
+      # dependency-table half of `fmt-check-rust`, audit + deny for `audit`,
+      # machete for `deps-unused`.
+      # protoc is a BUILD dependency, not a recipe: `todo_temporal` pulls the
+      # Temporal SDK, whose `prost-wkt-types` build script shells out to protoc
+      # and panics with "Could not find `protoc`" without it. It only surfaced
+      # once a diff widened the affected set past the 20-crate cutover to the
+      # workspace gate — every dev machine has protoc from the buf/grpc work.
+      # trunk is here, NOT `cargo install trunk --locked` further down, because
+      # that command COMPILES trunk from source on every run: measured at
+      # 4m10s-4m39s across runs 35592579179 / 35594858501 / 35597483189, on the
+      # critical path of the whole workflow, for a binary upstream already
+      # publishes. sccache does not help — `cargo install` builds in a scratch
+      # dir whose link step dominates. This action downloads that published
+      # release instead (~3s; ci-opt-old.yml installed it the same way).
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-machete,protoc,trunk
+
+      # nx drives the affected-crate path below; it needs the workspace's node deps
       - uses: oven-sh/setup-bun@v2
+        if: github.event_name == 'pull_request'
         with:
           bun-version: latest
 
       - run: bun install --frozen-lockfile
+        if: github.event_name == 'pull_request'
 
-#      - name: Install KCL CLI
-#        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
-
-#      # Free up disk space before linting
-#      - name: Clean up disk space
-#        run: |
-#          df -h
-#          rm -rf dist/target
-#          docker system prune -af || true
-#          df -h
-
-      # Run lint
-      - run: bun nx affected -t lint
-
-      # Clean up build artifacts to free space
-#      - name: Clean up after lint
-#        if: always()
-#        run: |
-#          df -h
-#          du -sh dist/target 2>/dev/null || true
-#          rm -rf dist/target
-#          df -h
-
-  test:
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
-      RUSTC_WRAPPER: sccache      # Explicitly set wrapper
-      SCCACHE_GCS_BUCKET: ${{ vars.SCCACHE_GCS_BUCKET }}
-      SCCACHE_GCS_RW_MODE: READ_WRITE
-      SCCACHE_GCS_KEY_PREFIX: sccache
-      SCCACHE_LOG: error          # Only show errors
-    steps:
-      # Free up disk space FIRST - remove unused software
-#      - name: Free Disk Space
-#        uses: jlumbroso/free-disk-space@main
-#        with:
-#          tool-cache: false
-#          android: true
-#          dotnet: true
-#          haskell: true
-#          large-packages: true
-#          docker-images: true
-#          swap-storage: true
-
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
+      # Sets NX_BASE/NX_HEAD, which `check-rust-affected` defaults to
       - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        if: github.event_name == 'pull_request'
         uses: nrwl/nx-set-shas@v5
 
-      - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal
+      # The cargo-only formatting leaf, NOT the `fmt-check` aggregate: that one
+      # also runs rumdl and typos, which this job does not install. Web
+      # formatting is gated by `bunx biome ci .` in the `web` job.
+      - run: task fmt-check-rust
 
-      # Authenticate to GCP using a service account key
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      # PR: clippy, nextest, doctests, rustdoc and the OpenAPI drift gate for
+      # the crates this diff touches and their cargo dependents, each task
+      # cached by Nx Cloud across runs. A Cargo.lock, rust-toolchain.toml or
+      # .cargo/*.toml change is an input of every crate's targets, so it widens
+      # to all of them — and past 20 crates the recipe hands over to the same
+      # workspace gates the step below runs, so this step is never slower.
+      # testcontainers-backed tests need docker, which ubuntu-latest provides.
+      - name: Rust gates for the affected crates
+        if: github.event_name == 'pull_request'
+        run: task check-rust-affected
 
-      # Setup sccache for compiled artifacts (stored in GCS)
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.10
+      # main: the authoritative full gate, one cargo process per command.
+      # `test-doc` is separate from `test-rust` because nextest has no rustdoc
+      # harness; `doc-check` is rustdoc's own pass (`-D warnings`);
+      # `openapi-check` re-exports the committed documents and diffs them.
+      - name: Rust gates for the whole workspace
+        if: github.event_name != 'pull_request'
+        run: task lint-rust test-rust test-doc doc-check openapi-check
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+      # Manifest hygiene: source-heuristic scan, no compilation, whole
+      # workspace in under a second — cheap enough to run on every event.
+      - run: task deps-unused
 
-      - run: bun install --no-cache
+      - run: task audit
 
-#      - name: Install KCL CLI
-#        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
-
-#       Free up disk space before testing
-#      - name: Clean up disk space
-#        run: |
-#          df -h
-#          rm -rf dist/target
-#          docker system prune -af || true
-#          df -h
-
-      # Run tests
-      - run: bun nx affected -t test
+      # The Leptos/WASM delivery-surface arm. It is `[workspace] exclude`d, so
+      # none of the cargo gates above compile it; this is its only CI coverage.
+      # trunk itself comes from the taiki-e/install-action step above.
+      - name: Build the Leptos SPA
+        run: bun nx build todo-web-leptos
 
       # Clean up build artifacts to free space
-      - name: Clean up after test
+      - name: Clean up after Rust gates
         if: always()
         run: |
           df -h
@@ -158,28 +140,11 @@ jobs:
           rm -rf dist/target
           df -h
 
-  build:
+  # web gates: read-only biome (app `lint` scripts are mutating, so they are not a
+  # gate — see AGENTS.md) + nx build/test/typecheck via `task test-web`
+  web:
     runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: 0        # Disable incremental compilation in CI
-      RUSTC_WRAPPER: sccache      # Explicitly set wrapper
-      SCCACHE_GCS_BUCKET: ${{ vars.SCCACHE_GCS_BUCKET }}
-      SCCACHE_GCS_RW_MODE: READ_WRITE
-      SCCACHE_GCS_KEY_PREFIX: sccache
-      SCCACHE_LOG: error          # Only show errors
     steps:
-      # Free up disk space FIRST - remove unused software
-#      - name: Free Disk Space
-#        uses: jlumbroso/free-disk-space@main
-#        with:
-#          tool-cache: false
-#          android: true
-#          dotnet: true
-#          haskell: true
-#          large-packages: true
-#          docker-images: true
-#          swap-storage: true
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -187,51 +152,156 @@ jobs:
       - name: Derive appropriate SHAs for base and head for `nx affected` commands
         uses: nrwl/nx-set-shas@v5
 
-      - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal
-
-      # Authenticate to GCP using a service account key
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      # Setup sccache for compiled artifacts (stored in GCS)
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.10
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - run: bun install --no-cache
+      - run: bun install --frozen-lockfile
 
-#      - name: Install KCL CLI
-#        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | /bin/bash
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Free up disk space before building
-#      - name: Clean up disk space
-#        run: |
-#          df -h
-#          rm -rf dist/target
-#          docker system prune -af || true
-#          df -h
+      # Read-only lint: `biome ci` never writes, so a violation fails the job
+      - run: bunx biome ci .
 
-      # Run build
-      - run: bun nx affected -t build
+      - run: task test-web
 
-      # Clean up build artifacts to free space
-#      - name: Clean up after build
-#        if: always()
-#        run: |
-#          df -h
-#          du -sh dist/target 2>/dev/null || true
-#          rm -rf dist/target
-#          df -h
+      # N-API addons are the one Rust-through-nx exception (see AGENTS.md): the
+      # deliverable is a JS package, so cargo runs via napi-cli under nx.
+      - run: task test-napi
+
+      # Tag-based dependency boundaries over the nx graph (backlog 1.3):
+      # an edge may stay inside its scope: tag or point at scope:shared.
+      - run: task boundaries
 
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: bun nx fix-ci
         if: always()
+
+  # python gates: ruff + uv build + pytest for every project tagged `lang:python`.
+  #
+  # Separate job for the same reason `rust` is separate: a different toolchain
+  # (uv + CPython, pinned by apps/*/.python-version) that no other job needs,
+  # and a red job that names its ecosystem. Before this existed the ONLY CI
+  # coverage of the python workspace was `osv-scanner --recursive .` in
+  # supply-chain reading uv.lock — `test-web` is scoped to `-p '*-web' web-auth`
+  # and the cargo job never sees it, so apps/test-cli1 shipped a ruff F811
+  # (a duplicated `hello`) and an unformatted file on main.
+  #
+  # No affected arm and no nx-set-shas, unlike `rust`. That is not an oversight:
+  # `rust` diffs the graph because a cold workspace gate is MINUTES of cargo,
+  # while every python task here is a 0s Nx Cloud cache hit when nothing
+  # changed — the residual cost is three `bun nx` startups, which affected does
+  # not remove. `web` makes the same call (it runs `nx run-many`, not affected).
+  # Selection is by TAG, so a new python project is gated with no edit here.
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The nx targets are @nxlv/python executors, so this job needs node deps
+      # as well as uv. Both installs are cached and finish in seconds.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # No `python-version` on purpose: apps/test-cli1/.python-version is the
+      # pin and uv provisions that interpreter itself. Naming a version here
+      # would be a second, unused pin — the same trap the `rust` job documents
+      # above for rustup toolchains.
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # The lockfile gate, mirroring `bun install --frozen-lockfile`: `--locked`
+      # fails if uv.lock is stale against any member's pyproject.toml.
+      # `--all-groups` brings in the dev group (ruff, pytest, pytest-cov) that
+      # the recipes below run.
+      - run: uv sync --locked --all-groups
+
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: task fmt-check-py
+
+      - run: task lint-py
+
+      - run: task test-py
+
+#      - run: bun nx fix-ci
+#        if: always()
+
+  # nu gate: `task lint-nu` (`nu --ide-check` over every .nu script, see
+  # scripts/tasks/nu.yml). Own job for the same reason as `python`: a toolchain
+  # no other job installs, and a red job that names its ecosystem.
+  nu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hustcer/setup-nu@v3
+        with:
+          version: "*"
+
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: task lint-nu
+
+  # supply-chain gates: `task scan` (OSV) + `task proto-lint` / `proto-breaking` (buf)
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: osv-scanner
+
+      # setup_only on purpose: buf-action is NOT a drop-in for buf-setup-action.
+      # Left to its defaults it runs build/lint/format/breaking ITSELF, with
+      # `input` = the repo root — where there is no buf.yaml. buf then falls back
+      # to the default config (every STANDARD rule on, none of the `except:` list
+      # in manifests/grpc/buf.yaml) over every .proto in the tree, including
+      # docs/tasks_legacy_backup.proto, which is not part of any module. That is
+      # what produced the PACKAGE_DIRECTORY_MATCH / PACKAGE_VERSION_SUFFIX /
+      # RPC_* / ENUM_VALUE_PREFIX wall plus a format diff on the docs backup.
+      # Its pr_comment default also needs `pull-requests: write`, which this
+      # workflow does not grant ("Resource not accessible by integration").
+      # The gates stay the tasks below, which cd into manifests/grpc.
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: task scan
+
+      - run: task proto-lint
+
+      # Additive-only wire policy (backlog 1.2, docs/grpc.md): renumbering or
+      # removing a field fails the PR. PR-only — on a push to main the comparison
+      # is main against itself. `fetch-depth: 0` above matters: the recipe compares
+      # against refs/remotes/origin/main, which checkout only populates fully here.
+      - run: task proto-breaking
+        if: github.event_name == 'pull_request'
 
   affected:
     if: github.event_name == 'pull_request'
@@ -250,7 +320,7 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install --no-cache
+      - run: bun install --frozen-lockfile
 
       - name: Compute affected projects with a scan target
         id: affected
@@ -281,7 +351,7 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install --no-cache
+      - run: bun install --frozen-lockfile
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -310,9 +380,9 @@ jobs:
       - name: Compute GHCR cache prefix
         run: echo "BUILDCACHE=ghcr.io/${GITHUB_REPOSITORY,,}/buildcache" >> "$GITHUB_ENV"
 
+      # Blocking: a broken image build/push or a scan failure fails the PR
       - name: Build, push and scan container image
         run: bun nx run ${{ matrix.project }}:scan --configuration=ci
-        continue-on-error: true
         env:
           INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_ARTIFACT_PROJECT }}/docker
@@ -320,6 +390,7 @@ jobs:
 
       - name: Collect SARIF files
         id: collect-sarif
+        if: always()
         run: |
           mkdir -p sarif-results
           find . -name "trivy-*.sarif" -exec cp {} sarif-results/ \; 2>/dev/null || true
@@ -333,7 +404,7 @@ jobs:
           fi
 
       - name: Upload Trivy scan results to GitHub Security
-        if: steps.collect-sarif.outputs.found == 'true'
+        if: always() && steps.collect-sarif.outputs.found == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -1,0 +1,188 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# Flows — composite gates. Layered:
+#   fmt / fmt-check = ALL ecosystems (aggregate the fmt-*/fmt-check-* leaves)
+#   lint / test = ALL ecosystems (aggregate the lint-*/test-* leaves)
+#   check  = fmt + lint + test + audit                -> the everyday gate
+#   verify = check + proto lint + OSV scan            -> run before push
+#   fix    = auto-format everything, then verify      -> run when verify whines
+#   weekly = deep dep update (runs `task check` itself) + cross-major preview
+#
+# Adding an ecosystem (go, ...): write lint-<eco>/test-<eco> leaves with the
+# ecosystem's NATIVE workspace tool, append them to `lint`/`test`. A
+# full-workspace Rust gate is never routed through nx: cargo is already a
+# workspace orchestrator and one `--workspace` run beats N per-crate
+# invocations. The exception is scope, not orchestration:
+# `check-rust-affected` lets nx answer "which crates did this diff touch" and
+# runs the per-crate lint/test targets for those only (the CI PR path).
+# That measurement is cargo's, NOT a rule about nx: the python leaves DO go
+# through nx (`-p tag:lang:python`) because ruff/pytest are per-project
+# processes either way and the nx targets carry the cwd/output wiring pytest
+# needs — see the header of scripts/tasks/python.yml.
+#
+# Every aggregate calls its steps as sequential `cmds: - task: <leaf>` (never
+# `deps:`, which go-task runs in parallel); the leaves live in the other
+# scripts/tasks/*.yml files and are addressed by their flattened names.
+# ============================================================================
+version: '3'
+
+tasks:
+  default:
+    desc: List every task
+    cmds:
+      # task fmt
+      # task proto-lint
+      - task --list
+
+  # Full read-only gate: everything in `check` + proto lint/additivity + project
+  # graph parity (butler vs nx, incl. the container/scan targets) + Tiltfile and
+  # manifest drift + agent-skill adapter drift + OSV scan + dependency boundaries
+  # + the todo browser e2e (docker + Chromium; see `e2e` in scripts/tasks/web.yml).
+  # `graph-check` runs before `tilt-check`/`k8s-check` because those two now take
+  # their app lists and per-app runs from butler's graph.
+  # `proto-breaking` compares against the LOCAL `main` ref, so it is only as fresh
+  # as your last fetch, and it is a no-op while you are standing on main. CI's copy
+  # is the authoritative one (full history, PR-only).
+  verify:
+    desc: 'Full read-only gate: check + proto/openapi/graph/tilt/k8s/tooling/agents drift + OSV scan + boundaries + e2e'
+    cmds:
+      - task: check
+      - task: proto-lint
+      - task: proto-breaking
+      - task: openapi-check
+      - task: graph-check
+      - task: tilt-check
+      - task: k8s-check
+      - task: tooling-check
+      - task: agents-check
+      - task: scan
+      - task: boundaries
+      - task: e2e
+      - cmd: 'echo "verify: all gates passed"'
+        silent: true
+
+  fix:
+    desc: Auto-format everything (`task fmt`), then run the full gate
+    cmds:
+      - task: fmt
+      - task: verify
+
+  weekly:
+    desc: 'Weekly maintenance: paranoid dep update + preview of remaining cross-major bumps'
+    cmds:
+      - task: upkg-paranoid
+      - task: outdated
+
+  scan:
+    desc: OSV vulnerability scan of every lockfile (honors osv-scanner.toml ignores)
+    cmds:
+      - osv-scanner --recursive .
+
+  # Every ecosystem's native formatter, invoked once: rustfmt + cargo-sort
+  # (fmt-rust), buf (proto-fmt), biome (fmt-web), ruff (fmt-py), kcl (fmt-kcl), rumdl
+  # (fmt-docs), typos (fmt-spell). typos runs last on purpose — it rewrites words
+  # inside files the others have already reflowed. Adding an ecosystem = a new
+  # fmt-<eco> leaf appended here, same rule as `lint`/`test`.
+  fmt:
+    desc: Format every ecosystem — the ONE formatting entry point
+    cmds:
+      - task: fmt-rust
+      - task: proto-fmt
+      - task: fmt-web
+      - task: fmt-py
+      - task: fmt-kcl
+      - task: fmt-docs
+      - task: fmt-spell
+
+  # No web leaf on purpose: `lint-web` is `biome ci .`, which already fails on
+  # unformatted JS/TS/JSON/CSS, and a second biome process in the same gate would
+  # only double the wall time. CI's cargo job runs `fmt-check-rust` directly
+  # because it installs neither rumdl nor typos.
+  fmt-check:
+    desc: Read-only formatting gate over every ecosystem (used by `check`)
+    cmds:
+      - task: fmt-check-rust
+      - task: proto-fmt-check
+      - task: fmt-check-py
+      - task: fmt-check-kcl
+      - task: fmt-check-docs
+      - task: fmt-check-spell
+
+  # The allowlist that keeps `--write-changes` from renaming an identifier is
+  # _typos.toml — read its header before adding a word.
+  fmt-spell:
+    desc: Fix spelling across every tracked file, not just markdown
+    cmds:
+      - typos --write-changes
+
+  fmt-check-spell:
+    desc: Fail on a misspelling anywhere in the tree
+    cmds:
+      - typos
+
+  # `doc-check` is rustdoc's pass over the same crates (intra-doc links, doc HTML)
+  # and `deps-unused` is cargo-machete over the manifests: both are read-only
+  # static gates that only Rust has today, so they ride with `lint-rust` rather
+  # than growing a third aggregate. `lint-py` is ruff over every project tagged
+  # `lang:python` (scripts/tasks/python.yml); `lint-nu` is `nu --ide-check` over
+  # every .nu script (scripts/tasks/nu.yml).
+  lint:
+    desc: Lint every ecosystem (read-only) — extend with lint-go when it exists
+    cmds:
+      - task: lint-rust
+      - task: doc-check
+      - task: deps-unused
+      - task: lint-web
+      - task: lint-py
+      - task: lint-nu
+
+  # `test-doc` is the second Rust leaf on purpose: nextest cannot run doctests,
+  # so `test-rust` alone leaves every documented example uncompiled.
+  test:
+    desc: Test every ecosystem — extend with test-go when it exists
+    cmds:
+      - task: test-rust
+      - task: test-doc
+      - task: test-web
+      - task: test-napi
+      - task: test-py
+
+  check:
+    desc: 'The everyday gate: formatting + all linters + all tests + supply-chain audit'
+    cmds:
+      - task: fmt-check
+      - task: lint
+      - task: test
+      - task: audit
+      - cmd: echo "All checks passed!"
+        silent: true
+
+  check-quick:
+    desc: 'Quick gate (no tests/audit): formatting + every linter'
+    cmds:
+      - task: fmt-check
+      - task: lint
+
+  # To actually update, use `task upkg` (safe) — the raw `cargo update`/`cargo upgrade`
+  # tasks were removed: upkg runs both WITH scans, pin-respect, and post-checks.
+  outdated:
+    desc: Preview what a deps refresh would change (read-only), every ecosystem
+    cmds:
+      - task: outdated-rust
+      - task: outdated-node
+      - task: outdated-py
+
+  upkg:
+    desc: 'Daily deps refresh (cargo+node+uv): OSV scans, npm cooldown, then build/lint/test'
+    cmds:
+      - upkg
+
+  upkg-fast:
+    desc: Quick bump, no scans/tests — for branches you'll build/test anyway; follow with `task check`
+    cmds:
+      - upkg --fast
+
+  upkg-paranoid:
+    desc: Deep audit (safe + cargo-vet + Socket) — before releases; needs one-time `socket login`
+    cmds:
+      - upkg --paranoid

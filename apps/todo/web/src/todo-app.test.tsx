@@ -2,6 +2,7 @@ import type { CreateTodo, Todo } from '@domain/todo';
 import { fireEvent, render, waitFor } from '@solidjs/testing-library';
 import { QueryClient, QueryClientProvider } from '@tanstack/solid-query';
 import type { ParentComponent } from 'solid-js';
+import { flush } from 'solid-js';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { TodoApp } from './todo-app';
@@ -48,8 +49,29 @@ const fetchMock = vi.fn(
   },
 );
 
+// jsdom implements neither EventSource nor WebSocket; <EventFeed /> (mounted
+// by TodoApp) needs inert stand-ins that never connect.
+class StubEventSource {
+  onopen: unknown;
+  onerror: unknown;
+  addEventListener() {}
+  close() {}
+}
+
+class StubWebSocket {
+  static readonly OPEN = 1;
+  readonly readyState = 0;
+  onopen: unknown;
+  onclose: unknown;
+  onmessage: unknown;
+  send() {}
+  close() {}
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('EventSource', StubEventSource);
+  vi.stubGlobal('WebSocket', StubWebSocket);
 });
 
 afterEach(() => {
@@ -89,6 +111,9 @@ describe('<TodoApp />', () => {
     const input = getByPlaceholderText('new todo title') as HTMLInputElement;
 
     fireEvent.input(input, { target: { value: 'write tests' } });
+    // Solid 2 batches writes to the microtask boundary; flush so the click
+    // handler reads the typed title (real interactions have task boundaries).
+    flush();
     fireEvent.click(getByRole('button', { name: /add/i }));
 
     await waitFor(() => {

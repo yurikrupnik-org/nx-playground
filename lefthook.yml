@@ -1,49 +1,62 @@
 # Lefthook - Git hooks manager
 # https://github.com/evilmartians/lefthook
 
-# Pre-commit: Fast checks before each commit
+# Pre-commit: Fast checks before each commit. Fixers take {staged_files} — a
+# whole-tree fixer with stage_fixed rewrites unrelated WIP (skill://lefthook-format).
 pre-commit:
   parallel: true
-  commands:
-    # TypeScript/JavaScript formatting & linting
-    biome-check:
-      glob: "*.{js,ts,tsx,json}"
-      run: bunx biome check --no-errors-on-unmatched {staged_files}
+  jobs:
+    # Web: format (same flags as `task fmt-web`), then the read-only lint check.
+    # Piped: both touch the same files, so the check must see the fixed content.
+    - name: biome
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
+      group:
+        piped: true
+        jobs:
+          - name: biome-fmt
+            run: bunx biome check --write --linter-enabled=false --no-errors-on-unmatched {staged_files}
+            stage_fixed: true
+          - name: biome-check
+            run: bunx biome check --no-errors-on-unmatched {staged_files}
+
+    # Python formatting (`task fmt-py` goes through nx, not usable per file)
+    - name: ruff-format
+      glob: "*.py"
+      run: ruff format {staged_files}
+      stage_fixed: true
+
+    # KCL formatting (`task fmt-kcl`); indent width comes from .editorconfig [*.k]
+    - name: kcl-fmt
+      glob: "*.k"
+      run: kcl fmt {staged_files}
       stage_fixed: true
 
     # Rust formatting check
-    rustfmt:
+    - name: rustfmt
       glob: "*.rs"
       run: cargo fmt -- --check
 
-    # Rust linting
-    clippy:
+    # Rust linting (--all-targets so tests/benches are linted too, as `task lint-rust` does)
+    - name: clippy
       glob: "*.rs"
-      run: cargo clippy --workspace -- -D warnings
-
-    # Schema diagram generation (only when entities change)
-    schema-gen:
-      glob: "libs/domains/*/src/entity.rs"
-      run: cargo run --bin schema-gen && git add docs/schema.md docs/schema.dbml
+      run: cargo clippy --workspace --all-targets -- -D warnings
 
 # Pre-push: Thorough checks before pushing
 pre-push:
   parallel: true
   commands:
-    # Rust tests
+    # Rust tests (nextest, matching `task test-rust`)
     cargo-test:
-      run: cargo test --workspace
+      run: cargo nextest run --workspace
 
-    # Nx affected checks
-    nx-affected-lint:
-      run: bun nx affected --target=lint --base=origin/main
+    # Web lint: read-only, like CI. The per-app `lint` scripts are `biome check
+    # --write` (mutating), so they must never run as a gate.
+    biome-ci:
+      run: bunx biome ci .
 
-    nx-affected-build:
-      run: bun nx affected --target=build --base=origin/main
-
-    # Security audit
+    # Security audit — must load the workspace policy (ignores + license allowlist)
     cargo-deny:
-      run: cargo deny check
+      run: cargo deny --config .cargo/deny.toml check
 
 # Post-checkout: Sync after switching branches
 post-checkout:

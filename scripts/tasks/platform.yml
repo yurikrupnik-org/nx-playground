@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# DevEnvironment + CloudInventory platform (Crossplane) — included by the root Taskfile.yml.
+# Slice 1: claim → postgres (CNPG) + redis + nats (helm) on kind.
+# Slice 2: CloudInventory claim → observe-only mirrors of existing resources.
+#
+# env-* / inventory-* take NAME (default demo) and NAMESPACE (default default):
+#   task env-status NAME=foo NAMESPACE=team-a
+version: '3'
+
+tasks:
+  platform-install:
+    desc: Install everything the platform needs on the current kind cluster
+    cmds:
+      - task: cnpg-install
+      - kubectl apply -f platform/dev-env/providers.yaml
+      - kubectl wait --for=condition=Healthy --timeout=180s provider.pkg.crossplane.io/provider-kubernetes provider.pkg.crossplane.io/provider-helm
+      - task: crossplane-functions-install
+      - kubectl apply -f platform/dev-env/providerconfigs.yaml
+      - kubectl apply -f platform/dev-env/xrd.yaml
+      - kubectl apply -f platform/dev-env/composition.yaml
+      - kubectl apply -f platform/cloud-inventory/xrd.yaml
+      - kubectl apply -f platform/cloud-inventory/composition.yaml
+      - cmd: 'echo "platform installed — create an env with: task env-create NAME=<name>, an inventory with: task inventory-create"'
+        silent: true
+
+  platform-apply:
+    desc: Re-apply XRD + composition after editing them (fast inner loop)
+    cmds:
+      - kubectl apply -f platform/dev-env/xrd.yaml
+      - kubectl apply -f platform/dev-env/composition.yaml
+      - kubectl apply -f platform/cloud-inventory/xrd.yaml
+      - kubectl apply -f platform/cloud-inventory/composition.yaml
+
+  env-create:
+    desc: Create (or update) a dev environment claim
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - cmd: |
+          printf 'apiVersion: platform.playground.io/v1alpha1\nkind: DevEnvironment\nmetadata:\n  name: %s\n  namespace: %s\nspec:\n  parameters: {}\n' "{{.NAME}}" "{{.NAMESPACE}}" | kubectl apply -f -
+        silent: true
+
+  env-status:
+    desc: Claim + composed resource status for one environment
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - kubectl get devenvironment -n {{.NAMESPACE}} {{.NAME}} -o wide
+      - cmd: kubectl get objects.kubernetes.crossplane.io,releases.helm.crossplane.io -l crossplane.io/claim-name={{.NAME}}
+        ignore_error: true
+      - cmd: kubectl get pods -n devenv-{{.NAME}}
+        ignore_error: true
+
+  env-delete:
+    desc: Tear an environment down
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - kubectl delete devenvironment -n {{.NAMESPACE}} {{.NAME}}
+
+  env-list:
+    desc: List all dev environments across namespaces
+    cmds:
+      - kubectl get devenvironments -A
+
+  inventory-create:
+    desc: Apply the demo cloud inventory claim (observe-only, mutates nothing)
+    cmds:
+      - kubectl apply -f platform/cloud-inventory/examples/demo.yaml
+
+  inventory-status:
+    desc: Claim + observed Object status for one inventory
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - kubectl get cloudinventory -n {{.NAMESPACE}} {{.NAME}} -o wide
+      - cmd: kubectl get objects.kubernetes.crossplane.io -l platform.playground.io/inventory={{.NAME}}
+        ignore_error: true
+
+  inventory-delete:
+    desc: Delete an inventory claim — observed resources are left untouched
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - kubectl delete cloudinventory -n {{.NAMESPACE}} {{.NAME}}
+
+  inventory-list:
+    desc: List all cloud inventories across namespaces
+    cmds:
+      - kubectl get cloudinventories -A

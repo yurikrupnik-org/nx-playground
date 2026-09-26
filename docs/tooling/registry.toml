@@ -1,0 +1,1145 @@
+# Infrastructure / platform tool registry — see .claude/skills/cncf-manager/SKILL.md
+#
+# One row per tool below the app line. `status` is a claim the drift audit must
+# be able to reproduce from `install` + `usage` + `gate`; a row whose paths no
+# longer exist is a defect, not documentation.
+#
+# Deliberately NO line numbers: they rot within a commit. Cite the file plus the
+# grep token (`key`) that pins the fact.
+#
+# Legend — status:
+#   adopted   install + usage + gate all present in THIS repo
+#   trial     wired behind one app/flag, `review` date set
+#   candidate scored, not wired
+#   rejected  evaluated and refused (row stays so it is not re-litigated)
+#   external  real, but installed by another repo/cluster (gitops-v1, devkit);
+#             this repo may reference it, MUST NOT install it
+#   claimed   named in prose with zero install and zero usage — a defect
+#
+# Audited 2026-09-19 (repo evidence only, no cluster reachable).
+
+################################################################################
+# Declared gaps — the ONLY sanctioned reason an `adopted` row may carry
+# `gate = "none"`. Every gap needs an owner and a closing condition; anything
+# ungated and undeclared is a defect the drift audit must report.
+################################################################################
+
+[[gap]]
+name = "no-cluster-in-ci"
+applies_to = ["kind", "crossplane-provider-kubernetes", "crossplane-provider-helm", "function-kcl", "function-auto-ready", "cloudnative-pg", "atlas-operator", "atlas-cli", "helm", "vals", "gcp-secret-manager", "mailhog"]
+why = "Nothing in `task verify` or the CI matrix starts a cluster, so no operator, CRD consumer or secret path is exercised. k8s-check/tilt-check/graph-check only prove the RENDER is in sync, never that it applies."
+closes_when = "a kind-based smoke job applies manifests/k8s and waits for the operators' CRs to go Ready"
+owner = "scope:infra"
+
+[[gap]]
+name = "host-tool"
+applies_to = ["mprocs", "bacon"]
+why = "Developer conveniences with no artifact; breakage is local and immediate."
+closes_when = "never — accepted"
+owner = "scope:infra"
+
+[[gap]]
+name = "saas-no-assertion"
+applies_to = ["claude-code-action", "workos", "coderabbit", "codex-cli"]
+why = "External services nothing in the repo can assert against without live credentials."
+closes_when = "an integration test behind a credentialed CI job, or the dependency is removed"
+owner = "scope:infra"
+
+[[gap]]
+name = "cache-only"
+applies_to = ["sccache"]
+why = "A miss only slows CI; there is no correctness claim a gate could defend."
+closes_when = "never — accepted (revisit if a cache poisoning path appears)"
+owner = "scope:infra"
+
+[[gap]]
+name = "docs-not-gated"
+applies_to = ["monodocs"]
+why = "`docs-lint` is red by construction — 36 of 60 discovered projects have no README — and the rendered document goes to gitignored `dist/`, so no recipe in `check`/`verify` runs monodocs at all."
+closes_when = "the README backlog closes and `docs-lint` joins `task verify`, or a document is committed and gated with `monodocs build --check` (what the tool's home repo does)"
+owner = "scope:infra"
+
+################################################################################
+# cluster / dev loop
+################################################################################
+
+[[tool]]
+name = "kind"
+category = "cluster"
+status = "adopted"
+cncf = "not-cncf"
+install = "devkit.toml"
+key = "[cluster] name"
+usage = ["scripts/tasks/local-env.yml", "scripts/tasks/todo.yml", "manifests/mprocs/kind.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "The external devkit CLI creates it; no CI job starts a cluster, hence no gate."
+
+[[tool]]
+name = "devkit"
+category = "dev-loop"
+status = "external"
+cncf = "not-cncf"
+install = "none — external CLI, lives in the dotconfig repo"
+usage = ["devkit.toml", "scripts/tasks/local-env.yml", "scripts/tasks/dev.yml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "The ONLY local-env engine (AGENTS.md). It, not this repo, creates the dbs-namespace postgres/redis/mailhog Deployments that the root Tiltfile port-forwards."
+
+[[tool]]
+name = "tilt"
+category = "dev-loop"
+status = "adopted"
+cncf = "not-cncf"
+install = "devkit.toml"
+key = "[tilt] enabled"
+usage = ["Tiltfile", "apps/*/*/Tiltfile", "scripts/tasks/tilt.yml"]
+gate = "task tilt-check"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "mprocs"
+category = "dev-loop"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — host tool"
+usage = ["scripts/tasks/dev.yml", "manifests/mprocs/kind.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "bacon"
+category = "dev-loop"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — host tool"
+usage = ["bacon.toml", "scripts/tasks/dev.yml"]
+gate = "none"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "monodocs"
+category = "dev-loop"
+status = "adopted"
+cncf = "not-cncf"
+install = "scripts/tasks/docs.yml (`task docs-install` → `cargo install monodocs`, version pinned in the task file)"
+key = "MONODOCS_VERSION"
+usage = ["scripts/tasks/docs.yml", "AGENTS.md"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Home repo is yurikrupnik/wasm-and-k8s, published to crates.io. It WAS vendored here as apps/monodocs/cli and had already drifted in four files; the copy is gone on purpose — bump the pin instead."
+
+[[tool]]
+name = "lefthook"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — host tool"
+usage = ["lefthook.yml"]
+gate = "task hooks-check (config schema); the hooks themselves run only if installed locally"
+paid = false
+owner = "scope:infra"
+
+################################################################################
+# gitops / control plane
+################################################################################
+
+[[tool]]
+name = "crossplane"
+category = "gitops"
+status = "external"
+cncf = "incubating"
+install = "none — core installed by the cluster bootstrap"
+usage = ["platform/dev-env/xrd.yaml", "platform/dev-env/composition.yaml", "platform/cloud-inventory/composition.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "This repo installs its providers/functions/XRDs/compositions (scripts/tasks/platform.yml) but never the core."
+
+[[tool]]
+name = "crossplane-provider-kubernetes"
+category = "gitops"
+status = "adopted"
+cncf = "incubating"
+install = "platform/dev-env/providers.yaml"
+key = "provider-kubernetes:v1.1.0"
+usage = ["platform/dev-env/composition.yaml", "platform/cloud-inventory/composition.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "crossplane-provider-helm"
+category = "gitops"
+status = "adopted"
+cncf = "incubating"
+install = "platform/dev-env/providers.yaml"
+key = "provider-helm:v1.3.0"
+usage = ["platform/dev-env/providerconfigs.yaml", "platform/dev-env/composition.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "function-kcl"
+category = "config"
+status = "adopted"
+cncf = "incubating"
+install = "platform/functions.yaml"
+key = "function-kcl:v0.11.5"
+usage = ["platform/dev-env/composition.yaml", "platform/cloud-inventory/composition.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Must come from xpkg.upbound.io — anonymous docker.io pulls 401 (AGENTS.md)."
+
+[[tool]]
+name = "function-auto-ready"
+category = "config"
+status = "adopted"
+cncf = "incubating"
+install = "platform/functions.yaml"
+key = "function-auto-ready:v0.4.2"
+usage = ["platform/dev-env/composition.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "flux"
+category = "gitops"
+status = "external"
+cncf = "graduated"
+install = "none — devkit bootstraps it against the gitops-v1 repo"
+usage = ["devkit.toml", "apps/zerg/api/butler.toml"]
+key = "GATEWAY_SUFFIX (Flux postBuild substitution)"
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Why manifests/k8s/base/namespace.yaml and the gateway-api CRD pin must stay byte-identical to gitops-v1: a later Flux apply has to be a no-op."
+
+################################################################################
+# networking
+################################################################################
+
+[[tool]]
+name = "gateway-api"
+category = "networking"
+status = "adopted"
+cncf = "not-cncf"
+install = "devkit.toml"
+key = "[[deps]] gateway-api-crds (standard-install v1.2.1)"
+usage = ["manifests/k8s/base/gateway/zerg-api.yaml", "apps/zerg/web/butler.toml", "apps/terran/web/butler.toml"]
+gate = "task k8s-check (generated HTTPRoutes only; manifests/k8s/base/gateway/* is ungated)"
+paid = false
+owner = "scope:infra"
+note = "Kubernetes SIG-Network project, not a separate CNCF entry. Pinned to the version Flux ships."
+
+[[tool]]
+name = "main-gateway"
+category = "networking"
+status = "external"
+cncf = "unknown"
+install = "none — no kind: Gateway and no gatewayClassName anywhere in this repo"
+usage = ["manifests/k8s/base/gateway/zerg-api.yaml", "apps/zerg/web/k8s/values.prod.yaml", "apps/terran/web/k8s/values.prod.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Every HTTPRoute parents to it; gitops-v1 owns it. The implementation behind it is unverified from this repo."
+
+[[tool]]
+name = "istio"
+category = "networking"
+status = "rejected"
+cncf = "graduated"
+install = "none"
+usage = ["manifests/k8s/base/namespace.yaml (inert istio-injection labels + commented-out AuthorizationPolicy/DestinationRule)"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+decision = "docs/tooling/service-mesh.md"
+note = "Claimed by README until 2026-09-19; no control plane, no CRs, no canary was ever wired. The namespace labels are mirrored from gitops-v1 and MUST NOT be deleted."
+
+[[tool]]
+name = "nginx"
+category = "networking"
+status = "adopted"
+cncf = "not-cncf"
+install = "manifests/dockers/Dockerfile"
+key = "AS nginx"
+usage = ["butler.toml", "manifests/dockers/default.conf.template"]
+gate = "task graph-check"
+paid = false
+owner = "scope:shared"
+note = "In-image reverse proxy for web kinds; the build stage pin is exactly what graph-check defends."
+
+################################################################################
+# config / render
+################################################################################
+
+[[tool]]
+name = "kcl"
+category = "config"
+status = "adopted"
+cncf = "sandbox"
+install = ".github/workflows/claude-maintenance.yml"
+key = "install-cli.sh"
+usage = ["apps/butler/cli/src/k8s.rs", "manifests/k8s/apps/*.yaml", "scripts/kcl/ci"]
+gate = "task k8s-check, task tilt-check, task gen-ci, task fmt-check-kcl"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "Docker Hub storage", review = "" }
+note = "Paid only through its distribution: the app package is oci://docker.io/yurikrupnik/app, pinned in butler.toml."
+
+[[tool]]
+name = "butler"
+category = "config"
+status = "adopted"
+cncf = "not-cncf"
+install = "Cargo.toml (workspace member apps/butler/cli)"
+usage = ["scripts/tasks/tilt.yml", "scripts/tasks/k8s-apps.yml", "scripts/tasks/graph.yml"]
+gate = "task tilt-check, task k8s-check, task graph-check"
+paid = false
+owner = "scope:butler"
+note = "Infers the same project graph as tools/nx/*.ts natively (apps/butler/cli/src/infer) and runs it locally (`butler run-many`/`affected`/`show`, the tilt/k8s gates); `task graph-check` proves its graph equals nx's. CI and nx release stay on nx."
+
+[[tool]]
+name = "kustomize"
+category = "config"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — bundled with kubectl"
+usage = ["manifests/k8s/base/kustomization.yaml", "manifests/cnpg/overlays/prod/kustomization.yaml", "apps/zerg/shared/k8s/kustomize"]
+gate = "task k8s-check"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "helm"
+category = "config"
+status = "adopted"
+cncf = "graduated"
+install = "none — host tool"
+usage = ["scripts/tasks/k8s.yml", "platform/dev-env/composition.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Two uses only: installing the Atlas operator, and provider-helm Releases inside a Composition."
+
+[[tool]]
+name = "buf"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml"
+key = "bufbuild/buf-action"
+usage = ["manifests/grpc/buf.yaml", "scripts/tasks/proto.yml", "libs/rpc/src/generated"]
+gate = "task proto-lint, task proto-breaking"
+paid = false
+owner = "scope:shared"
+note = "Local CLI only; no BSR remote module, so no BSR bill."
+
+################################################################################
+# database
+################################################################################
+
+[[tool]]
+name = "cloudnative-pg"
+category = "database"
+status = "adopted"
+cncf = "unknown"
+install = "scripts/tasks/k8s.yml"
+key = "cnpg-1.24.0.yaml"
+usage = ["manifests/k8s/base/cnpg/cluster.yaml", "manifests/cnpg/base/scheduled-backup.yaml", "platform/dev-env/composition.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "atlas-operator"
+category = "database"
+status = "adopted"
+cncf = "not-cncf"
+install = "scripts/tasks/k8s.yml"
+key = "oci://ghcr.io/ariga/charts/atlas-operator"
+usage = ["manifests/db/zerg/k8s/base/atlas-schema.yaml", "manifests/db/terran/k8s/base/atlas-migration.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "OSS operator; Atlas Cloud is NOT used."
+
+[[tool]]
+name = "atlas-cli"
+category = "database"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — host tool"
+usage = ["scripts/tasks/db.yml", "manifests/db/*/migrations/atlas.sum"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "sqlx"
+category = "database"
+status = "adopted"
+cncf = "not-cncf"
+install = "Cargo.toml"
+key = "sqlx"
+usage = ["scripts/tasks/db.yml", "libs/domains/todo/Cargo.toml", "libs/core/axum-helpers/Cargo.toml"]
+gate = "task test-rust"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "postgresql"
+category = "database"
+status = "adopted"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose) + manifests/kustomize/todo/postgres.yaml (todo ns) + CNPG Clusters"
+usage = ["Cargo.toml", "scripts/tasks/db.yml", "apps/todo/e2e/scripts/postgres.sh"]
+gate = "task test-rust, task e2e"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "redis"
+category = "database"
+status = "adopted"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose); the dbs-namespace Deployment is devkit's"
+usage = ["Cargo.toml", "apps/terran/api/src/state.rs", "manifests/k8s/apps/zerg-api.yaml"]
+gate = "task test-rust"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "qdrant"
+category = "database"
+status = "trial"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose only — no cluster manifest)"
+usage = ["apps/zerg/vector/src/server.rs", "apps/zerg/api/src/lib.rs"]
+gate = "none"
+paid = false
+owner = "scope:zerg"
+review = "2026-12-01"
+note = "Code degrades when unreachable; there is no deployed instance."
+
+[[tool]]
+name = "mongodb"
+category = "database"
+status = "rejected"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose only)"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Zero consumers in apps/ or libs/. Dead compose service — remove."
+
+[[tool]]
+name = "influxdb"
+category = "database"
+status = "rejected"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose only)"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Zero consumers anywhere. Dead compose service — remove."
+
+################################################################################
+# messaging
+################################################################################
+
+[[tool]]
+name = "nats"
+category = "messaging"
+status = "adopted"
+cncf = "incubating"
+install = "manifests/dockers/compose.yaml + manifests/kustomize/todo/nats.yaml + platform/dev-env/composition.yaml (helm Release)"
+usage = ["Cargo.toml", "apps/zerg/email-nats/src/lib.rs", "apps/zerg/email-nats/butler.toml"]
+gate = "task test-rust (testcontainers)"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "temporal"
+category = "messaging"
+status = "trial"
+cncf = "not-cncf"
+install = "none — no server in compose, manifests or any recipe"
+usage = ["apps/todo/temporal/src/main.rs", "Cargo.toml"]
+gate = "task test-rust compiles the worker; nothing exercises a server"
+paid = false
+owner = "scope:todo"
+review = "2026-12-01"
+decision = "docs/architecture-backlog.md"
+note = "Client code without infrastructure. Either stand up a server behind a gate or delete the crate. Its SDK crates drag in a protoc build dependency (prost-wkt-types build script), so every cargo gate host needs protoc — installed in CI by taiki-e/install-action."
+
+[[tool]]
+name = "restate"
+category = "messaging"
+status = "trial"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose only) + libs/testing/test-utils/src/restate.rs (testcontainers, same tag)"
+key = "restatedev/restate:1.7.12"
+usage = ["apps/todo/restate/src/lib.rs", "apps/todo/restate/tests/lifecycle_it.rs", "Cargo.toml"]
+gate = "task test-rust (testcontainers: lifecycle_it drives a real server end to end, NATS included)"
+paid = false
+owner = "scope:todo"
+review = "2026-12-01"
+decision = "docs/communication-and-consistency.md"
+note = "Durable-execution comparison point next to temporal: one virtual object per todo, state in Restate, events to the TODOS stream. Server is BUSL-1.1 (source-available, not OSI) — fails the OSI must-pass filter for production adoption without a licence decision; SDK crate is MIT. Local/test use only."
+
+[[tool]]
+name = "rabbitmq"
+category = "messaging"
+status = "rejected"
+cncf = "not-cncf"
+install = "none — only an orphan rabbitmq_data volume in manifests/dockers/compose.yaml"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "kafka"
+category = "messaging"
+status = "rejected"
+cncf = "not-cncf"
+install = "none"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Named in the messaging decision guide only; NATS is the adopted bus."
+
+################################################################################
+# secrets
+################################################################################
+
+[[tool]]
+name = "vals"
+category = "secrets"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — host tool"
+usage = ["manifests/secrets/.vals.yaml", "scripts/tasks/dev.yml", "scripts/tasks/local-env.yml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "gcp-secret-manager"
+category = "secrets"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — SaaS"
+usage = ["manifests/secrets/.vals.yaml", "manifests/secrets/secret.vals.yaml", "devkit.toml"]
+key = "ref+gcpsecrets://playground-447016"
+gate = "none"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "GCP project playground-447016", review = "" }
+
+[[tool]]
+name = "external-secrets"
+category = "secrets"
+status = "external"
+cncf = "graduated"
+install = "none — devkit creates the namespace and the gcp-sm-credentials Secret"
+usage = ["apps/zerg/shared/k8s/kustomize/overlays/prod/external-secret.yaml", "apps/zerg/api/butler.toml"]
+gate = "task k8s-check (generated ExternalSecrets only)"
+paid = false
+owner = "scope:infra"
+
+################################################################################
+# observability
+################################################################################
+
+[[tool]]
+name = "prometheus"
+category = "observability"
+status = "trial"
+cncf = "graduated"
+install = "none — no server or operator in this repo"
+usage = ["libs/core/axum-helpers/src/metrics.rs", "libs/core/messaging/src/nats/metrics.rs", "manifests/k8s/apps/zerg-api.yaml"]
+gate = "task k8s-check (scrape annotations are generated); no scrape target is gated"
+paid = false
+owner = "scope:shared"
+review = "2026-12-01"
+note = "Exposition side only: three apps serve /metrics and carry annotations; nothing scrapes them from this repo."
+
+[[tool]]
+name = "opentelemetry"
+category = "observability"
+status = "trial"
+cncf = "graduated"
+install = "Cargo.toml (SDK + OTLP exporter)"
+usage = ["libs/core/config/src/tracing.rs", "libs/core/grpc/src/interceptors/tracing.rs"]
+gate = "task test-rust"
+paid = false
+owner = "scope:shared"
+review = "2026-12-01"
+note = "Exports to otel-collector.monitoring.svc; that collector is installed by nothing (see below)."
+
+[[tool]]
+name = "opentelemetry-collector"
+category = "observability"
+status = "claimed"
+cncf = "graduated"
+install = "none"
+usage = ["apps/zerg/shared/k8s/kustomize/overlays/dev/kustomization.yaml", "apps/zerg/shared/k8s/kustomize/overlays/prod/kustomization.yaml"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "The monitoring namespace is only a name in devkit.toml. Either install it or drop the endpoint."
+
+[[tool]]
+name = "mailhog"
+category = "dev-loop"
+status = "adopted"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml; the dbs-namespace Deployment is devkit's"
+usage = ["Tiltfile", "scripts/tasks/email.yml", "manifests/k8s/apps/zerg-email-nats.yaml"]
+gate = "none"
+paid = false
+owner = "scope:zerg"
+
+################################################################################
+# security / supply chain
+################################################################################
+
+[[tool]]
+name = "trivy"
+category = "security"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml"
+usage = ["tools/nx/container-targets.ts", "apps/butler/cli/src/container.rs"]
+gate = "CI container job (nx run <p>:scan), task graph-check for target drift"
+paid = false
+owner = "scope:infra"
+note = "Installed in CI by an unpinned `curl | sh` — a supply-chain finding of its own."
+
+[[tool]]
+name = "osv-scanner"
+category = "security"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (taiki-e/install-action)"
+usage = ["scripts/tasks/flows.yml", "apps/todo/web-leptos/osv-scanner.toml"]
+gate = "task scan (in task verify + CI supply-chain)"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "cargo-audit"
+category = "security"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml"
+usage = ["scripts/tasks/rust.yml"]
+gate = "task audit → task check"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "cargo-deny"
+category = "security"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml"
+usage = [".cargo/deny.toml", "scripts/tasks/rust.yml", "lefthook.yml"]
+gate = "task audit"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "socket"
+category = "security"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — invoked through upkg"
+usage = ["scripts/tasks/flows.yml", "AGENTS.md"]
+key = "SOCKET_CLI_API_TOKEN"
+gate = "task weekly (not in check/verify)"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "org yuri", review = "" }
+note = ".env ships SOCKET_CLI_API_TOKEN EMPTY on purpose; a non-empty value overrides `socket login`."
+
+[[tool]]
+name = "upkg"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/claude-maintenance.yml (from the dotconfig checkout)"
+usage = ["scripts/tasks/flows.yml"]
+gate = "task weekly"
+paid = false
+owner = "scope:infra"
+note = "The ONLY sanctioned dependency-update path (AGENTS.md); never raw cargo upgrade --incompatible."
+
+################################################################################
+# build / CI
+################################################################################
+
+[[tool]]
+name = "nx"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "package.json"
+usage = ["nx.json", "tools/nx/plugin.ts", "scripts/tasks/rust.yml"]
+gate = "task test-web, task boundaries, task check-rust-affected"
+paid = false
+owner = "scope:infra"
+note = "Never run a WHOLE-WORKSPACE Rust task through nx (AGENTS.md). `butler run-many`/`affected` is the local alternative (task tilt-*/k8s-*); CI keeps nx + Nx Cloud."
+
+[[tool]]
+name = "nx-cloud"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "nx.json"
+key = "nxCloudId"
+usage = [".github/workflows/ci-optimized.yml", ".github/workflows/release.yml"]
+gate = "CI rust/web jobs rely on it for remote cache"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "workspace 6928516e8756394e71566e68", review = "" }
+
+[[tool]]
+name = "task"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (go-task/setup-task)"
+key = "go-task/setup-task"
+usage = ["Taskfile.yml", "scripts/tasks/*.yml"]
+gate = "self"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "just"
+category = "build"
+status = "rejected"
+cncf = "not-cncf"
+install = "none in this repo — .github/workflows/claude-maintenance.yml still installs it (extractions/setup-just) for the kcl-packages and dotconfig checkouts"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Replaced by go-task (`task`, Taskfile.yml + scripts/tasks/*.yml) at the user's request on 2026-09-25. Row kept so the choice is not re-litigated; kcl-packages and dotconfig still use just."
+
+[[tool]]
+name = "nushell"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (hustcer/setup-nu, nu job)"
+key = "hustcer/setup-nu"
+usage = ["scripts/tasks/nu.yml", "scripts/nu/ide-check.nu", "scripts/tasks/kube-run.yml"]
+gate = "task lint-nu → task check (CI nu job)"
+paid = false
+owner = "scope:infra"
+note = "The second task-script language beside go-task's built-in sh (which cannot run nu inline: no interpreter/shebang option). Chosen by the user on 2026-09-25 over mise file tasks and a just shim; convention in the header of scripts/tasks/nu.yml."
+
+[[tool]]
+name = "bun"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (oven-sh/setup-bun)"
+usage = ["package.json", "bun.lock", "scripts/tasks/web.yml"]
+gate = "CI web job (bun install --frozen-lockfile)"
+paid = false
+owner = "scope:infra"
+note = "bun's isolated linker is why the node image materialises its own runtime closure (AGENTS.md)."
+
+[[tool]]
+name = "uv"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (astral-sh/setup-uv)"
+key = "astral-sh/setup-uv"
+usage = ["pyproject.toml", "uv.lock", "apps/test-cli1/pyproject.toml", "scripts/tasks/python.yml"]
+gate = "CI python job (uv sync --locked --all-groups); OSV reads uv.lock in task scan"
+paid = false
+owner = "scope:infra"
+note = "Workspace root + members live in [tool.uv.workspace]; every @nxlv/python executor shells out to `uv run`."
+
+[[tool]]
+name = "ruff"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "uv dev dependency group (pyproject.toml)"
+key = "ruff>="
+usage = ["apps/test-cli1/pyproject.toml", "scripts/tasks/python.yml"]
+gate = "task lint-py, task fmt-check-py (CI python job)"
+paid = false
+owner = "scope:infra"
+note = "Linter AND formatter for python — the ecosystem's leaf in both `lint` and `fmt`/`fmt-check`."
+
+[[tool]]
+name = "pytest"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "uv dev dependency group (pyproject.toml)"
+key = "pytest>="
+usage = ["apps/test-cli1/pyproject.toml", "apps/test-cli1/tests", "scripts/tasks/python.yml"]
+gate = "task test-py (CI python job)"
+paid = false
+owner = "scope:infra"
+note = "addopts are ../../-relative, so it MUST run with cwd = projectRoot — that is why test-py goes through the nx target."
+
+[[tool]]
+name = "docker-buildx"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (docker/setup-buildx-action)"
+usage = ["manifests/dockers/*.Dockerfile", "tools/nx/container-targets.ts"]
+gate = "CI container job, task graph-check"
+paid = false
+owner = "scope:infra"
+
+[[tool]]
+name = "ghcr-buildcache"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml"
+key = "BUILDCACHE=ghcr.io/"
+usage = ["tools/nx/container-targets.ts"]
+gate = "CI container job"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "GitHub Packages storage", review = "" }
+
+[[tool]]
+name = "sccache"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (mozilla-actions/sccache-action, rust job only); .envrc exports RUSTC_WRAPPER locally when the binary exists"
+usage = ["manifests/ci/ci-config.yaml", "scripts/kcl/ci/providers/github/main.k", ".envrc"]
+gate = "none — a cache miss only slows CI"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "GCS bucket vars.SCCACHE_GCS_BUCKET", review = "" }
+
+[[tool]]
+name = "gcp-artifact-registry"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (google-github-actions/auth, WIF)"
+usage = [".github/workflows/release.yml"]
+gate = "CI container job"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "vars.GCP_ARTIFACT_PROJECT", review = "" }
+
+[[tool]]
+name = "docker-hub"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "nx.json (defaultRegistry docker.io)"
+usage = ["butler.toml", "manifests/k8s/apps/*.yaml"]
+gate = "task k8s-check (pins the KCL package tag)"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "account yurikrupnik", review = "" }
+
+[[tool]]
+name = "crates-io"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/publish-crates.yml"
+key = "CARGO_REGISTRY_TOKEN"
+usage = ["scripts/tasks/rust.yml"]
+gate = "task crates-package (dry run)"
+paid = true
+owner = "scope:shared"
+approval = { by = "pre-existing", date = "", cap = "free tier", review = "" }
+
+[[tool]]
+name = "github-actions"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/"
+usage = [".github/workflows/ci-optimized.yml", ".github/workflows/release.yml", ".github/workflows/claude-maintenance.yml"]
+gate = "the CI matrix itself"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "runner minutes", review = "" }
+
+[[tool]]
+name = "claude-code-action"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/claude.yml"
+key = "anthropics/claude-code-action@v1"
+usage = [".github/workflows/claude-code-review.yml", ".github/workflows/claude-maintenance.yml"]
+gate = "none"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "CLAUDE_CODE_OAUTH_TOKEN", review = "" }
+
+[[tool]]
+name = "biome"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "package.json"
+usage = ["biome.json", "scripts/tasks/web.yml", "tools/nx/polyglot-targets.ts", "lefthook.yml"]
+gate = "task lint-web (bunx biome ci .)"
+paid = false
+owner = "scope:infra"
+note = "One root biome.json, no per-project config; the only JS/TS linter+formatter here. Gates MUST use `biome ci` — the mutating `--write` form is the inferred `fmt` target only, never `lint`."
+
+[[tool]]
+name = "trunk"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml (taiki-e/install-action, prebuilt release; locally `cargo install trunk --locked`)"
+key = "protoc,trunk"
+usage = ["apps/todo/web-leptos/Trunk.toml", "apps/todo/web-leptos/index.html", "apps/todo/web-leptos/project.json"]
+gate = "CI rust job (bun nx build todo-web-leptos)"
+paid = false
+owner = "scope:todo"
+note = "WASM bundler for the Leptos CSR arm of the delivery-surface comparison — the ONE thing that builds apps/todo/web-leptos, which is [workspace] exclude'd and therefore invisible to task lint-rust/test-rust. It also downloads its own wasm-bindgen-cli and binaryen; index.html has to pass --enable-bulk-memory to wasm-opt because rustc emits bulk-memory ops that binaryen 123 will not validate by default."
+
+################################################################################
+# testing
+################################################################################
+
+[[tool]]
+name = "cargo-nextest"
+category = "testing"
+status = "adopted"
+cncf = "not-cncf"
+install = ".github/workflows/ci-optimized.yml"
+usage = ["scripts/tasks/rust.yml", "lefthook.yml"]
+gate = "task test-rust"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "testcontainers"
+category = "testing"
+status = "adopted"
+cncf = "not-cncf"
+install = "Cargo.toml"
+key = "testcontainers = \"=0.27\" (exact pin, see AGENTS.md)"
+usage = ["libs/testing/test-utils", "apps/zerg/email-nats/tests/examples_it.rs"]
+gate = "task test-rust"
+paid = false
+owner = "scope:shared"
+
+[[tool]]
+name = "playwright"
+category = "testing"
+status = "adopted"
+cncf = "not-cncf"
+install = "apps/todo/e2e/package.json"
+usage = ["apps/todo/e2e/playwright.config.ts", "apps/todo/e2e/tests"]
+gate = "task e2e (in task verify, NOT in the CI matrix)"
+paid = false
+owner = "scope:todo"
+
+[[tool]]
+name = "vitest"
+category = "testing"
+status = "adopted"
+cncf = "not-cncf"
+install = "apps/*/web*/package.json"
+usage = ["apps/terran/web/vite.config.ts", "apps/todo/web/src/lib/identity.test.ts"]
+gate = "task test-web"
+paid = false
+owner = "scope:shared"
+
+################################################################################
+# identity / app services
+################################################################################
+
+[[tool]]
+name = "keycloak"
+category = "security"
+status = "trial"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose only)"
+usage = ["apps/terran/api/src/lib.rs", "manifests/dockers/config/keycloak/terran-realm.json"]
+gate = "none — the terran api tests that exercise it are #[ignore]d"
+paid = false
+owner = "scope:terran"
+review = "2026-12-01"
+decision = "docs/auth-idp-decision.md"
+
+[[tool]]
+name = "workos"
+category = "security"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — SaaS"
+usage = ["apps/zerg/api/src/config.rs", "apps/zerg/api/butler.toml"]
+key = "WORKOS_API_KEY"
+gate = "none"
+paid = true
+owner = "scope:zerg"
+approval = { by = "pre-existing", date = "", cap = "unknown — no plan recorded", review = "2026-12-01" }
+
+[[tool]]
+name = "flagsmith"
+category = "other"
+status = "trial"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (self-hosted, compose only)"
+usage = ["libs/core/feature-flags/src/config.rs", "apps/zerg/api/butler.toml"]
+gate = "task test-rust (degraded-path tests only)"
+paid = false
+owner = "scope:zerg"
+review = "2026-12-01"
+note = "Self-hosted image; the cluster DNS name it points at has no manifest in this repo."
+
+[[tool]]
+name = "directus"
+category = "other"
+status = "rejected"
+cncf = "not-cncf"
+install = "manifests/dockers/compose.yaml (compose only)"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Zero consumers. Dead compose service — remove."
+
+################################################################################
+# claimed in prose, never adopted (keep so the claim cannot return silently)
+################################################################################
+
+[[tool]]
+name = "kiali"
+category = "observability"
+status = "rejected"
+cncf = "not-cncf"
+install = "none"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Was a README port-table row (localhost:20001) with no manifest anywhere; removed 2026-09-19."
+
+[[tool]]
+name = "k3d"
+category = "cluster"
+status = "rejected"
+cncf = "not-cncf"
+install = "none"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Every cluster path is kind."
+
+[[tool]]
+name = "ingress-nginx"
+category = "networking"
+status = "rejected"
+cncf = "not-cncf"
+install = "none"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+decision = "apps/zerg/api/k8s/DEPLOYMENT_SCENARIOS.md"
+note = "Documented explicitly as the path NOT taken; Gateway API is the adopted one."
+
+[[tool]]
+name = "jaeger-tempo-grafana"
+category = "observability"
+status = "candidate"
+cncf = "graduated"
+install = "none"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Aspirational TODO items in apps/zerg/api/TODO.md. OTLP export already exists, so a backend is the only missing piece."
+
+[[tool]]
+name = "devtools-doc-backlog"
+category = "build"
+status = "candidate"
+cncf = "not-cncf"
+install = "none"
+usage = []
+gate = "none"
+paid = false
+owner = "scope:infra"
+decision = "docs/DEVELOPMENT_TOOLS.md"
+note = "Snyk, GitGuardian, Semgrep, TruffleHog, Prettier, ESLint, Commitlint, SonarQube, Lighthouse CI, k6, doctoc are all listed there and none is installed. Trivy and Playwright are the only two entries in that file that are real."
+
+################################################################################
+# pre-commit review components (skill://precommit-review)
+################################################################################
+
+[[tool]]
+name = "coderabbit"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — host CLI"
+usage = [".claude/commands/git/coderabbit-review.md", ".claude/skills/precommit-review/SKILL.md", ".claude/settings.json"]
+key = "coderabbit review --uncommitted --agent"
+gate = "none"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "usage-based spend; `coderabbit usage`", review = "2026-12-01" }
+note = "Independent reviewer in pass 2. `coderabbit doctor` reported signed in on 2026-09-19."
+
+[[tool]]
+name = "codex-cli"
+category = "build"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — host CLI"
+usage = [".claude/skills/precommit-review/SKILL.md"]
+key = "codex exec review --uncommitted"
+gate = "none"
+paid = true
+owner = "scope:infra"
+approval = { by = "pre-existing", date = "", cap = "ChatGPT plan", review = "2026-12-01" }
+note = "Second vendor model in pass 2. `codex login status` reported logged in on 2026-09-19."
+
+[[tool]]
+name = "gemini-cli"
+category = "build"
+status = "candidate"
+cncf = "not-cncf"
+install = "none — host CLI, NOT authenticated here"
+usage = [".gemini/settings.json", ".gemini/GEMINI.md", ".gemini/commands/skill", ".claude/commands/git/gemini-review.md"]
+gate = "none"
+paid = false
+owner = "scope:infra"
+note = "Host CLI (0.22.5 installed, not authenticated). The repo now SERVES it whether or not it is signed in: `.gemini/settings.json` loads AGENTS.md + GEMINI.md as context, and `task agents-gen` renders one `/skill:<name>` command per exported skill into `.gemini/commands/skill/`, gated by `task agents-check`. `.claude/commands/git/gemini-review.md` still invokes the binary, and a non-interactive run prompts for an OAuth code and hangs — the review skill treats it as unavailable until someone signs in."

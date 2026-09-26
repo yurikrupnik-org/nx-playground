@@ -1,6 +1,11 @@
 # Messaging & Communication Patterns
 
-When to use Redis Streams, Kafka, RabbitMQ, and gRPC.
+Technology **reference**: when to use Redis Streams, Kafka, RabbitMQ, and gRPC.
+
+> **Looking for what *we* should do?** This page compares technologies, most of which we
+> do not run. For the decision guide covering the three transports this repo actually
+> operates — NATS JetStream, gRPC, HTTP — plus the dual-write problem and saga patterns,
+> see [`communication-and-consistency.md`](./communication-and-consistency.md).
 
 ## Quick Decision Guide
 
@@ -20,6 +25,7 @@ When to use Redis Streams, Kafka, RabbitMQ, and gRPC.
 **What**: Synchronous RPC framework using HTTP/2 and Protocol Buffers.
 
 **Use when**:
+
 - Service-to-service communication requiring immediate response
 - Low latency is critical (sub-millisecond)
 - Strong typing and contract-first API design
@@ -27,18 +33,20 @@ When to use Redis Streams, Kafka, RabbitMQ, and gRPC.
 - Polyglot environment (multiple languages)
 
 **Don't use when**:
+
 - Fire-and-forget messaging
 - Need message persistence/replay
 - Decoupling producers from consumers
 - Fan-out to many consumers
 
 **Examples**:
+
 - API gateway to microservices
 - Real-time data fetching
 - Inter-service calls in request path
 - Mobile/web clients to backend
 
-```
+```text
 ┌─────────┐  request   ┌─────────┐
 │  API    │ ─────────► │  Tasks  │
 │ (Axum)  │ ◄───────── │ Service │
@@ -54,6 +62,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 **What**: Append-only log data structure in Redis with consumer groups.
 
 **Use when**:
+
 - Already using Redis in your stack
 - Simple event streaming needs
 - Moderate throughput (10k-100k msg/sec)
@@ -62,19 +71,21 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 - Want minimal operational overhead
 
 **Don't use when**:
+
 - Need long-term storage (weeks/months)
 - Very high throughput (millions msg/sec)
 - Complex routing logic needed
 - Strong durability guarantees required
 
 **Examples**:
+
 - Activity feeds
 - Real-time notifications
 - Simple task distribution
 - Cache invalidation events
 - Lightweight event sourcing
 
-```
+```text
 ┌──────────┐         ┌─────────────┐         ┌──────────┐
 │ Producer │ ──────► │ Redis Stream│ ──────► │ Consumer │
 └──────────┘  XADD   │  (orders)   │  XREAD  │  Group   │
@@ -88,6 +99,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 **What**: Traditional message broker implementing AMQP protocol.
 
 **Use when**:
+
 - Complex routing requirements (topic, headers, fanout)
 - Work queues with acknowledgments
 - Need message priorities
@@ -97,19 +109,21 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 - Moderate throughput (10k-50k msg/sec)
 
 **Don't use when**:
+
 - Need to replay old messages
 - Very high throughput requirements
 - Long-term message storage
 - Event sourcing patterns
 
 **Examples**:
+
 - Background job processing
 - Email/notification queues
 - Order processing workflows
 - RPC over messaging
 - Distributing work across workers
 
-```
+```text
 ┌──────────┐      ┌──────────┐      ┌─────────┐      ┌──────────┐
 │ Producer │ ───► │ Exchange │ ───► │  Queue  │ ───► │ Consumer │
 └──────────┘      └──────────┘      └─────────┘      └──────────┘
@@ -117,6 +131,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 ```
 
 **Exchange types**:
+
 - `direct` - route by exact key match
 - `topic` - route by pattern (e.g., `orders.*.created`)
 - `fanout` - broadcast to all queues
@@ -129,6 +144,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 **What**: Distributed event streaming platform with persistent log.
 
 **Use when**:
+
 - Very high throughput (millions msg/sec)
 - Need to replay/reprocess events
 - Event sourcing architecture
@@ -138,6 +154,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 - Audit logs, change data capture
 
 **Don't use when**:
+
 - Simple task queues
 - Need complex routing per message
 - Low message volume (overkill)
@@ -145,6 +162,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 - Want minimal operational complexity
 
 **Examples**:
+
 - Event sourcing
 - Change data capture (CDC)
 - Log aggregation
@@ -152,7 +170,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 - Cross-datacenter replication
 - Real-time ETL
 
-```
+```text
 ┌──────────┐         ┌─────────────────────────────┐
 │ Producer │ ──────► │ Topic: orders               │
 └──────────┘         │ ┌─────┬─────┬─────┬─────┐   │
@@ -190,7 +208,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 
 ### Pattern 1: Synchronous + Async Hybrid
 
-```
+```text
 ┌────────┐  gRPC   ┌────────┐  Kafka   ┌────────────┐
 │  API   │ ──────► │ Orders │ ───────► │ Analytics  │
 │Gateway │ ◄────── │Service │          │  Service   │
@@ -210,7 +228,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 
 ### Pattern 2: CQRS with Event Sourcing
 
-```
+```text
 ┌─────────┐  gRPC   ┌─────────┐  Kafka  ┌──────────┐
 │ Command │ ──────► │ Command │ ──────► │  Event   │
 │  API    │         │ Service │         │  Store   │
@@ -225,7 +243,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 
 ### Pattern 3: Simple Microservices
 
-```
+```text
 ┌─────────┐         ┌─────────┐         ┌─────────┐
 │  API    │  gRPC   │  Tasks  │  Redis  │ Workers │
 │ (Axum)  │ ──────► │ Service │ ──────► │         │
@@ -236,7 +254,7 @@ See [grpc.md](./grpc.md) for detailed gRPC streaming patterns.
 
 ## Decision Flowchart
 
-```
+```text
 Need immediate response?
 ├── Yes → gRPC
 └── No → Need message replay?
@@ -253,11 +271,30 @@ Need immediate response?
 ## This Project's Setup
 
 Currently using:
-- **gRPC** (tonic): `zerg_api` ↔ `zerg_tasks` communication
-- **Redis**: Available in docker-compose (can add Streams)
-- **PostgreSQL**: Primary data store
+
+- **NATS JetStream** (`libs/core/messaging`): durable job queues and domain events —
+  email jobs consumed by `apps/zerg/email-nats`, `TodoEvent` consumed by
+  `apps/todo/worker`. Explicit ack, bounded retries, dead-letter stream. This is our
+  cleanest boundary: the queue forces a message contract and forbids shared state.
+- **gRPC** (tonic): `zerg_api` → `zerg_tasks`, synchronous on the request path.
+  Boundary remediation in progress — see
+  [`adr-tasks-service-boundary.md`](./adr-tasks-service-boundary.md).
+- **Redis**: sessions, rate limiting, login-flow store.
+- **PostgreSQL**: primary data store (per-service databases; see `manifests/db/README.md`).
 
 Potential additions:
-- **Redis Streams**: For task notifications, cache invalidation
-- **Kafka**: If needing event sourcing, analytics pipeline
-- **RabbitMQ**: If needing complex background job routing
+
+- **Kafka**: if needing event sourcing or an analytics pipeline (NATS covers today's needs).
+- **RabbitMQ**: if needing complex background job routing.
+
+### Choosing between them here
+
+Before adding a **synchronous** hop, check that a library call or an event won't do.
+A gRPC call couples availability (callee down ⇒ caller's route fails) and latency
+(caller waits) — pay that only when you need the answer *inside* the current request.
+If the work can happen shortly afterwards, publish to JetStream instead: the producer
+returns immediately, the consumer retries on its own, and failures land in the DLQ
+rather than in the user's response.
+
+Whichever you pick, a transport is not a boundary — see the checklist in
+[`modular-monolith-architecture.md`](./modular-monolith-architecture.md#then-the-boundary-checklist).

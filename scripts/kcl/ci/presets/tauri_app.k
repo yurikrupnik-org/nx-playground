@@ -8,7 +8,6 @@ import ..schemas.config as cfg
 # =============================================================================
 # PRESET GENERATORS
 # =============================================================================
-
 default_config = lambda name: str, pm: str = "bun" -> cfg.TauriAppConfig {
     """
     Standard Tauri v2 app CI.
