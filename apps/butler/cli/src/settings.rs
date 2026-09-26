@@ -85,6 +85,15 @@ pub struct Root {
     /// How butler builds the project graph.
     #[serde(default)]
     pub graph: Graph,
+    /// Where `butler submodule gen` writes, and the Flux defaults every
+    /// submodule shares.
+    #[serde(default)]
+    pub submodules: Submodules,
+    /// How each git submodule deploys, keyed by the name `.gitmodules` gives
+    /// it — the same key as `.gitmodules`' own `[submodule "<name>"]`. A
+    /// submodule with no table still gets its Flux `GitRepository`.
+    #[serde(default)]
+    pub submodule: BTreeMap<String, SubmoduleDeploy>,
     /// Standalone repos only: the single app living at the repo root.
     pub app: Option<App>,
 }
@@ -140,6 +149,91 @@ fn default_out_dir() -> String {
 
 fn default_package() -> String {
     "oci://docker.io/yurikrupnik/app".to_string()
+}
+
+/// Repo-wide settings for the submodule manifests.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Submodules {
+    /// Directory `butler submodule gen` owns, workspace-root-relative; `{env}`
+    /// expands like `[k8s] outDir`. Owned outright: a generated file there that
+    /// no submodule produces any more is deleted, so it must not be the
+    /// `[k8s] outDir`.
+    #[serde(default = "default_submodules_out_dir")]
+    pub out_dir: String,
+    /// Namespace the Flux `GitRepository` / `Kustomization` objects live in.
+    #[serde(default = "default_flux_namespace")]
+    pub flux_namespace: String,
+    /// Flux reconciliation interval for every source and kustomization.
+    #[serde(default = "default_flux_interval")]
+    pub interval: String,
+}
+
+impl Default for Submodules {
+    fn default() -> Self {
+        Self {
+            out_dir: default_submodules_out_dir(),
+            flux_namespace: default_flux_namespace(),
+            interval: default_flux_interval(),
+        }
+    }
+}
+
+fn default_submodules_out_dir() -> String {
+    "manifests/k8s/submodules".to_string()
+}
+
+fn default_flux_namespace() -> String {
+    "flux-system".to_string()
+}
+
+fn default_flux_interval() -> String {
+    "10m".to_string()
+}
+
+/// How one submodule deploys. Two independent outputs:
+///
+///   * `kustomize` — a Flux `Kustomization` that applies the submodule's own
+///     manifests, fetched by Flux from the submodule's repository;
+///   * `[workload]` — objects rendered here by the `app` KCL package, exactly
+///     like an app's `[workload]`, with the image derived from `image` (default
+///     `$REGISTRY/<name>`) instead of a Dockerfile in this repo.
+///
+/// Declaring both deploys the submodule twice; pick one per submodule.
+#[derive(Debug, Deserialize, Default, Clone)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SubmoduleDeploy {
+    /// Path of a kustomization inside the submodule (`k8s/base`). Unset = no
+    /// Flux `Kustomization`, only the `GitRepository` source.
+    pub kustomize: Option<String>,
+    /// Target namespace for the submodule's objects. Default: its k8s name.
+    pub namespace: Option<String>,
+    /// Which revision Flux fetches.
+    #[serde(default)]
+    pub track: Track,
+    /// Image repository (no tag) the `[workload]` deploys; `$REGISTRY` is
+    /// substituted. Default: `$REGISTRY/<name>`.
+    pub image: Option<String>,
+    /// Same pass-through payload as an app's `[workload]`, merged over
+    /// `[workloadDefaults.<kind>]`; the kind comes from the checked-out
+    /// submodule's files.
+    pub workload: Option<toml::Value>,
+    pub config: Option<BTreeMap<String, String>>,
+    pub external_secret: Option<toml::Value>,
+    #[serde(default)]
+    pub env: BTreeMap<String, AppEnv>,
+}
+
+/// The revision a submodule's Flux `GitRepository` follows.
+#[derive(Debug, Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Track {
+    /// The commit this repo's index pins (the gitlink): deploys move only when
+    /// the submodule is bumped here.
+    #[default]
+    Commit,
+    /// The tip of the `.gitmodules` `branch`: deploys move on every push there.
+    Branch,
 }
 
 /// Which apps ship a container image beyond the ones that obviously do.
@@ -401,6 +495,12 @@ fn walk_dirs(root: &Path) -> Vec<PathBuf> {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             if name.starts_with('.') || PRUNED.contains(&name.as_ref()) {
+                continue;
+            }
+            // A nested repository (a submodule's `.git` is a file) is another
+            // repo's tree: its butler.toml, if any, is a root file of its own,
+            // not an app file of this workspace.
+            if path.join(".git").exists() {
                 continue;
             }
             stack.push(path);

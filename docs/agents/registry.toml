@@ -106,6 +106,23 @@ a tag and a consumer pin, none of which is discoverable from this repo alone.\
 evidence = ["butler.toml", "docs/tilt-generators.md"]
 
 [[skill]]
+name = "lefthook-format"
+status = "adopted"
+owner = "scope:infra"
+targets = ["claude-code", "gemini-cli"]
+gate = "task hooks-check"
+why = """
+The obvious hook — run the whole-tree formatter and `stage_fixed` the result — \
+commits only the staged files but rewrites every other file in the working \
+tree, reformatting someone's unrelated WIP. The per-file forms each have a \
+trap the task leaves never hit: bare `rustfmt` formats as edition 2015, \
+explicit paths make `typos --write-changes` ignore `_typos.toml` excludes and \
+rewrite vendored htmx, and `just`'s `{{files}}` splits a path with a space. \
+Exported to local runtimes only: git hooks run in a checkout.\
+"""
+evidence = ["lefthook.yml", "scripts/tasks/flows.yml", "_typos.toml", "biome.json"]
+
+[[skill]]
 name = "new-rust-crate"
 status = "adopted"
 owner = "scope:shared"

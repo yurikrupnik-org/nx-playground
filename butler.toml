@@ -53,6 +53,21 @@ extraResources = ["../dev"]
 dev = "dev"
 prod = "main"
 
+# Git submodules (`butler submodule`, docs/tilt-generators.md). Every submodule in
+# .gitmodules gets a Flux GitRepository pinned to the commit the index records,
+# written to `outDir` with its own aggregate kustomization. `outDir` is owned by
+# `butler submodule gen` (stale generated files are deleted), so it must differ
+# from `[k8s] outDir`.
+[submodules]
+outDir = "manifests/k8s/submodules"
+
+# Per submodule, keyed like .gitmodules: `kustomize` adds a Flux Kustomization
+# over the submodule's own manifests; a `[submodule.<name>.workload]` would
+# instead render it through the `app` package like any app here — not both.
+# first-rust-app ships its own kustomize base, so Flux applies that.
+[submodule.first-rust-app]
+kustomize = "k8s/base"
+
 # Apps that ship an image but no workload of their own: nothing in this repo
 # deploys them, but CI still builds and scans the image. Every other app earns
 # its nx `container`/`scan` targets by declaring a `[workload]` (see

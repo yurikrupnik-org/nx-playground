@@ -13,20 +13,22 @@ import ...schemas.common as c
 # =============================================================================
 # Remap step images from tekton_config.images (keyed by common.TEKTON_IMAGES
 # logical name) over the assembled tasks, so no task builder needs the map.
-
-_apply_images = lambda tasks: [schemas.TektonTask], tekton_config: cfg.TektonConfig -> [schemas.TektonTask] {
+_apply_images = lambda {
+    tasks: [schemas.TektonTask],
+    tekton_config: cfg.TektonConfig,
+} -> [schemas.TektonTask] {
     _refs = {c.TEKTON_IMAGES[k]: tekton_config.images[k] for k in tekton_config.images if k in c.TEKTON_IMAGES}
-    [
-        (t | {spec = t.spec | {steps = [(st | {image = _refs[st.image]}) if st.image in _refs else st for st in t.spec.steps]}})
-        for t in tasks
-    ] if _refs else tasks
+    [(t | {spec = t.spec | {steps = [(st | {image = _refs[st.image]}) if st.image in _refs else st for st in t.spec.steps]}}) for t in tasks] if _refs else tasks
 }
 
 # =============================================================================
 # PIPELINE BUILDERS
 # =============================================================================
-
-_pipeline_task = lambda name: str, task_name: str, run_after: [str] = [] -> schemas.TektonPipelineTask {
+_pipeline_task = lambda {
+    name: str,
+    task_name: str,
+    run_after: [str] = [],
+} -> schemas.TektonPipelineTask {
     schemas.TektonPipelineTask {
         name = name
         taskRef = schemas.TektonTaskRef {name = task_name}
@@ -54,8 +56,10 @@ _clone_task = lambda -> schemas.TektonPipelineTask {
 # =============================================================================
 # MONOREPO PIPELINE GENERATOR
 # =============================================================================
-
-generate_monorepo = lambda config: cfg.MonorepoConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
+generate_monorepo = lambda {
+    config: cfg.MonorepoConfig,
+    tekton_config: cfg.TektonConfig = cfg.TektonConfig {},
+} -> [any] {
     _pm = config.package_manager
     _tasks = [
         tasks.git_clone()
@@ -93,8 +97,10 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, tekton_config: cfg.Tekton
 # =============================================================================
 # RUST APP PIPELINE GENERATOR
 # =============================================================================
-
-generate_rust = lambda config: cfg.RustAppConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
+generate_rust = lambda {
+    config: cfg.RustAppConfig,
+    tekton_config: cfg.TektonConfig = cfg.TektonConfig {},
+} -> [any] {
     _features = "--features " + ",".join(config.cargo_features) if config.cargo_features else ""
     _tasks = [
         tasks.git_clone()
@@ -107,6 +113,7 @@ generate_rust = lambda config: cfg.RustAppConfig, tekton_config: cfg.TektonConfi
     _pipeline_tasks = [_clone_task()]
     if config.rustfmt:
         _pipeline_tasks += [_pipeline_task("fmt", "cargo-fmt", ["clone"])]
+
     if config.clippy:
         _after = ["fmt"] if config.rustfmt else ["clone"]
         _pipeline_tasks += [_pipeline_task("clippy", "cargo-clippy", _after)]
@@ -139,8 +146,10 @@ generate_rust = lambda config: cfg.RustAppConfig, tekton_config: cfg.TektonConfi
 # =============================================================================
 # NODE APP PIPELINE GENERATOR
 # =============================================================================
-
-generate_node = lambda config: cfg.NodeAppConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
+generate_node = lambda {
+    config: cfg.NodeAppConfig,
+    tekton_config: cfg.TektonConfig = cfg.TektonConfig {},
+} -> [any] {
     _pm = config.package_manager
     _tasks = [
         tasks.git_clone()
@@ -160,7 +169,6 @@ generate_node = lambda config: cfg.NodeAppConfig, tekton_config: cfg.TektonConfi
         _pipeline_tasks += [_pipeline_task("build", "build", ["lint", "test"])]
     else:
         _pipeline_tasks += [_pipeline_task("build", "build", ["lint"])]
-
     _pipeline = schemas.TektonPipeline {
         metadata = metav1.ObjectMeta {
             name = "${config.name}-ci"
@@ -183,8 +191,10 @@ generate_node = lambda config: cfg.NodeAppConfig, tekton_config: cfg.TektonConfi
 # =============================================================================
 # GO SERVICE PIPELINE GENERATOR
 # =============================================================================
-
-generate_go = lambda config: cfg.GoServiceConfig, tekton_config: cfg.TektonConfig = cfg.TektonConfig {} -> [any] {
+generate_go = lambda {
+    config: cfg.GoServiceConfig,
+    tekton_config: cfg.TektonConfig = cfg.TektonConfig {},
+} -> [any] {
     _tasks = [
         tasks.git_clone()
         tasks.go_task("test", "-v -race ./...")
@@ -213,7 +223,6 @@ generate_go = lambda config: cfg.GoServiceConfig, tekton_config: cfg.TektonConfi
 
     _apply_images(_tasks, tekton_config) + [_pipeline]
 }
-
 # =============================================================================
 # EXPORTS
 # =============================================================================

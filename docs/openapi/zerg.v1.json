@@ -215,20 +215,20 @@
           "resource_type": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/ResourceType"
               },
               {
-                "$ref": "#/components/schemas/ResourceType"
+                "type": "null"
               }
             ]
           },
           "status": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/ResourceStatus"
               },
               {
-                "$ref": "#/components/schemas/ResourceStatus"
+                "type": "null"
               }
             ]
           }
@@ -351,10 +351,10 @@
           "config": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/VectorConfig"
               },
               {
-                "$ref": "#/components/schemas/VectorConfig"
+                "type": "null"
               }
             ]
           },
@@ -1056,10 +1056,10 @@
           "cloud_provider": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/CloudProvider"
               },
               {
-                "$ref": "#/components/schemas/CloudProvider"
+                "type": "null"
               }
             ]
           },
@@ -1072,10 +1072,10 @@
           "environment": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/Environment"
               },
               {
-                "$ref": "#/components/schemas/Environment"
+                "type": "null"
               }
             ]
           },
@@ -1090,10 +1090,10 @@
           "status": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/ProjectStatus"
               },
               {
-                "$ref": "#/components/schemas/ProjectStatus"
+                "type": "null"
               }
             ]
           },
@@ -1169,10 +1169,10 @@
           "filter": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/SearchFilter"
               },
               {
-                "$ref": "#/components/schemas/SearchFilter"
+                "type": "null"
               }
             ]
           },
@@ -1503,10 +1503,10 @@
           "status": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/ResourceStatus"
               },
               {
-                "$ref": "#/components/schemas/ResourceStatus"
+                "type": "null"
               }
             ]
           },
@@ -1547,10 +1547,10 @@
           "environment": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/Environment"
               },
               {
-                "$ref": "#/components/schemas/Environment"
+                "type": "null"
               }
             ]
           },
@@ -1569,10 +1569,10 @@
           "status": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/ProjectStatus"
               },
               {
-                "$ref": "#/components/schemas/ProjectStatus"
+                "type": "null"
               }
             ]
           },
@@ -1613,10 +1613,10 @@
           "priority": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/TaskPriority"
               },
               {
-                "$ref": "#/components/schemas/TaskPriority"
+                "type": "null"
               }
             ]
           },
@@ -1630,10 +1630,10 @@
           "status": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/TaskStatus"
               },
               {
-                "$ref": "#/components/schemas/TaskStatus"
+                "type": "null"
               }
             ]
           },
@@ -1869,10 +1869,10 @@
           "sparse": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/SparseVector"
               },
               {
-                "$ref": "#/components/schemas/SparseVector"
+                "type": "null"
               }
             ]
           },
@@ -1904,10 +1904,10 @@
           "hnsw": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/HnswConfig"
               },
               {
-                "$ref": "#/components/schemas/HnswConfig"
+                "type": "null"
               }
             ]
           }
@@ -2111,10 +2111,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/ResourceType"
                 },
                 {
-                  "$ref": "#/components/schemas/ResourceType"
+                  "type": "null"
                 }
               ]
             }
@@ -2126,10 +2126,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/ResourceStatus"
                 },
                 {
-                  "$ref": "#/components/schemas/ResourceStatus"
+                  "type": "null"
                 }
               ]
             }
@@ -2687,10 +2687,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/CloudProvider"
                 },
                 {
-                  "$ref": "#/components/schemas/CloudProvider"
+                  "type": "null"
                 }
               ]
             }
@@ -2702,10 +2702,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/Environment"
                 },
                 {
-                  "$ref": "#/components/schemas/Environment"
+                  "type": "null"
                 }
               ]
             }
@@ -2717,10 +2717,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/ProjectStatus"
                 },
                 {
-                  "$ref": "#/components/schemas/ProjectStatus"
+                  "type": "null"
                 }
               ]
             }
@@ -3139,10 +3139,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/TaskStatus"
                 },
                 {
-                  "$ref": "#/components/schemas/TaskStatus"
+                  "type": "null"
                 }
               ]
             }
@@ -3154,10 +3154,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/TaskPriority"
                 },
                 {
-                  "$ref": "#/components/schemas/TaskPriority"
+                  "type": "null"
                 }
               ]
             }

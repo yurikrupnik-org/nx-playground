@@ -15,12 +15,12 @@
     "@monodon/rust": "3.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.13",
-    "@napi-rs/cli": "3.9.1",
+    "@biomejs/biome": "2.5.14",
+    "@napi-rs/cli": "3.10.4",
     "@nx-tools/nx-container": "^7.3.0",
     "@nx/workspace": "23.2.1",
     "@nxlv/python": "^23.1.1",
-    "@types/node": "26.5.1",
+    "@types/node": "26.6.1",
     "nx": "23.2.1"
   },
   "overrides": {

@@ -28,7 +28,7 @@ serde_json = "1.0"
 # No `v4`/`js`: nothing in the browser mints a UUID. Ids arrive on the wire and
 # the anonymous identity is `crypto.getRandomValues`-derived, exactly as in the
 # Solid app — so the getrandom wasm backend never has to be configured.
-uuid = { version = "1.19", features = ["serde"] }
+uuid = { version = "1.26", features = ["serde"] }
 # `default-features = false` drops chrono's `clock`/`wasmbind`: timestamps are
 # parsed off the wire, and the event feed's wall clock is `js_sys::Date` so it
 # formats identically to the Solid app's `toLocaleTimeString()`.

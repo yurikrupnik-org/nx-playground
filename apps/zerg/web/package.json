@@ -15,21 +15,21 @@
     "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
-    "jsdom": "^30.0.1",
+    "jsdom": "^30.1.0",
     "solid-devtools": "^0.34.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vite-plugin-solid": "2.11.14",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   },
   "dependencies": {
     "@contract/tasks": "workspace:*",
-    "@tanstack/solid-query": "^5.102.8",
-    "@tanstack/solid-router": "^1.170.33",
+    "@tanstack/solid-query": "^5.103.1",
+    "@tanstack/solid-router": "^1.170.36",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "solid-js": "^1.9.15",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.7.0"
   }
 }

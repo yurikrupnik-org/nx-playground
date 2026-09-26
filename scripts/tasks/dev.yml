@@ -58,10 +58,29 @@ tasks:
     cmds:
       - devkit secrets fetch -o .env.local
 
+  # Schema check of lefthook.yml — the gate for skill://lefthook-format. The
+  # hooks themselves only run in a clone where `lefthook install` was done.
+  hooks-check:
+    desc: Validate lefthook.yml (lefthook validate)
+    cmds:
+      - lefthook validate
+
   gen-ci:
     desc: Render .github/workflows/generated-ci.yml from the KCL CI config
     cmds:
       - kcl run scripts/kcl/ci/main.k -D config_file=manifests/ci/ci-config.yaml -S githubWorkflow > .github/workflows/generated-ci.yml
+
+  # Scoped to scripts/kcl: `kcl fmt ./...` from the root walks node_modules and
+  # target/ (14s vs 0.1s). Indent width comes from .editorconfig `[*.k]`.
+  fmt-kcl:
+    desc: Format every KCL file (kcl fmt)
+    cmds:
+      - kcl fmt ./scripts/kcl/...
+
+  fmt-check-kcl:
+    desc: KCL formatting gate — fails when `fmt-kcl` would change a file
+    cmds:
+      - kcl fmt --dry-run ./scripts/kcl/...
 
   # Run bacon, layering secrets resolved from vals (GCP Secret Manager) on top of
   # the inherited shell env (DATABASE_URL, REDIS_HOST, ... from direnv). `-i` keeps

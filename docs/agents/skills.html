@@ -52,7 +52,7 @@
 </head>
 <body>
 <h1>Agent skills, and why this repo has them</h1>
-<p class="lede">9 procedures, one corpus, 4 runtimes. Written once, exported everywhere, each one tied to a command that fails when it is ignored.</p>
+<p class="lede">10 procedures, one corpus, 4 runtimes. Written once, exported everywhere, each one tied to a command that fails when it is ignored.</p>
 
 <h2>The problem they solve</h2>
 <p>
@@ -168,6 +168,20 @@
           <dt>Proven by</dt><dd><code>task k8s-check</code></dd>
           <dt>Evidence</dt><dd><a href="../../butler.toml"><code>butler.toml</code></a> · <a href="../../docs/tilt-generators.md"><code>docs/tilt-generators.md</code></a></dd>
           <dt>Runtimes</dt><dd><span class="rt on">Claude Code</span><span class="rt on">Gemini CLI</span><span class="rt on">AWS Bedrock</span><span class="rt on">GCP Vertex AI (ADK)</span></dd>
+        </dl>
+      </article>
+      <article class="skill" id="lefthook-format">
+        <header>
+          <h3><a href="../../.claude/skills/lefthook-format/SKILL.md"><code>lefthook-format</code></a></h3>
+          <span class="badge adopted">adopted</span>
+          <span class="owner">scope:infra</span>
+        </header>
+        <p class="why">The obvious hook — run the whole-tree formatter and <code>stage_fixed</code> the result — commits only the staged files but rewrites every other file in the working tree, reformatting someone's unrelated WIP. The per-file forms each have a trap the task leaves never hit: bare <code>rustfmt</code> formats as edition 2015, explicit paths make <code>typos --write-changes</code> ignore <code>_typos.toml</code> excludes and rewrite vendored htmx, and <code>just</code>'s <code>{{files}}</code> splits a path with a space. Exported to local runtimes only: git hooks run in a checkout.</p>
+        <dl>
+          <dt>Fires when</dt><dd>Wire formatters into git hooks with lefthook — staged-file fixers on pre-commit, read-only gates on pre-push — calling the formatter binary directly, through <code>task</code>, through <code>just</code>, or any shell command. Use when editing lefthook.yml, adding/changing a formatter in a hook, when a hook rewrites files you did not stage, or when hooks do not run at all.</dd>
+          <dt>Proven by</dt><dd><code>task hooks-check</code></dd>
+          <dt>Evidence</dt><dd><a href="../../lefthook.yml"><code>lefthook.yml</code></a> · <a href="../../scripts/tasks/flows.yml"><code>scripts/tasks/flows.yml</code></a> · <a href="../../_typos.toml"><code>_typos.toml</code></a> · <a href="../../biome.json"><code>biome.json</code></a></dd>
+          <dt>Runtimes</dt><dd><span class="rt on">Claude Code</span><span class="rt on">Gemini CLI</span><span class="rt off">AWS Bedrock</span><span class="rt off">GCP Vertex AI (ADK)</span></dd>
         </dl>
       </article>
       <article class="skill" id="new-rust-crate">

@@ -9,8 +9,11 @@ import ..schemas.common as c
 # =============================================================================
 # PRESET GENERATORS
 # =============================================================================
-
-default_config = lambda name: str, pm: str = "bun", languages: [c.Language] = ["typescript"] -> cfg.MonorepoConfig {
+default_config = lambda {
+    name: str,
+    pm: str = "bun",
+    languages: [c.Language] = ["typescript"],
+} -> cfg.MonorepoConfig {
     """
     Standard NX monorepo CI.
 
@@ -35,7 +38,11 @@ default_config = lambda name: str, pm: str = "bun", languages: [c.Language] = ["
     }
 }
 
-with_rust = lambda name: str, pm: str = "bun", use_sccache: bool = False -> cfg.MonorepoConfig {
+with_rust = lambda {
+    name: str,
+    pm: str = "bun",
+    use_sccache: bool = False,
+} -> cfg.MonorepoConfig {
     """NX monorepo with Rust projects"""
     cfg.MonorepoConfig {
         name = name
@@ -76,7 +83,11 @@ full_stack = lambda name: str, pm: str = "bun" -> cfg.MonorepoConfig {
     }
 }
 
-without_cloud = lambda name: str, pm: str = "bun", languages: [c.Language] = ["typescript"] -> cfg.MonorepoConfig {
+without_cloud = lambda {
+    name: str,
+    pm: str = "bun",
+    languages: [c.Language] = ["typescript"],
+} -> cfg.MonorepoConfig {
     """NX monorepo without NX Cloud"""
     cfg.MonorepoConfig {
         name = name
@@ -89,7 +100,11 @@ without_cloud = lambda name: str, pm: str = "bun", languages: [c.Language] = ["t
     }
 }
 
-run_all = lambda name: str, pm: str = "bun", languages: [c.Language] = ["typescript"] -> cfg.MonorepoConfig {
+run_all = lambda {
+    name: str,
+    pm: str = "bun",
+    languages: [c.Language] = ["typescript"],
+} -> cfg.MonorepoConfig {
     """NX monorepo running all projects (not affected)"""
     cfg.MonorepoConfig {
         name = name
@@ -101,4 +116,3 @@ run_all = lambda name: str, pm: str = "bun", languages: [c.Language] = ["typescr
         use_affected = False
     }
 }
-

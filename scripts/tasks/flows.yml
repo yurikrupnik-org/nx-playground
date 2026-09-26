@@ -79,7 +79,7 @@ tasks:
       - osv-scanner --recursive .
 
   # Every ecosystem's native formatter, invoked once: rustfmt + cargo-sort
-  # (fmt-rust), buf (proto-fmt), biome (fmt-web), ruff (fmt-py), rumdl
+  # (fmt-rust), buf (proto-fmt), biome (fmt-web), ruff (fmt-py), kcl (fmt-kcl), rumdl
   # (fmt-docs), typos (fmt-spell). typos runs last on purpose — it rewrites words
   # inside files the others have already reflowed. Adding an ecosystem = a new
   # fmt-<eco> leaf appended here, same rule as `lint`/`test`.
@@ -90,6 +90,7 @@ tasks:
       - task: proto-fmt
       - task: fmt-web
       - task: fmt-py
+      - task: fmt-kcl
       - task: fmt-docs
       - task: fmt-spell
 
@@ -103,6 +104,7 @@ tasks:
       - task: fmt-check-rust
       - task: proto-fmt-check
       - task: fmt-check-py
+      - task: fmt-check-kcl
       - task: fmt-check-docs
       - task: fmt-check-spell
 

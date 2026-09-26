@@ -8,7 +8,6 @@ import ..schemas.config as cfg
 # =============================================================================
 # PRESET GENERATORS
 # =============================================================================
-
 default_config = lambda name: str -> cfg.GoServiceConfig {
     """
     Standard Go service CI.

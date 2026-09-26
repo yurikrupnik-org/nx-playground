@@ -5,7 +5,6 @@ Common types and enums for CI configuration.
 # =============================================================================
 # TYPE DEFINITIONS
 # =============================================================================
-
 type Language = "typescript" | "rust" | "go" | "python" | "java" | "kcl"
 type PackageManager = "bun" | "npm" | "pnpm" | "yarn" | "cargo" | "go" | "pip" | "poetry" | "uv"
 type MonorepoTool = "nx" | "turborepo" | "moonrepo" | "cargo-workspace" | "none"

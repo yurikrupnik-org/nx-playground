@@ -162,10 +162,10 @@
           "priority": {
             "oneOf": [
               {
-                "type": "null"
+                "$ref": "#/components/schemas/TodoPriority"
               },
               {
-                "$ref": "#/components/schemas/TodoPriority"
+                "type": "null"
               }
             ]
           },
@@ -240,10 +240,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/TodoPriority"
                 },
                 {
-                  "$ref": "#/components/schemas/TodoPriority"
+                  "type": "null"
                 }
               ]
             }

@@ -18,6 +18,7 @@ fails on drift, inside `task verify`.
 | [`db-migration`](../../.claude/skills/db-migration/SKILL.md) | adopted | `task migrate-validate DB=<db>` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
 | [`deps-maintenance`](../../.claude/skills/deps-maintenance/SKILL.md) | adopted | `task check (post-upkg) + task scan` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
 | [`kcl-package`](../../.claude/skills/kcl-package/SKILL.md) | adopted | `task k8s-check` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
+| [`lefthook-format`](../../.claude/skills/lefthook-format/SKILL.md) | adopted | `task hooks-check` | Claude Code, Gemini CLI |
 | [`new-rust-crate`](../../.claude/skills/new-rust-crate/SKILL.md) | adopted | `task lint-rust` | Claude Code, Gemini CLI, AWS Bedrock, GCP Vertex AI (ADK) |
 | [`precommit-review`](../../.claude/skills/precommit-review/SKILL.md) | adopted | `task review-bundle` | Claude Code, Gemini CLI |
 | [`repo-maintenance`](../../.claude/skills/repo-maintenance/SKILL.md) | adopted | none — gap `hook-enforced-only` | Claude Code |

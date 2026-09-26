@@ -18,15 +18,15 @@
     "@tanstack/solid-query": "6.0.0-rc.0",
     "effect": "^3.22.2",
     "solid-js": "2.0.0-rc.9",
-    "xstate": "^5.32.6"
+    "xstate": "^5.33.2"
   },
   "devDependencies": {
     "@solidjs/testing-library": "1.0.0-beta.3",
     "@solidjs/vite-plugin": "3.0.0-next.34",
     "@testing-library/jest-dom": "^7.0.1",
-    "jsdom": "^30.0.1",
+    "jsdom": "^30.1.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }

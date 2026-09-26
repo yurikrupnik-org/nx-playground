@@ -20,6 +20,9 @@
 #   <app>/k8s/values.yaml             the merged payload the KCL package validates
 #   <outDir>/<app>.yaml               that app rendered
 #   <outDir>/kustomization.yaml       the aggregate, one entry per app
+# Git submodules deploy from their own directory, `[submodules] outDir`
+# (`butler submodule gen`): a Flux GitRepository per .gitmodules entry, plus a
+# Kustomization or a KCL-rendered workload where butler.toml asks for one.
 version: '3'
 
 vars:
@@ -42,6 +45,7 @@ tasks:
         cargo run --quiet -p butler -- run-many -t k8s-gen
         {{.K8S_APPS_SH}}
         cargo run --quiet -p butler -- k8s gen --root --apps "$k8s_apps"
+        cargo run --quiet -p butler -- submodule gen
 
   k8s-gen-app:
     desc: 'Regenerate one app (butler, cached): task k8s-gen-app APP=<project>'
@@ -60,3 +64,4 @@ tasks:
         cargo run --quiet -p butler -- run-many -t k8s-check
         {{.K8S_APPS_SH}}
         cargo run --quiet -p butler -- k8s gen --root --check --apps "$k8s_apps"
+        cargo run --quiet -p butler -- submodule gen --check

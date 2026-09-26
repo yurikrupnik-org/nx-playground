@@ -8,7 +8,6 @@ import ..schemas.config as cfg
 # =============================================================================
 # PRESET CONFIGURATION
 # =============================================================================
-
 schema RustSinglePreset:
     """
     Pre-configured CI for Rust single applications.
@@ -38,7 +37,6 @@ schema RustSinglePreset:
 # =============================================================================
 # PRESET GENERATORS
 # =============================================================================
-
 default_config = lambda name: str, use_sccache: bool = False -> cfg.RustAppConfig {
     cfg.RustAppConfig {
         name = name
@@ -60,7 +58,8 @@ with_sccache_gcp = lambda name: str, bucket: str -> cfg.RustAppConfig {
         sccache_provider = "gcp"
         clippy = True
         rustfmt = True
-        use_cargo_cache = False  # sccache handles this
+        # sccache handles this
+        use_cargo_cache = False
         cargo_profile = "release"
     }
 }
@@ -86,6 +85,7 @@ library = lambda name: str -> cfg.RustAppConfig {
         rustfmt = True
         use_cargo_cache = True
         cargo_profile = "dev"
-        targets = ["lint", "test"]  # No build job
+        # No build job
+        targets = ["lint", "test"]
     }
 }

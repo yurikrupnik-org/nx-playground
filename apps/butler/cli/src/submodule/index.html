@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>butler · submodules</title>
+<style>
+  :root { color-scheme: light dark; --muted: #888; --line: #8884; --ok: #2a7; --warn: #c80; --bad: #d33; }
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 0 auto; max-width: 1200px; padding: 1.5rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 1rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .6rem; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: .8rem; text-transform: uppercase; }
+  code, pre, input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  input { padding: .3rem .4rem; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; }
+  input.url { width: 100%; box-sizing: border-box; }
+  button { padding: .3rem .7rem; border: 1px solid var(--line); border-radius: 4px; background: #8881; color: inherit; cursor: pointer; }
+  button:hover { background: #8883; }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .5; cursor: progress; }
+  .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .state { font-size: .8rem; padding: .05rem .4rem; border-radius: 3px; border: 1px solid currentColor; }
+  .pinned, .unchanged { color: var(--ok); }
+  .moved, .changed, .new { color: var(--warn); }
+  .uninitialized, .conflict, .stale { color: var(--bad); }
+  #status { min-height: 1.4rem; margin: .8rem 0; white-space: pre-wrap; }
+  #status.error { color: var(--bad); }
+  pre { background: #8881; padding: .8rem; overflow: auto; max-height: 28rem; border-radius: 4px; }
+  .file { cursor: pointer; }
+  .file.open { background: #8882; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>butler · git submodules</h1>
+
+<section>
+  <table>
+    <thead><tr><th>name</th><th>path</th><th style="width:34%">url</th><th>branch</th><th>pinned</th><th>checkout</th><th></th></tr></thead>
+    <tbody id="subs"><tr><td colspan="7" class="muted">loading…</td></tr></tbody>
+  </table>
+  <div class="row" style="margin-top:.6rem">
+    <button data-action="update-all">update all (checkout pins)</button>
+    <button data-action="bump-all">bump all to branch tips</button>
+  </div>
+</section>
+
+<h2>Add submodule</h2>
+<form id="add" class="row">
+  <input name="url" placeholder="https://github.com/org/repo" required size="44">
+  <input name="path" placeholder="path (optional)">
+  <input name="name" placeholder="name (optional)">
+  <input name="branch" placeholder="branch (optional)">
+  <button type="submit">add</button>
+</form>
+
+<div id="status"></div>
+
+<h2>Manifests <span id="outdir" class="muted"></span></h2>
+<div class="row">
+  <button data-action="preview">preview</button>
+  <button data-action="generate">generate</button>
+</div>
+<table style="margin-top:.6rem">
+  <thead><tr><th>file</th><th>status</th></tr></thead>
+  <tbody id="files"></tbody>
+</table>
+<pre id="content" hidden></pre>
+
+<script>
+"use strict";
+const $ = (sel) => document.querySelector(sel);
+const el = (tag, props = {}, ...children) => {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const child of children) node.append(child);
+  return node;
+};
+
+function say(text, isError = false) {
+  const box = $("#status");
+  box.textContent = text;
+  box.className = isError ? "error" : "";
+}
+
+async function api(method, path, body) {
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.headers["content-type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, init);
+  const data = await res.json().catch(() => ({ error: res.statusText }));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function busy(label, work) {
+  const buttons = document.querySelectorAll("button");
+  buttons.forEach((b) => (b.disabled = true));
+  say(label + "…");
+  try {
+    await work();
+  } catch (err) {
+    say(err.message, true);
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
+  }
+}
+
+function report(outcome, what) {
+  renderSubs(outcome.submodules);
+  const gen = outcome.generated;
+  if (!gen) return say(what + " (no butler.toml: nothing generated)");
+  const parts = [];
+  if (gen.written.length) parts.push("wrote " + gen.written.join(", "));
+  if (gen.removed.length) parts.push("removed " + gen.removed.join(", "));
+  parts.push(gen.unchanged + " unchanged");
+  say(what + " — manifests: " + parts.join("; "));
+}
+
+function renderSubs(subs) {
+  const body = $("#subs");
+  body.replaceChildren();
+  if (!subs.length) {
+    body.append(el("tr", {}, el("td", { colSpan: 7, className: "muted", textContent: "no submodules in .gitmodules" })));
+    return;
+  }
+  for (const s of subs) {
+    const url = el("input", { className: "url", value: s.url });
+    const branch = el("input", { value: s.branch ?? "", placeholder: "(remote HEAD)", size: 12 });
+    const state = s.checkout.state;
+    const stateText = state === "moved" ? "moved → " + s.checkout.commit.slice(0, 10) : state;
+    const save = el("button", { textContent: "save" });
+    save.onclick = () => busy("saving " + s.name, async () => {
+      const change = {};
+      if (url.value.trim() !== s.url) change.url = url.value.trim();
+      if (branch.value.trim() !== (s.branch ?? "")) change.branch = branch.value.trim();
+      if (!Object.keys(change).length) return say("nothing changed for " + s.name);
+      report(await api("PATCH", "/api/submodules/" + encodeURIComponent(s.name), change), "saved " + s.name);
+    });
+    const checkout = el("button", { textContent: "update" , title: "git submodule update --init" });
+    checkout.onclick = () => busy("updating " + s.name, async () =>
+      report(await api("POST", "/api/update", { names: [s.name], remote: false }), "checked out " + s.name));
+    const bump = el("button", { textContent: "bump", title: "git submodule update --remote, then stage the new pin" });
+    bump.onclick = () => busy("bumping " + s.name, async () =>
+      report(await api("POST", "/api/update", { names: [s.name], remote: true }), "bumped " + s.name));
+    const remove = el("button", { textContent: "remove", className: "danger" });
+    remove.onclick = () => {
+      if (!confirm("Remove submodule " + s.name + " (deinit + git rm " + s.path + ")?")) return;
+      busy("removing " + s.name, async () =>
+        report(await api("DELETE", "/api/submodules/" + encodeURIComponent(s.name)), "removed " + s.name));
+    };
+    body.append(el("tr", {},
+      el("td", {}, el("code", { textContent: s.name })),
+      el("td", {}, el("code", { textContent: s.path })),
+      el("td", {}, url),
+      el("td", {}, branch),
+      el("td", {}, el("code", { textContent: s.pinned ? s.pinned.slice(0, 10) : "—", title: s.pinned ?? "" })),
+      el("td", {}, el("span", { className: "state " + state, textContent: stateText })),
+      el("td", {}, el("div", { className: "row" }, save, checkout, bump, remove)),
+    ));
+  }
+}
+
+async function load() {
+  renderSubs(await api("GET", "/api/submodules"));
+}
+
+async function preview() {
+  const data = await api("GET", "/api/manifests");
+  $("#outdir").textContent = data.outDir;
+  const body = $("#files");
+  body.replaceChildren();
+  const content = $("#content");
+  content.hidden = true;
+  for (const f of data.files) {
+    const row = el("tr", { className: "file" },
+      el("td", {}, el("code", { textContent: f.path })),
+      el("td", {}, el("span", { className: "state " + f.status, textContent: f.status })));
+    row.onclick = () => {
+      body.querySelectorAll(".open").forEach((r) => r.classList.remove("open"));
+      row.classList.add("open");
+      content.textContent = f.content;
+      content.hidden = false;
+    };
+    body.append(row);
+  }
+  for (const path of data.stale) {
+    body.append(el("tr", {},
+      el("td", {}, el("code", { textContent: path })),
+      el("td", {}, el("span", { className: "state stale", textContent: "stale (will be removed)" }))));
+  }
+  const pending = data.files.filter((f) => f.status !== "unchanged").length + data.stale.length;
+  say(pending ? pending + " file(s) differ from disk" : "manifests up to date");
+}
+
+$("#add").onsubmit = (ev) => {
+  ev.preventDefault();
+  const form = new FormData(ev.target);
+  const req = {};
+  for (const [k, v] of form) if (String(v).trim()) req[k] = String(v).trim();
+  busy("adding " + req.url, async () => {
+    report(await api("POST", "/api/submodules", req), "added " + req.url);
+    ev.target.reset();
+  });
+};
+
+document.addEventListener("click", (ev) => {
+  const action = ev.target.dataset?.action;
+  if (!action) return;
+  const run = {
+    "update-all": () => busy("updating all", async () =>
+      report(await api("POST", "/api/update", { names: [], remote: false }), "checked out all pins")),
+    "bump-all": () => busy("bumping all", async () =>
+      report(await api("POST", "/api/update", { names: [], remote: true }), "bumped all")),
+    preview: () => busy("rendering", preview),
+    generate: () => busy("generating", async () => {
+      const gen = await api("POST", "/api/manifests", {});
+      await preview();
+      say("wrote " + gen.written.length + ", removed " + gen.removed.length + ", " + gen.unchanged + " unchanged");
+    }),
+  }[action];
+  run?.();
+});
+
+busy("loading", load);
+</script>
+</body>
+</html>

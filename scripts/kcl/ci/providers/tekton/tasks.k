@@ -10,7 +10,6 @@ import ...schemas.common as c
 # =============================================================================
 # COMMON TASKS
 # =============================================================================
-
 git_clone = lambda -> schemas.TektonTask {
     schemas.TektonTask {
         metadata = metav1.ObjectMeta {name = "git-clone"}
@@ -41,7 +40,6 @@ git checkout $(params.revision)
 # =============================================================================
 # NODE/BUN TASKS
 # =============================================================================
-
 install_node_deps = lambda pm: str = "bun" -> schemas.TektonTask {
     _cmd = {
         bun = "bun install"
@@ -68,7 +66,11 @@ install_node_deps = lambda pm: str = "bun" -> schemas.TektonTask {
     }
 }
 
-nx_task = lambda target: str, pm: str = "bun", use_affected: bool = True -> schemas.TektonTask {
+nx_task = lambda {
+    target: str,
+    pm: str = "bun",
+    use_affected: bool = True,
+} -> schemas.TektonTask {
     _image = c.TEKTON_IMAGES.bun if pm == "bun" else c.TEKTON_IMAGES.node
 
     schemas.TektonTask {
@@ -120,7 +122,6 @@ node_script = lambda name: str, script: str, pm: str = "bun" -> schemas.TektonTa
 # =============================================================================
 # RUST TASKS
 # =============================================================================
-
 cargo_task = lambda cmd: str, args: str = "" -> schemas.TektonTask {
     schemas.TektonTask {
         metadata = metav1.ObjectMeta {name = "cargo-${cmd}"}
@@ -142,7 +143,6 @@ cargo_task = lambda cmd: str, args: str = "" -> schemas.TektonTask {
 # =============================================================================
 # GO TASKS
 # =============================================================================
-
 go_task = lambda cmd: str, args: str = "" -> schemas.TektonTask {
     schemas.TektonTask {
         metadata = metav1.ObjectMeta {name = "go-${cmd}"}

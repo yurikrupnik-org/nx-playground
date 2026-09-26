@@ -142,7 +142,7 @@ status = "adopted"
 cncf = "not-cncf"
 install = "none — host tool"
 usage = ["lefthook.yml"]
-gate = "self (pre-commit/pre-push), only if installed locally"
+gate = "task hooks-check (config schema); the hooks themselves run only if installed locally"
 paid = false
 owner = "scope:infra"
 
@@ -291,7 +291,7 @@ cncf = "sandbox"
 install = ".github/workflows/claude-maintenance.yml"
 key = "install-cli.sh"
 usage = ["apps/butler/cli/src/k8s.rs", "manifests/k8s/apps/*.yaml", "scripts/kcl/ci"]
-gate = "task k8s-check, task tilt-check, task gen-ci"
+gate = "task k8s-check, task tilt-check, task gen-ci, task fmt-check-kcl"
 paid = true
 owner = "scope:infra"
 approval = { by = "pre-existing", date = "", cap = "Docker Hub storage", review = "" }

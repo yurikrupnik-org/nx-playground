@@ -151,28 +151,29 @@ pub fn generate(
 // Resolution
 
 /// An app that deploys something: everything the values files need, with the
-/// workload payload still opaque.
-struct WorkloadApp {
+/// workload payload still opaque. Also built by [`crate::submodule`] for a
+/// submodule's `[workload]`, which has no project in the graph.
+pub(crate) struct WorkloadApp {
     /// Workspace-root-relative app directory.
-    dir: String,
+    pub(crate) dir: String,
     /// `<dir>/butler.toml`, for error messages that name where to make the fix.
-    file: String,
+    pub(crate) file: String,
     /// Image basename (`todo-web-htmx`) — the workload name, the Tilt resource
     /// and the rendered file's stem, all one string.
-    name: String,
+    pub(crate) name: String,
     /// Image repository with the registry substituted and no tag.
-    repository: String,
+    pub(crate) repository: String,
     /// Product segment of the app path; the namespace and `partOf`.
-    product: String,
-    kind: tilt::Kind,
+    pub(crate) product: String,
+    pub(crate) kind: tilt::Kind,
     /// The app's own `[workload]`, verbatim.
-    declared: Value,
-    config: Option<BTreeMap<String, String>>,
-    external_secret: Option<Value>,
+    pub(crate) declared: Value,
+    pub(crate) config: Option<BTreeMap<String, String>>,
+    pub(crate) external_secret: Option<Value>,
     /// Every environment this app gets a values file for: the ones it declares
     /// plus every one the repo knows. An environment with no diffs still needs
     /// a file — the package hard-errors on a missing overlay for `-D env=`.
-    envs: BTreeMap<String, AppEnv>,
+    pub(crate) envs: BTreeMap<String, AppEnv>,
 }
 
 fn resolve(
@@ -226,7 +227,7 @@ fn resolve(
 
 /// Every environment the repo deploys: the default one plus every one that
 /// pins an image tag.
-fn repo_envs(root: &Root) -> BTreeSet<String> {
+pub(crate) fn repo_envs(root: &Root) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     out.insert(root.env.clone());
     out.extend(root.k8s.image_tag.keys().cloned());
@@ -326,7 +327,7 @@ pub(crate) fn workload_port(workload: &Value) -> u16 {
 // Values files
 
 /// Every values file one app needs, keyed by bare filename.
-fn values_files(root: &Root, app: &WorkloadApp) -> Result<BTreeMap<String, String>> {
+pub(crate) fn values_files(root: &Root, app: &WorkloadApp) -> Result<BTreeMap<String, String>> {
     reject_declared_image(root, app)?;
     let mut out = BTreeMap::new();
     out.insert("values.yaml".to_string(), values_for(root, app, None)?);
@@ -525,7 +526,11 @@ fn package_ref(root: &Root) -> String {
 /// The values files go to a scratch directory first, so `gen` and `--check`
 /// render from exactly the bytes butler just computed — never from a stale
 /// values file, and never disturbed by a leftover `kcl.mod` in the app tree.
-fn render(root: &Root, app: &WorkloadApp, values: &BTreeMap<String, String>) -> Result<String> {
+pub(crate) fn render(
+    root: &Root,
+    app: &WorkloadApp,
+    values: &BTreeMap<String, String>,
+) -> Result<String> {
     let scratch = Scratch::new(&app.name)?;
     for (name, body) in values {
         std::fs::write(scratch.0.join(name), body)

@@ -13,6 +13,7 @@ name = "butler"
 path = "src/main.rs"
 
 [dependencies]
+axum = { workspace = true }
 clap = { workspace = true }
 eyre = { workspace = true }
 globset = { workspace = true }

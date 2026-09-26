@@ -1,13 +1,13 @@
 //! Git integration: the workspace file listing (for hashing). Shells out to
 //! `git`, like nx does; change detection for `affected` is in
-//! [`crate::affected`].
+//! [`crate::affected`], submodule management in [`crate::submodule`].
 
 use std::path::Path;
 use std::process::Command;
 
 use eyre::{Result, WrapErr, bail};
 
-fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
+pub(crate) fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
     let out = Command::new("git")
         .args(args)
         .current_dir(root)

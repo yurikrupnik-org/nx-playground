@@ -555,10 +555,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/ResourceType"
                 },
                 {
-                  "$ref": "#/components/schemas/ResourceType"
+                  "type": "null"
                 }
               ]
             }
@@ -570,10 +570,10 @@
             "schema": {
               "oneOf": [
                 {
-                  "type": "null"
+                  "$ref": "#/components/schemas/ResourceStatus"
                 },
                 {
-                  "$ref": "#/components/schemas/ResourceStatus"
+                  "type": "null"
                 }
               ]
             }

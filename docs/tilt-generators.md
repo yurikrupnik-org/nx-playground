@@ -329,6 +329,59 @@ extraResources = ["../dev"]
 That directory carries a `kustomization.yaml` of its own because kustomize
 refuses to accumulate a file outside its root but accepts a sibling directory.
 
+## Git submodules
+
+A submodule is another repository, so it is not an app of this workspace:
+butler's config walk skips any directory holding a `.git` (a submodule's is a
+file), and git lists none of its files to the project graph. What this repo owns
+is *which commit of it deploys*, and that is what `butler submodule` manages.
+
+```bash
+butler submodule list [--json]                 # .gitmodules + pinned commit + checkout state
+butler submodule add <url> [--path P] [--name N] [-b BRANCH]
+butler submodule set <name> [--url U] [-b BRANCH | --default-branch]
+butler submodule update [NAME...] [--remote]   # --remote: move to branch tips, stage the new pins
+butler submodule remove <name>                 # deinit + git rm (.git/modules/<name> stays, as git leaves it)
+butler submodule gen [--check]
+butler submodule serve [--addr 127.0.0.1:7878] # web UI over the same operations
+```
+
+`.gitmodules` stays git's file: every change goes through `git submodule`
+(`add`, `set-url`, `set-branch`, `deinit`, `update`) or `git rm`, so the index,
+`.git/config` and `.git/modules` never disagree with it, and butler reads it back
+through `git config -f .gitmodules`. Every change then regenerates the manifests,
+so a bumped pin and its Flux source land in the same commit.
+
+| artifact under `[submodules] outDir` | content |
+|---|---|
+| `<name>.flux.yaml` | Flux `GitRepository` for every `.gitmodules` entry, `ref.commit` = the gitlink the index pins (`track = "branch"` follows the `.gitmodules` branch instead); plus a Flux `Kustomization` when `[submodule.<name>] kustomize` names a path inside the submodule |
+| `<name>.yaml` | `[submodule.<name>.workload]` rendered by the `app` KCL package — same merge (`[workloadDefaults.<kind>]`, `[env.<env>.workload]`) and image rules as an app, kind taken from the checked-out submodule's files, image `$REGISTRY/<name>` unless `image` says otherwise |
+| `kustomization.yaml` | one entry per generated file |
+
+```toml
+[submodules]                         # all optional
+outDir = "manifests/k8s/submodules"  # must differ from [k8s] outDir: gen prunes it
+fluxNamespace = "flux-system"
+interval = "10m"
+
+[submodule.first-rust-app]           # key = the .gitmodules name
+kustomize = "k8s/base"               # Flux applies the submodule's own manifests
+namespace = "first-rust-app"         # default: the name
+```
+
+`gen` deletes generated files in `outDir` that no submodule produces any more
+(hand-written files there are left alone), and `--check` reports them as drift;
+`task k8s-gen` / `task k8s-check` run both. Flux cannot fetch relative or local
+`.gitmodules` URLs, so those are an error; scp-style `git@host:org/repo` is
+rewritten to `ssh://`. `remove` refuses while butler.toml still has a
+`[submodule.<name>]` table, so the removal cannot leave a config that fails the
+next generation.
+
+The web UI binds to loopback by default and rejects non-loopback `Host`
+headers there; every state change needs a JSON body or a non-simple method, so a
+foreign page cannot trigger one without a CORS preflight the server never
+answers.
+
 ## Two intentional behaviour changes
 
 Both fell out of removing duplication, and both are decisions with evidence, not

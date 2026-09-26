@@ -20,6 +20,7 @@ mod k8s;
 mod nxgraph;
 mod runner;
 mod settings;
+mod submodule;
 mod task;
 mod tilt;
 
@@ -103,6 +104,68 @@ enum Cmd {
     K8s {
         #[command(subcommand)]
         command: K8sCmd,
+    },
+    /// Manage `.gitmodules` through git, and generate the Flux / KCL manifests
+    /// that deploy each submodule. Every change regenerates the manifests.
+    Submodule {
+        #[command(subcommand)]
+        command: SubmoduleCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum SubmoduleCmd {
+    /// List submodules: `.gitmodules` entries, the commit the index pins, and
+    /// the checkout state.
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// `git submodule add`, then regenerate.
+    Add {
+        url: String,
+        /// Checkout directory (default: the URL's basename).
+        #[arg(long)]
+        path: Option<String>,
+        /// `.gitmodules` name (default: the path).
+        #[arg(long)]
+        name: Option<String>,
+        /// Branch `update --remote` follows.
+        #[arg(short = 'b', long)]
+        branch: Option<String>,
+    },
+    /// Change a submodule's URL and/or branch in `.gitmodules`, then
+    /// regenerate.
+    Set {
+        name: String,
+        #[arg(long)]
+        url: Option<String>,
+        #[arg(short = 'b', long, conflicts_with = "default_branch")]
+        branch: Option<String>,
+        /// Drop the branch: `update --remote` follows the remote's HEAD.
+        #[arg(long)]
+        default_branch: bool,
+    },
+    /// Deinit and `git rm` a submodule, then regenerate.
+    Remove { name: String },
+    /// Check out the pinned commits (`--init`); with `--remote`, move to each
+    /// branch tip and stage the new pins. Then regenerate.
+    Update {
+        /// Submodule names (default: all).
+        names: Vec<String>,
+        #[arg(long)]
+        remote: bool,
+    },
+    /// Write the submodule manifests under `[submodules] outDir`.
+    Gen {
+        /// Fail instead of writing when the on-disk manifests have drifted.
+        #[arg(long)]
+        check: bool,
+    },
+    /// Serve the web UI.
+    Serve {
+        #[arg(long, default_value = "127.0.0.1:7878")]
+        addr: std::net::SocketAddr,
     },
 }
 
@@ -268,12 +331,17 @@ enum ShowCmd {
 fn main() -> Result<()> {
     let cli = Cli::parse_from(split_overrides(std::env::args().collect()));
     let root = discovery::find_workspace_root()?;
-    let nx = config::NxJson::load(&root)?;
     let settings = if root.join(settings::FILE).exists() {
         Some(settings::Root::load(&root)?)
     } else {
         None
     };
+    // Submodule management needs neither nx config nor a project graph.
+    let command = match cli.command {
+        Cmd::Submodule { command } => return run_submodule(&root, settings.as_ref(), command),
+        other => other,
+    };
+    let nx = config::NxJson::load(&root)?;
     let overrides = match &settings {
         Some(s) => Some(settings::load_app_overrides(&root, s)?),
         None => None,
@@ -309,7 +377,7 @@ fn main() -> Result<()> {
         }
     };
 
-    match cli.command {
+    match command {
         Cmd::RunMany {
             targets,
             projects,
@@ -462,6 +530,7 @@ fn main() -> Result<()> {
                 tilt::write_files(&out, &files)?;
             }
         }
+        Cmd::Submodule { .. } => unreachable!("dispatched before graph discovery"),
         Cmd::K8s {
             command:
                 K8sCmd::Gen {
@@ -500,6 +569,118 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn run_submodule(
+    root: &Path,
+    settings: Option<&settings::Root>,
+    command: SubmoduleCmd,
+) -> Result<()> {
+    let changed = match command {
+        SubmoduleCmd::List { json } => {
+            let subs = submodule::load(root)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&subs)?);
+            } else {
+                for s in &subs {
+                    let pinned = s.pinned.as_deref().map_or("-", |p| &p[..p.len().min(10)]);
+                    let checkout = match &s.checkout {
+                        submodule::Checkout::Uninitialized => "uninitialized".to_string(),
+                        submodule::Checkout::Pinned => "pinned".to_string(),
+                        submodule::Checkout::Moved(c) => {
+                            format!("moved to {}", &c[..c.len().min(10)])
+                        }
+                        submodule::Checkout::Conflict => "conflict".to_string(),
+                    };
+                    println!(
+                        "{}\t{}\t{}\t{}\t{pinned}\t{checkout}",
+                        s.name,
+                        s.path,
+                        s.url,
+                        s.branch.as_deref().unwrap_or("-"),
+                    );
+                }
+            }
+            return Ok(());
+        }
+        SubmoduleCmd::Gen { check } => {
+            let settings = settings.ok_or_else(|| {
+                eyre::eyre!(
+                    "this command needs a {} at {}",
+                    settings::FILE,
+                    root.display()
+                )
+            })?;
+            let plan = submodule::manifests::plan(root, settings, &submodule::load(root)?)?;
+            if check {
+                let drifted = plan.drift(root);
+                if !drifted.is_empty() {
+                    for d in &drifted {
+                        println!("drift: {d}");
+                    }
+                    bail!(
+                        "{} submodule manifest(s) are stale; run `butler submodule gen`",
+                        drifted.len()
+                    );
+                }
+                println!("{} submodule manifests up to date", plan.files.len());
+            } else {
+                print_report(&plan.apply(root)?);
+            }
+            return Ok(());
+        }
+        SubmoduleCmd::Serve { addr } => return submodule::serve::run(root.to_path_buf(), addr),
+        SubmoduleCmd::Add {
+            url,
+            path,
+            name,
+            branch,
+        } => submodule::add(
+            root,
+            &submodule::AddRequest {
+                url,
+                path,
+                name,
+                branch,
+            },
+        ),
+        SubmoduleCmd::Set {
+            name,
+            url,
+            branch,
+            default_branch,
+        } => submodule::set(
+            root,
+            &name,
+            &submodule::SetRequest {
+                url,
+                branch: if default_branch {
+                    Some(String::new())
+                } else {
+                    branch
+                },
+            },
+        ),
+        SubmoduleCmd::Remove { name } => submodule::remove(root, settings, &name),
+        SubmoduleCmd::Update { names, remote } => {
+            submodule::update(root, &submodule::UpdateRequest { names, remote })
+        }
+    };
+    changed?;
+    if let Some(report) = submodule::regenerate_after_change(root, settings)? {
+        print_report(&report);
+    }
+    Ok(())
+}
+
+fn print_report(report: &submodule::manifests::GenReport) {
+    for rel in &report.written {
+        println!("wrote {rel}");
+    }
+    for rel in &report.removed {
+        println!("removed {rel}");
+    }
+    println!("{} submodule manifests unchanged", report.unchanged);
 }
 
 /// nx hands every argument it does not recognize to the tasks as overrides

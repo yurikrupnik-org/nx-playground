@@ -8,7 +8,6 @@ import ...schemas.common as c
 # =============================================================================
 # CHECKOUT & SETUP
 # =============================================================================
-
 checkout = lambda fetch_depth: int = 0 -> {str:} {
     {
         name = "Checkout"
@@ -20,7 +19,6 @@ checkout = lambda fetch_depth: int = 0 -> {str:} {
 # =============================================================================
 # TOOL SETUP STEPS
 # =============================================================================
-
 mise = lambda working_dir: str = "", cache_prefix: str = "mise" -> {str:} {
     {
         name = "Setup mise"
@@ -37,7 +35,9 @@ bun = lambda version: str = c.DEFAULT_BUN_VERSION -> {str:} {
     {
         name = "Setup Bun"
         uses = c.GHA_ACTIONS.setup_bun
-    } | ({"with" = {"bun-version" = version}} if version != c.DEFAULT_BUN_VERSION else {})
+    } | ({
+        "with" = {"bun-version" = version}
+    } if version != c.DEFAULT_BUN_VERSION else {})
 }
 
 node = lambda version: str = c.DEFAULT_NODE_VERSION -> {str:} {
@@ -71,7 +71,9 @@ uv = lambda python_version: str = "" -> {str:} {
     {
         name = "Setup uv"
         uses = c.GHA_ACTIONS.setup_uv
-    } | ({"with" = {"python-version" = python_version}} if python_version else {})
+    } | ({
+        "with" = {"python-version" = python_version}
+    } if python_version else {})
 }
 
 rustup = lambda channel: str = "stable", components: [str] = [] -> {str:} {
@@ -92,7 +94,6 @@ rust_cache = lambda -> {str:} {
 # =============================================================================
 # CACHE & AUTH STEPS
 # =============================================================================
-
 sccache = lambda -> {str:} {
     {
         name = "Setup sccache"
@@ -111,7 +112,10 @@ gcp_auth = lambda credentials_secret: str = "GCP_SA_KEY" -> {str:} {
     }
 }
 
-aws_auth = lambda role_arn_secret: str = "AWS_ROLE_ARN", region: str = "us-east-1" -> {str:} {
+aws_auth = lambda {
+    role_arn_secret: str = "AWS_ROLE_ARN",
+    region: str = "us-east-1",
+} -> {str:} {
     _prefix = r"${{ secrets."
     _suffix = r" }}"
     _secret_ref = _prefix + role_arn_secret + _suffix
@@ -128,7 +132,6 @@ aws_auth = lambda role_arn_secret: str = "AWS_ROLE_ARN", region: str = "us-east-
 # =============================================================================
 # PACKAGE MANAGER STEPS
 # =============================================================================
-
 install_deps = lambda pm: str = "bun" -> {str:} {
     _cmd = {
         bun = "bun install --frozen-lockfile"
@@ -148,7 +151,6 @@ install_deps = lambda pm: str = "bun" -> {str:} {
 # =============================================================================
 # MONOREPO STEPS
 # =============================================================================
-
 nx_shas = lambda -> {str:} {
     {
         name = "Set NX SHAs"
@@ -180,7 +182,6 @@ turbo_run = lambda target: str, pm: str = "bun" -> {str:} {
 # =============================================================================
 # BUILD & TEST STEPS
 # =============================================================================
-
 run_script = lambda name: str, script: str -> {str:} {
     {
         name = name
@@ -205,8 +206,11 @@ go_cmd = lambda cmd: str, args: str = "" -> {str:} {
 # =============================================================================
 # DOCKER STEPS
 # =============================================================================
-
-docker_login = lambda registry: str = "", username_secret: str = "DOCKER_USERNAME", password_secret: str = "DOCKER_PASSWORD" -> {str:} {
+docker_login = lambda {
+    registry: str = "",
+    username_secret: str = "DOCKER_USERNAME",
+    password_secret: str = "DOCKER_PASSWORD",
+} -> {str:} {
     _prefix = r"${{ secrets."
     _suffix = r" }}"
     _username_ref = _prefix + username_secret + _suffix
@@ -228,7 +232,12 @@ docker_buildx = lambda -> {str:} {
     }
 }
 
-docker_build_push = lambda image: str, tags: [str] = [], push: bool = True, context: str = "." -> {str:} {
+docker_build_push = lambda {
+    image: str,
+    tags: [str] = [],
+    push: bool = True,
+    context: str = ".",
+} -> {str:} {
     {
         name = "Build and push Docker image"
         uses = c.GHA_ACTIONS.docker_build_push
@@ -243,7 +252,6 @@ docker_build_push = lambda image: str, tags: [str] = [], push: bool = True, cont
 # =============================================================================
 # TAURI STEPS
 # =============================================================================
-
 tauri_build = lambda -> {str:} {
     {
         name = "Build Tauri app"
