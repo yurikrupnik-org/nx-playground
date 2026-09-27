@@ -1,0 +1,26 @@
+# Zerg web group — local Docker development workflow
+# Usage: task web (runs `task web-deps` first; or: mprocs -c manifests/mprocs/web.yaml)
+#
+# Everything zerg-web needs and nothing else: zerg-api + zerg-tasks (bacon
+# hot-reload) + zerg-web (vite). Infra is the compose postgres/redis/nats that
+# `task web-deps` ensures (and seeds). The full zerg set — email worker and the
+# replica harness included — stays in manifests/mprocs/local.yaml (`task dev`).
+# Env matches local.yaml; everything else comes from the root .env via Task's
+# dotenv (REDIS_HOST, NATS_URL, WORKOS_*, CORS_ALLOWED_ORIGIN, PORT=8080, ...).
+# For the Crossplane/kind variant: task web-kind (manifests/mprocs/web-kind.yaml).
+
+procs:
+  # Rust API on :8080 (hard deps: postgres `zerg`, redis, nats).
+  zerg-api:
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/zerg' bacon zerg-api"
+    stop: "SIGTERM"
+
+  # Tasks gRPC service; zerg-api's client is lazy, so start order does not matter.
+  zerg-tasks:
+    shell: "DATABASE_URL='postgres://myuser:mypassword@localhost:5432/tasks' bacon zerg-tasks"
+    stop: "SIGTERM"
+
+  # Frontend (vite HMR on :3000, proxies /api -> http://localhost:8080).
+  zerg-web:
+    shell: "bun nx dev zerg-web"
+    stop: "SIGTERM"

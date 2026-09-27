@@ -41,8 +41,16 @@ tilt up
 # Or run services without k8s
 task docker-up        # Start Postgres, Redis, NATS via Docker Compose
 cargo run -p api       # Start the API service
-task web               # Start the web frontend
+task web               # Zerg web full stack: compose infra + seeded DBs, then zerg-api/zerg-tasks/zerg-web (mprocs)
+task web-kind          # Same on kind via the Crossplane DevEnvironment (needs a cluster with Crossplane core)
+task web-only          # Just the zerg-web vite dev server
 ```
+
+Once `task web` is up, <http://localhost:3000/schemas> ("Data map") browses every
+schema in the repo: live Postgres tables with row previews (dev-only
+`/api/catalog` routes, sign-in required), the OpenAPI models in `docs/openapi/`,
+the Crossplane XRDs in `platform/*/xrd.yaml`, and any JSON Schema / OpenAPI /
+CRD you paste in (kept in browser storage).
 
 ## Environment Variables
 
@@ -91,10 +99,11 @@ libs/
   testing/
     test-utils/     # Shared test utilities & testcontainers
 
-scripts/kcl/ci/     # KCL-based CI pipeline generator (GitHub Actions + Tekton)
+scripts/kcl/ci/     # KCL-based CI pipeline generator (GitHub Actions)
 
 manifests/
   k8s/              # Kustomize base + overlays (dev/prod)
+  tekton/           # GENERATED Tekton Tasks + a Pipeline per target (butler tekton gen)
   schemas/          # Database schema (HCL, SQL, DBML) + seed data
   migrations/       # Atlas migration files
 ```
@@ -211,3 +220,8 @@ CI runs on GitHub Actions (`.github/workflows/ci-optimized.yml`) with parallel j
 Features: Nx Cloud caching, sccache with GCS backend, Workload Identity Federation, SARIF upload to GitHub Security.
 
 The CI pipeline configuration is generated from KCL in `scripts/kcl/ci/`.
+
+Every runnable target — nx `project:target`, Taskfile task, nu script, and a
+build-and-deploy per app — also has a generated Tekton Pipeline in
+`manifests/tekton` (`task tekton-gen`, gated by `task tekton-check`; see
+`docs/tilt-generators.md`).

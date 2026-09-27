@@ -211,7 +211,10 @@ arm in this repo that has nothing to do with bytes.
 
 - **Automating against the API, or working from a shell** → `x`. Zero bytes per
   use, and it gains endpoints for free.
-- **Exploring what an API offers** → `x api list`, then `x ui`.
+- **Exploring what an API offers** → `x api list`, then `x ui`. For the shape
+  of any JSON Schema or OpenAPI document — ours or a third party's, e.g.
+  `x schema https://taskfile.dev/schema.json --at /definitions/task` — use
+  `x schema`.
 - **A browser UI for this workspace** → Solid. It is 2.5× smaller, and it shares
   DTOs with the server instead of re-declaring them.
 - **A browser UI where the logic genuinely must be shared Rust** → Leptos, and

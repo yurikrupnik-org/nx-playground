@@ -2,7 +2,7 @@
 
 This guide explains how to manage environment-specific configurations for the zerg API across different deployment environments.
 
-All of it is declared in `apps/zerg/api/butler.toml` — `[config]` and `[env.<env>.config]` for values, `[env.prod.externalSecret]` for secret references — and rendered by `task k8s-gen` into `k8s/values*.yaml` and `manifests/k8s/apps/zerg-api.yaml`.
+All of it is declared in `apps/zerg/api/butler.toml` — `[config]` and `[env.<env>.config]` for values, `[env.prod.externalSecret]` for secret references — and rendered by `task k8s-gen` into `k8s/values*.yaml` and `manifests/k8s/dev/zerg-api.yaml`.
 
 ## Environment Variables
 
@@ -88,7 +88,7 @@ FRONTEND_URL = "https://zerg.${GATEWAY_SUFFIX}"
 
 No secret value is ever written in `butler.toml`. Two homes, one per environment:
 
-1. **Local dev** — placeholder literals in `manifests/k8s/dev/app-secrets.yaml`
+1. **Local dev** — placeholder literals in `manifests/k8s/fixtures/dev/app-secrets.yaml`
    (Secret `zerg-api-secrets`), pulled into the generated aggregate through the root
    `butler.toml` `[k8s] extraResources` list. Put your own WorkOS values there.
 2. **Prod** — an `ExternalSecret` of the same name, rendered from
@@ -182,10 +182,10 @@ tilt up
 
 ```bash
 # Apply this app alone…
-kubectl apply -f manifests/k8s/apps/zerg-api.yaml
+kubectl apply -f manifests/k8s/dev/zerg-api.yaml
 
 # …or every app plus the dev-only Secret fixtures, as `task todo-apply` does
-kubectl apply -k manifests/k8s/apps
+kubectl apply -k manifests/k8s/dev
 
 # Verify deployment
 kubectl get pods -n zerg
@@ -195,7 +195,7 @@ kubectl logs -n zerg deployment/zerg-api
 ### Production (ArgoCD)
 
 Configuration changes are automatically synchronized when committed to the main branch.
-What is synchronized is the **generated** output under `manifests/k8s/apps`, so a
+What is synchronized is the **generated** output under `manifests/k8s/dev`, so a
 `butler.toml` edit committed without `task k8s-gen` deploys nothing.
 
 ## Troubleshooting

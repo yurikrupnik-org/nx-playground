@@ -22,6 +22,13 @@
 //! fetched from a running server, which is how the same binary drives a
 //! deployment it was not built against.
 //!
+//! # Viewing any schema
+//!
+//! `x schema <SOURCE>` is the one command not derived from a document: it
+//! prints any JSON Schema or OpenAPI document — a path, a URL or stdin, JSON
+//! or YAML — as a tree, `--at <pointer>` starting at one definition. See
+//! [`schema`].
+//!
 //! # Credentials
 //!
 //! Guarded routes are 401 to an anonymous client, so the document's
@@ -42,6 +49,7 @@ pub mod command;
 pub mod exec;
 pub mod model;
 pub mod render;
+pub mod schema;
 pub mod spec;
 pub mod ui;
 
@@ -104,19 +112,11 @@ pub fn builtin_registry() -> eyre::Result<Registry> {
 /// on `https://todo.example.com`, which is exactly the remote-worker case and
 /// removes the need to pass `--base-url` alongside `--spec`.
 pub async fn remote_registry(source: &str) -> eyre::Result<Registry> {
-    let (raw, origin) = if source.starts_with("http://") || source.starts_with("https://") {
-        let response = reqwest::get(source)
-            .await
-            .map_err(|e| eyre::eyre!("{source} unreachable: {e}"))?
-            .error_for_status()
-            .map_err(|e| eyre::eyre!("{source}: {e}"))?;
-        let text = response.text().await?;
-        let origin = origin_of(source)?;
-        (text, origin)
+    let raw = read_source(source, None).await?;
+    let origin = if source.starts_with("http://") || source.starts_with("https://") {
+        origin_of(source)?
     } else {
-        let text = std::fs::read_to_string(source)
-            .map_err(|e| eyre::eyre!("cannot read spec `{source}`: {e}"))?;
-        (text, String::new())
+        String::new()
     };
 
     let doc = Doc::parse(source, &raw)?;
@@ -125,6 +125,31 @@ pub async fn remote_registry(source: &str) -> eyre::Result<Registry> {
         origin,
         doc,
     }]))
+}
+
+/// A document's text from an `http(s)` URL, `-` (stdin) or a file path.
+pub async fn read_source(source: &str, timeout: Option<Duration>) -> eyre::Result<String> {
+    if source.starts_with("http://") || source.starts_with("https://") {
+        let mut client = reqwest::Client::builder();
+        if let Some(timeout) = timeout {
+            client = client.timeout(timeout);
+        }
+        let response = client
+            .build()?
+            .get(source)
+            .send()
+            .await
+            .map_err(|e| eyre::eyre!("{source} unreachable: {e}"))?
+            .error_for_status()
+            .map_err(|e| eyre::eyre!("{source}: {e}"))?;
+        return Ok(response.text().await?);
+    }
+    if source == "-" {
+        let mut buffer = String::new();
+        std::io::stdin().read_to_string(&mut buffer)?;
+        return Ok(buffer);
+    }
+    std::fs::read_to_string(source).map_err(|e| eyre::eyre!("cannot read `{source}`: {e}"))
 }
 
 /// `scheme://host[:port]` of a URL, without pulling in a URL parser for the

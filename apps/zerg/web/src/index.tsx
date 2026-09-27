@@ -9,6 +9,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/solid-router';
+import { lazy, Suspense } from 'solid-js';
 import { render } from 'solid-js/web';
 
 import { UserMenu } from './components/user-menu';
@@ -19,6 +20,11 @@ import { RegistriesPage } from './pages/registries';
 import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';
 import { TasksListPage } from './pages/tasks-list';
+
+// Code-split: bundles every committed OpenAPI document and the yaml parser.
+const DataMapPage = lazy(() =>
+  import('./pages/data-map').then((m) => ({ default: m.DataMapPage })),
+);
 
 const queryClient = new QueryClient();
 
@@ -48,6 +54,12 @@ function Layout() {
                 class="text-sm text-gray-600 hover:text-gray-900"
               >
                 Registries
+              </Link>
+              <Link
+                to="/schemas"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Data map
               </Link>
             </div>
             <div class="flex items-center">
@@ -95,6 +107,20 @@ const registriesRoute = createRoute({
   component: () => <RegistriesPage />,
 });
 
+// Schema/data browser — repo schemas are public; the live DB catalog asks the
+// dev-only zerg-api /api/catalog routes and surfaces a 401 inline.
+const dataMapRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/schemas',
+  component: () => (
+    <Suspense
+      fallback={<p class="p-6 text-sm text-gray-500">Loading data map…</p>}
+    >
+      <DataMapPage />
+    </Suspense>
+  ),
+});
+
 // Protected routes
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -132,6 +158,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
   registriesRoute,
+  dataMapRoute,
   tasksRoute,
   taskDetailRoute,
   settingsRoute,

@@ -23,6 +23,7 @@ serde_yaml_ng = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 toml = { workspace = true }
+toml_edit = { workspace = true }
 
 [lints]
 workspace = true

@@ -19,7 +19,7 @@ use crate::spec::{Credential, Scalar, coerce};
 /// Verb names the CLI reserves for itself. A resource tag colliding with one
 /// of these would be shadowed, so the collision is reported rather than
 /// silently losing the operation.
-pub const RESERVED: [&str; 2] = ["api", "ui"];
+pub const RESERVED: [&str; 3] = ["api", "schema", "ui"];
 
 /// Suffix appended to a query parameter whose name collides with a body field
 /// in the same command. Writes win the bare name because a write command is
@@ -34,7 +34,8 @@ pub fn build(registry: &Registry) -> Command {
             "Commands are derived at run time from the OpenAPI documents in \
              docs/openapi/, which are generated from the services' own \
              #[utoipa::path] annotations. `x api list` shows what is loaded; \
-             `--spec` points x at any running server's document instead.",
+             `--spec` points x at any running server's document instead. \
+             `x schema` prints any JSON Schema or OpenAPI document as a tree.",
         )
         .subcommand_required(true)
         .arg_required_else_help(true)
@@ -85,6 +86,36 @@ pub fn build(registry: &Registry) -> Command {
                     .long("api")
                     .help("Start focused on this API")
                     .num_args(1),
+            ),
+    )
+    .subcommand(
+        Command::new("schema")
+            .about("Print any JSON Schema or OpenAPI document as a tree")
+            .long_about(
+                "Print any JSON Schema or OpenAPI document as a tree — not only \
+                 the loaded APIs. JSON or YAML. A shared $ref expands at its \
+                 first occurrence and reads `(see above)` after; a $ref into its \
+                 own ancestry reads `(recursive)`; `*` marks a required field.",
+            )
+            .arg(
+                Arg::new("source")
+                    .required(true)
+                    .value_name("SOURCE")
+                    .help("File path, http(s) URL, or - for stdin"),
+            )
+            .arg(
+                Arg::new("at")
+                    .long("at")
+                    .num_args(1)
+                    .value_name("POINTER")
+                    .help("Start at this JSON pointer, e.g. /definitions/task"),
+            )
+            .arg(
+                Arg::new("depth")
+                    .long("depth")
+                    .num_args(1)
+                    .value_parser(value_parser!(usize))
+                    .help("Expand at most this many schema levels"),
             ),
     )
 }

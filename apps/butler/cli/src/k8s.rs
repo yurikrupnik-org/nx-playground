@@ -132,10 +132,7 @@ pub fn generate(
             for (name, body) in &values {
                 files.insert(format!("{}/k8s/{name}", app.dir), body.clone());
             }
-            files.insert(
-                format!("{}/{}.yaml", out_dir(root), app.name),
-                render(root, app, &values)?,
-            );
+            files.insert(rendered_path(root, app), render(root, app, &values)?);
         }
     }
     if want_root {
@@ -145,6 +142,26 @@ pub fn generate(
         );
     }
     Ok(files)
+}
+
+/// Every app that declares a `[workload]`, resolved — the set `gen` renders,
+/// and the set `butler tekton gen` builds and deploys.
+pub(crate) fn workload_apps(
+    workspace_root: &Path,
+    graph: &ProjectGraph,
+    root: &Root,
+    overrides: &AppOverrides,
+) -> Result<Vec<WorkloadApp>> {
+    overrides
+        .iter()
+        .filter(|(_, app)| app.workload.is_some())
+        .map(|(dir, app)| resolve(workspace_root, graph, root, dir, app))
+        .collect()
+}
+
+/// Where one app's rendered manifest lands, workspace-root-relative.
+pub(crate) fn rendered_path(root: &Root, app: &WorkloadApp) -> String {
+    format!("{}/{}.yaml", out_dir(root), app.name)
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +267,7 @@ pub(crate) fn product(dir: &str) -> String {
 /// The image an environment deploys: the repository the image facts own, tagged
 /// with what the root `[k8s.imageTag]` maps that environment to — its own name
 /// when it maps nothing, so `dev` renders `:dev` unconfigured.
-fn image_ref(root: &Root, app: &WorkloadApp, env: &str) -> String {
+pub(crate) fn image_ref(root: &Root, app: &WorkloadApp, env: &str) -> String {
     let tag = root.k8s.image_tag.get(env).map_or(env, String::as_str);
     format!("{}:{tag}", app.repository)
 }

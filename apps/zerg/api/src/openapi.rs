@@ -29,7 +29,8 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
         (path = domain_projects::entity::Model::URL, api = domain_projects::ApiDoc),
         (path = "/users", api = domain_users::ApiDoc),
         (path = "/cloud-resources", api = domain_cloud_resources::ApiDoc),
-        (path = "/vector", api = domain_vector::VectorApiDoc)
+        (path = "/vector", api = domain_vector::VectorApiDoc),
+        (path = "/catalog", api = crate::api::catalog::CatalogApiDoc)
     ),
     modifiers(&SecurityAddon),
     tags(

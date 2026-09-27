@@ -11,14 +11,14 @@
 app_namespaces = []
 
 [cluster]
-name = "nx-playground"                 # Kind cluster name
-workers = 2                  # worker node count
-db_workers = 1              # tainted db-dedicated workers
-ingress = true              # expose ports 80/443
+name = "nx-playground" # Kind cluster name
+workers = 2            # worker node count
+db_workers = 1         # tainted db-dedicated workers
+ingress = true         # expose ports 80/443
 # kcl_package = "oci://.../kcl/cluster"   # OCI url WITHOUT a tag
 # kcl_tag = "0.0.6"                        # version passed to kcl via --tag
 
-[cluster.kcl_args]      # MUST sit directly after [cluster]'s scalar keys
+[cluster.kcl_args] # MUST sit directly after [cluster]'s scalar keys
 oidc_bucket = "paidevo-local-oidc"
 oidc_id = "slava"
 
@@ -31,15 +31,22 @@ oidc_id = "slava"
 name = "gateway-api-crds"
 manifest = "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.1/standard-install.yaml"
 
+# Tekton Pipelines (controller, webhook, CRDs): runs the Tasks and Pipelines
+# `butler tekton gen` writes to manifests/tekton. The generated objects are
+# tekton.dev/v1 and use optional workspaces and array params, all GA well
+# before this pin. Apply them afterwards: `kubectl apply -k manifests/tekton -n <ns>`.
+[[deps]]
+name = "tekton-pipelines"
+manifest = "https://infra.tekton.dev/tekton-releases/pipeline/previous/v1.16.0/release.yaml"
+
 [namespaces]
 dbs = "dbs"
 monitoring = "monitoring"
 external_secrets = "external-secrets"
-
 [paths]
 apps_dir = "apps"
 compose_file = "manifests/dockers/compose.yaml"
-default_target = "dev"      # default --target for overlay commands
+default_target = "dev"                          # default --target for overlay commands
 
 [paths.overlays]
 # `{target}` is replaced by the --target flag (dev/staging/prod).
@@ -56,15 +63,15 @@ migration_cmd = ["cargo", "run", "-p", "migration", "--", "up"]
 wait_timeout = "120s"
 
 [secrets]
-config = "manifests/secrets/.vals.yaml"       # vals config file
-output = ".env"             # generated env file
+config = "manifests/secrets/.vals.yaml" # vals config file
+output = ".env"                         # generated env file
 
 [external_secrets]
 #gcp_credentials = "~/dotconfig/tmp/secret-puller.json"
 secret_name = "gcp-sm-credentials"
 
 [flux]
-owner = "yurikrupnik-org"          # GitHub user/org; leave unset to derive from `gh api user`
+owner = "yurikrupnik-org" # GitHub user/org; leave unset to derive from `gh api user`
 repository = "gitops"
 branch = "main"
 path = "clusters/manager"

@@ -12,7 +12,7 @@ This README is the crate-level rustdoc (`#![doc = include_str!("../README.md")]`
 
 Basic usage with automatic pluralization and URL generation:
 
-```rust,ignore
+```rust
 use core_proc_macros::ApiResource;
 
 #[derive(ApiResource)]
@@ -29,7 +29,7 @@ assert_eq!(User::TAG, "Users");
 
 Customizing resource configuration:
 
-```rust,ignore
+```rust
 use core_proc_macros::ApiResource;
 
 #[derive(ApiResource)]

@@ -29,14 +29,14 @@ tasks:
       - kind load docker-image --name {{.TODO_KIND_CLUSTER}} {{.TODO_IMAGES}}
 
   # Apply infra (namespace/postgres/nats) + the generated app manifests, wait for
-  # rollout. The apps come from manifests/k8s/apps (one rendered file per app,
-  # regenerate with `task k8s-gen`), so this task applies exactly what CI and
-  # Tilt build — it no longer names per-app overlays that no longer exist.
+  # rollout. The apps come from manifests/k8s/dev, the root butler.toml
+  # `[k8s] outDir` for env `dev` (one rendered file per app, regenerate with
+  # `task k8s-gen`), so this task applies exactly what CI and Tilt build.
   todo-apply:
     desc: Apply todo infra + the generated app manifests, wait for rollout
     cmds:
       - kubectl apply -k manifests/kustomize/todo
-      - kubectl apply -k manifests/k8s/apps
+      - kubectl apply -k manifests/k8s/dev
       - |
         for d in postgres nats todo-api todo-worker todo-web; do \
             kubectl -n todo rollout status deployment/$d --timeout=180s || exit 1; \

@@ -125,22 +125,32 @@ pub fn plan(workspace_root: &Path, root: &Root, subs: &[Submodule]) -> Result<Pl
         kustomization(&dir, &files),
     );
 
-    let stale = stale(workspace_root, &dir, &files)?;
-    Ok(Plan {
-        out_dir: dir,
-        files,
-        stale,
-    })
+    Plan::owned(workspace_root, dir, files)
 }
 
 impl Plan {
+    /// The plan for a directory the caller owns outright: `files`, plus every
+    /// butler-generated file already in `out_dir` that `files` no longer has.
+    pub(crate) fn owned(
+        workspace_root: &Path,
+        out_dir: String,
+        files: BTreeMap<String, String>,
+    ) -> Result<Self> {
+        let stale = stale(workspace_root, &out_dir, &files)?;
+        Ok(Self {
+            out_dir,
+            files,
+            stale,
+        })
+    }
+
     /// Drift gate: every generated file on disk byte-identical, nothing stale.
     pub fn drift(&self, workspace_root: &Path) -> Vec<String> {
         let mut drifted = tilt::check_files(workspace_root, &self.files);
         drifted.extend(
             self.stale
                 .iter()
-                .map(|s| format!("{s}: stale, no submodule generates it")),
+                .map(|s| format!("{s}: stale, nothing generates it any more")),
         );
         drifted
     }
@@ -446,6 +456,18 @@ fn stale(
 /// A DNS-1123 label from a submodule name: lowercase alphanumerics and `-`,
 /// at most 63 characters (`vendor/My_Lib` -> `vendor-my-lib`).
 fn k8s_name(name: &str) -> Result<String> {
+    let mut out = dns_chars(name);
+    out.truncate(63);
+    let out = out.trim_matches('-').to_string();
+    if out.is_empty() {
+        bail!("submodule `{name}` has no characters usable in a k8s name");
+    }
+    Ok(out)
+}
+
+/// `name` in DNS-1123 characters, unbounded: lowercase alphanumerics, every
+/// other run collapsed to one `-`, none leading or trailing.
+pub(crate) fn dns_chars(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     for c in name.chars() {
         let c = c.to_ascii_lowercase();
@@ -455,19 +477,14 @@ fn k8s_name(name: &str) -> Result<String> {
             out.push('-');
         }
     }
-    out.truncate(63);
-    let out = out.trim_matches('-').to_string();
-    if out.is_empty() {
-        bail!("submodule `{name}` has no characters usable in a k8s name");
-    }
-    Ok(out)
+    out.trim_matches('-').to_string()
 }
 
-fn s(value: &str) -> Y {
+pub(crate) fn s(value: &str) -> Y {
     Y::String(value.to_string())
 }
 
-fn map<const N: usize>(pairs: [(&str, Y); N]) -> Y {
+pub(crate) fn map<const N: usize>(pairs: [(&str, Y); N]) -> Y {
     Y::Mapping(pairs.into_iter().map(|(k, v)| (s(k), v)).collect())
 }
 

@@ -8,7 +8,7 @@ Common types and enums for CI configuration.
 type Language = "typescript" | "rust" | "go" | "python" | "java" | "kcl"
 type PackageManager = "bun" | "npm" | "pnpm" | "yarn" | "cargo" | "go" | "pip" | "poetry" | "uv"
 type MonorepoTool = "nx" | "turborepo" | "moonrepo" | "cargo-workspace" | "none"
-type CIProvider = "github" | "tekton" | "gitlab" | "circleci"
+type CIProvider = "github" | "gitlab" | "circleci"
 type AppType = "rust-single" | "tanstack-app" | "tauri-app" | "node-fe" | "go-service" | "nx-monorepo" | "custom"
 
 # =============================================================================
@@ -21,17 +21,6 @@ DEFAULT_BUN_VERSION = "1"
 DEFAULT_GO_VERSION = "1.23"
 DEFAULT_RUST_CHANNEL = "stable"
 DEFAULT_PYTHON_VERSION = "3.12"
-
-# Default images for Tekton
-TEKTON_IMAGES = {
-    node = "node:22-slim"
-    bun = "oven/bun:1"
-    go = "golang:1.23"
-    rust = "rust:1.83"
-    python = "python:3.12-slim"
-    uv = "ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
-    git = "alpine/git:latest"
-}
 
 # GitHub Actions versions
 GHA_ACTIONS = {

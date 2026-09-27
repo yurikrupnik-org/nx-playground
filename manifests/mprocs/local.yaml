@@ -1,6 +1,7 @@
 # Local Docker development workflow
 # Usage: task dev (or: mprocs -c manifests/mprocs/local.yaml)
 # For Kind/Kubernetes workflow: task dev-kind
+# Just zerg-web + what it needs (infra ensured first): task web (manifests/mprocs/web.yaml)
 
 procs:
   # =============================================================================

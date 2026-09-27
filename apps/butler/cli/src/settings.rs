@@ -23,6 +23,7 @@
 //! never seen nx.
 
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use eyre::{Result, bail, eyre};
@@ -94,6 +95,13 @@ pub struct Root {
     /// submodule with no table still gets its Flux `GitRepository`.
     #[serde(default)]
     pub submodule: BTreeMap<String, SubmoduleDeploy>,
+    /// Web UIs `butler ui serve` aggregates, keyed by a short name. Edited by
+    /// `butler ui add/set/remove`, which keep the rest of this file intact.
+    #[serde(default)]
+    pub ui: BTreeMap<String, UiLink>,
+    /// What `butler tekton gen` emits: one Pipeline per runnable target.
+    #[serde(default)]
+    pub tekton: Tekton,
     /// Standalone repos only: the single app living at the repo root.
     pub app: Option<App>,
 }
@@ -264,6 +272,91 @@ pub struct Graph {
     pub verify_ignore_targets: Vec<String>,
 }
 
+/// `butler tekton gen`: Tekton Tasks, and one Pipeline per runnable target —
+/// every nx `project:target`, Taskfile task, just recipe, nu script, and a
+/// build-and-deploy Pipeline per app with a `[workload]`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Tekton {
+    /// Directory the generator owns outright: a generated file there that
+    /// nothing produces any more is deleted by `gen`, drift for `--check`.
+    #[serde(default = "default_tekton_out_dir")]
+    pub out_dir: String,
+    /// Written as the aggregate kustomization's `namespace`. Unset = the
+    /// namespace `kubectl apply -k` targets.
+    pub namespace: Option<String>,
+    /// Default of every Pipeline's `url` param. Unset = callers must pass it.
+    pub repository: Option<String>,
+    /// Default of every Pipeline's `revision` param.
+    #[serde(default = "default_tekton_revision")]
+    pub revision: String,
+    /// Globs over target ids that get no Pipeline: `nx:<project>:<target>`,
+    /// `task:<name>`, `just:<recipe>`, `nu:<path>`, `deploy:<app>`. A glob
+    /// matching nothing is an error — a stale exclusion hides nothing and
+    /// reads as if it did.
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    /// go-task release the Taskfile runner downloads (no maintained image ships
+    /// it). Required once the repo has a Taskfile.
+    pub task_version: Option<String>,
+    /// just release the justfile runner downloads. Required once the repo has
+    /// a justfile.
+    pub just_version: Option<String>,
+    /// nushell release the nu runner downloads (the nushell image carries no
+    /// git or other tools scripts call). Required once a script has a `main`.
+    pub nu_version: Option<String>,
+    #[serde(default)]
+    pub images: TektonImages,
+}
+
+impl Default for Tekton {
+    fn default() -> Self {
+        Self {
+            out_dir: default_tekton_out_dir(),
+            namespace: None,
+            repository: None,
+            revision: default_tekton_revision(),
+            exclude: Vec::new(),
+            task_version: None,
+            just_version: None,
+            nu_version: None,
+            images: TektonImages::default(),
+        }
+    }
+}
+
+fn default_tekton_out_dir() -> String {
+    "manifests/tekton".to_string()
+}
+
+fn default_tekton_revision() -> String {
+    "main".to_string()
+}
+
+/// Step image per runner. Each is required only once a generated Pipeline
+/// uses it, so a repo with no justfile never names a `just` image.
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct TektonImages {
+    /// `git` for the clone every Pipeline starts with.
+    pub git: Option<String>,
+    /// `sh`, `wget`, `sha256sum` and `tar` for downloading the task/just
+    /// release binaries.
+    pub fetch: Option<String>,
+    /// `bun`, plus whatever toolchain the nx targets shell out to.
+    pub nx: Option<String>,
+    /// Toolchain the Taskfile tasks shell out to; `task` itself is downloaded.
+    pub task: Option<String>,
+    /// Toolchain the just recipes shell out to; `just` itself is downloaded.
+    pub just: Option<String>,
+    /// Toolchain the nu scripts shell out to; `nu` itself is downloaded.
+    pub nu: Option<String>,
+    /// `buildctl-daemonless.sh` (a rootless `moby/buildkit`).
+    pub buildkit: Option<String>,
+    /// `sh`, `sed` and `kubectl`.
+    pub kubectl: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RootTilt {
@@ -334,22 +427,83 @@ pub struct SharedResource {
     pub objects: Vec<String>,
 }
 
+/// One web UI: where a browser reaches it. The port is the URL's.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UiLink {
+    pub url: String,
+}
+
 impl Root {
-    pub fn load(workspace_root: &Path) -> Result<Self> {
-        let path = workspace_root.join(FILE);
-        let raw = std::fs::read_to_string(&path).map_err(|e| {
-            eyre!(
-                "reading {}: {e}\n\
-                 the repo root needs a {FILE} declaring at least `registry`",
-                path.display()
-            )
-        })?;
-        let root: Self = toml::from_str(&raw).map_err(|e| eyre!("parsing {FILE}: {e}"))?;
+    /// Read and validate one `butler.toml` — the workspace's, or the
+    /// user default [`resolve`] fell back to.
+    pub fn load(path: &Path) -> Result<Self> {
+        let raw =
+            std::fs::read_to_string(path).map_err(|e| eyre!("reading {}: {e}", path.display()))?;
+        Self::parse(&raw).map_err(|e| eyre!("{}: {e}", path.display()))
+    }
+
+    /// Parse and validate the file's contents — what an edit checks before
+    /// writing, so it can never leave a file `load` rejects.
+    pub fn parse(raw: &str) -> Result<Self> {
+        let root: Self = toml::from_str(raw).map_err(|e| eyre!("parsing {FILE}: {e}"))?;
         if root.registry.is_empty() {
             bail!("{FILE}: `registry` must not be empty");
         }
         Ok(root)
     }
+}
+
+// ---------------------------------------------------------------------------
+// User default
+
+/// The machine-wide `butler.toml`: `$XDG_CONFIG_HOME/butler/butler.toml`, else
+/// `~/.config/butler/butler.toml` — on macOS too, like other CLIs' dotfiles,
+/// rather than `~/Library/Application Support`.
+pub fn user_file() -> Option<PathBuf> {
+    user_file_in(
+        std::env::var_os("XDG_CONFIG_HOME"),
+        std::env::var_os("HOME"),
+    )
+}
+
+fn user_file_in(xdg: Option<OsString>, home: Option<OsString>) -> Option<PathBuf> {
+    // The XDG spec ignores a relative `$XDG_CONFIG_HOME`.
+    let config = xdg
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| {
+            home.map(PathBuf::from)
+                .filter(|p| p.is_absolute())
+                .map(|h| h.join(".config"))
+        })?;
+    Some(config.join("butler").join(FILE))
+}
+
+/// The `butler.toml` a command that cannot run without one reads and edits:
+/// the workspace's own, else the user default. Never both — the user file is
+/// a fallback, not a layer under the workspace's.
+pub fn resolve(workspace_root: Option<&Path>) -> Result<PathBuf> {
+    resolve_in(workspace_root, user_file())
+}
+
+fn resolve_in(workspace_root: Option<&Path>, user: Option<PathBuf>) -> Result<PathBuf> {
+    let workspace = workspace_root.map(|r| r.join(FILE));
+    if let Some(path) = workspace.iter().chain(user.iter()).find(|p| p.is_file()) {
+        return Ok(path.clone());
+    }
+    let looked: Vec<String> = workspace
+        .iter()
+        .chain(user.iter())
+        .map(|p| p.display().to_string())
+        .collect();
+    if looked.is_empty() {
+        bail!("no workspace root and no $HOME to find a {FILE} in");
+    }
+    bail!(
+        "no {FILE} found (looked at {}); create one declaring at least `registry`",
+        looked.join(", ")
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -581,5 +735,45 @@ mod tests {
         let app = root.app.expect("app section");
         assert_eq!(app.tilt.host_port, Some(8080));
         assert_eq!(app.image.expect("image").context, ".");
+    }
+
+    #[test]
+    fn user_file_prefers_xdg_and_ignores_relative_dirs() {
+        let at = |xdg: Option<&str>, home: Option<&str>| {
+            user_file_in(xdg.map(Into::into), home.map(Into::into))
+        };
+        assert_eq!(
+            at(Some("/xdg"), Some("/home/u")),
+            Some(PathBuf::from("/xdg/butler/butler.toml"))
+        );
+        assert_eq!(
+            at(Some("rel"), Some("/home/u")),
+            Some(PathBuf::from("/home/u/.config/butler/butler.toml")),
+            "a relative XDG_CONFIG_HOME is ignored, per the spec"
+        );
+        assert_eq!(at(None, None), None);
+    }
+
+    #[test]
+    fn the_workspace_file_wins_and_the_user_file_is_the_fallback() {
+        let dir = std::env::temp_dir().join(format!("butler-resolve-{}", std::process::id()));
+        let (ws, user) = (dir.join("ws"), dir.join("user/butler.toml"));
+        std::fs::create_dir_all(&ws).unwrap();
+        std::fs::create_dir_all(user.parent().unwrap()).unwrap();
+
+        let err = resolve_in(Some(&ws), Some(user.clone())).expect_err("neither exists");
+        assert!(err.to_string().contains(&*user.to_string_lossy()), "{err}");
+
+        std::fs::write(&user, "registry = 'u'").unwrap();
+        assert_eq!(resolve_in(Some(&ws), Some(user.clone())).unwrap(), user);
+        assert_eq!(resolve_in(None, Some(user.clone())).unwrap(), user);
+
+        std::fs::write(ws.join(FILE), "registry = 'w'").unwrap();
+        assert_eq!(
+            resolve_in(Some(&ws), Some(user.clone())).unwrap(),
+            ws.join(FILE)
+        );
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

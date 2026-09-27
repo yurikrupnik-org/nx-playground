@@ -1,0 +1,28 @@
+[package]
+name = "domain_taskgraph"
+publish = false
+version.workspace = true
+edition.workspace = true
+description = "Taskfile graph domain: go-task parser, dependency analysis, history-based estimation, execution observer and the event projection behind taskgraph"
+
+[dependencies]
+async-nats = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+contract_taskgraph = { workspace = true }
+futures = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+test-utils = { workspace = true, features = ["nats"] }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -4,8 +4,8 @@
 use std::process::ExitCode;
 
 use x_cli::{
-    Globals, api_list, builtin_registry, command, exec::Transport, read_body, remote_registry,
-    render, ui,
+    Globals, api_list, builtin_registry, command, exec::Transport, read_body, read_source,
+    remote_registry, render, schema, ui,
 };
 
 #[tokio::main]
@@ -61,6 +61,21 @@ async fn run() -> eyre::Result<()> {
         "ui" => {
             let focus = sub.get_one::<String>("api").cloned();
             return ui::run(&registry, focus, &globals).await;
+        }
+        "schema" => {
+            let source = sub.get_one::<String>("source").expect("required");
+            let raw = read_source(source, Some(globals.timeout)).await?;
+            let doc = schema::parse(source, &raw)?;
+            let name = match source.as_str() {
+                "-" => "stdin",
+                path => path.rsplit('/').find(|s| !s.is_empty()).unwrap_or(path),
+            };
+            let view = schema::View {
+                at: sub.get_one::<String>("at").map(String::as_str),
+                depth: sub.get_one::<usize>("depth").copied(),
+            };
+            print!("{}", schema::render(name, &doc, view)?);
+            return Ok(());
         }
         _ => {}
     }

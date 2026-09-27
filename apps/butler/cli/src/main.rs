@@ -22,7 +22,10 @@ mod runner;
 mod settings;
 mod submodule;
 mod task;
+mod tekton;
 mod tilt;
+mod ui;
+mod web;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -39,10 +42,11 @@ use crate::task::{Overrides, TaskId};
     about = "Monorepo task compiler (nx-config compatible)"
 )]
 struct Cli {
-    /// Where the repo's project-graph inference comes from, overriding
-    /// `butler.toml` `[graph] infer`: `native` for the built-in Rust port, or a
-    /// command (split on whitespace) speaking nx's plugin JSON, e.g.
-    /// `--infer 'bun tools/nx/infer.ts'`.
+    /// Graph inference source: `native` or an nx-plugin command.
+    ///
+    /// Overrides `butler.toml` `[graph] infer`. `native` is the built-in Rust
+    /// port; anything else is a command (split on whitespace) speaking nx's
+    /// plugin JSON, e.g. `--infer 'bun tools/nx/infer.ts'`.
     #[arg(long, global = true, value_name = "native|COMMAND")]
     infer: Option<String>,
     #[command(subcommand)]
@@ -51,15 +55,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Run targets for many projects (`nx run-many`). Unknown flags and
-    /// arguments are task overrides, handed to the executors as nx does
-    /// (`butler run-many -t format -p tag:lang:python --check`).
+    /// Run targets for many projects (`nx run-many`).
+    ///
+    /// Unknown flags and arguments are task overrides, handed to the executors
+    /// as nx does (`butler run-many -t format -p tag:lang:python --check`).
     RunMany {
         /// Targets to run (space or comma separated).
         #[arg(short = 't', long = "targets", visible_alias = "target", num_args = 1.., value_delimiter = ',', required = true)]
         targets: Vec<String>,
-        /// Projects: names, globs, `tag:x`, `directory:x`, `!` exclusions
-        /// (space or comma separated). Default: every project with a target.
+        /// Projects: names, globs, `tag:x`, `directory:x`, `!` exclusions.
+        ///
+        /// Space or comma separated. Default: every project with a target.
         #[arg(short = 'p', long, num_args = 1.., value_delimiter = ',')]
         projects: Vec<String>,
         /// Accepted for nx compatibility; running every project is the
@@ -69,8 +75,9 @@ enum Cmd {
         #[command(flatten)]
         run: RunArgs,
     },
-    /// Run targets for the projects a change affects (`nx affected`); with
-    /// no `-t`, list those projects.
+    /// Run or list the projects a change affects (`nx affected`).
+    ///
+    /// With `-t`, run those targets for them; without, print the projects.
     Affected {
         /// Targets to run (space or comma separated).
         #[arg(short = 't', long = "targets", visible_alias = "target", num_args = 1.., value_delimiter = ',')]
@@ -105,18 +112,39 @@ enum Cmd {
         #[command(subcommand)]
         command: K8sCmd,
     },
-    /// Manage `.gitmodules` through git, and generate the Flux / KCL manifests
+    /// Generate Tekton Tasks and one Pipeline per runnable target.
+    ///
+    /// Every nx `project:target`, Taskfile task, just recipe and nu script,
+    /// plus a build-and-deploy Pipeline per app with a `[workload]`, written
+    /// under butler.toml `[tekton] outDir`.
+    Tekton {
+        #[command(subcommand)]
+        command: TektonCmd,
+    },
+    /// Manage git submodules and their Flux / KCL manifests.
+    ///
+    /// Edits `.gitmodules` through git and generates the Flux / KCL manifests
     /// that deploy each submodule. Every change regenerates the manifests.
     Submodule {
         #[command(subcommand)]
         command: SubmoduleCmd,
     },
+    /// Register dev-loop web UIs, list used ports, serve one dashboard.
+    ///
+    /// UIs live in butler.toml `[ui.<name>]` (the workspace's, else
+    /// `~/.config/butler/butler.toml`); the dashboard frames them all.
+    Ui {
+        #[command(subcommand)]
+        command: UiCmd,
+    },
 }
 
 #[derive(Subcommand)]
 enum SubmoduleCmd {
-    /// List submodules: `.gitmodules` entries, the commit the index pins, and
-    /// the checkout state.
+    /// List submodules and their checkout state.
+    ///
+    /// Shows the `.gitmodules` entries, the commit the index pins, and the
+    /// checkout state.
     List {
         #[arg(long)]
         json: bool,
@@ -134,8 +162,9 @@ enum SubmoduleCmd {
         #[arg(short = 'b', long)]
         branch: Option<String>,
     },
-    /// Change a submodule's URL and/or branch in `.gitmodules`, then
-    /// regenerate.
+    /// Change a submodule's URL and/or branch, then regenerate.
+    ///
+    /// Edits `.gitmodules` only; the pinned commit does not move.
     Set {
         name: String,
         #[arg(long)]
@@ -148,8 +177,10 @@ enum SubmoduleCmd {
     },
     /// Deinit and `git rm` a submodule, then regenerate.
     Remove { name: String },
-    /// Check out the pinned commits (`--init`); with `--remote`, move to each
-    /// branch tip and stage the new pins. Then regenerate.
+    /// Check out the pinned commits, then regenerate.
+    ///
+    /// `git submodule update --init`; with `--remote`, move to each branch
+    /// tip and stage the new pins instead.
     Update {
         /// Submodule names (default: all).
         names: Vec<String>,
@@ -170,6 +201,39 @@ enum SubmoduleCmd {
 }
 
 #[derive(Subcommand)]
+enum UiCmd {
+    /// List registered UIs and whether anything listens on their port.
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Register a UI: `butler ui add grafana http://localhost:3000/login`.
+    Add { name: String, url: String },
+    /// Change a UI's URL, or only its port.
+    Set {
+        name: String,
+        #[arg(long)]
+        url: Option<String>,
+        #[arg(long)]
+        port: Option<u16>,
+    },
+    /// Unregister a UI.
+    Remove { name: String },
+    /// Every listening TCP port with its process, and the UIs behind it.
+    Ports {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Serve the dashboard: every UI framed in one page.
+    ///
+    /// The page also shows the registry and the used ports.
+    Serve {
+        #[arg(long, default_value = "127.0.0.1:7879")]
+        addr: std::net::SocketAddr,
+    },
+}
+
+#[derive(Subcommand)]
 enum TiltCmd {
     /// Write the root Tiltfile and one Tiltfile per app.
     Gen {
@@ -180,14 +244,16 @@ enum TiltCmd {
         #[arg(long)]
         check: bool,
         /// Write only this app's Tiltfile (workspace-relative directory).
+        ///
         /// This is what the nx plugin's per-project `tilt-gen` target runs.
         #[arg(long, value_name = "DIR", conflicts_with = "root")]
         app: Option<String>,
         /// Write only the root Tiltfile.
         #[arg(long)]
         root: bool,
-        /// Authoritative app list (comma-separated workspace-relative dirs),
-        /// overriding butler's own discovery. The nx plugin passes the set nx
+        /// Authoritative app list (comma-separated workspace-relative dirs).
+        ///
+        /// Overrides butler's own discovery. The nx plugin passes the set nx
         /// inferred, so the root Tiltfile's includes cannot disagree with nx.
         #[arg(long, value_delimiter = ',', value_name = "DIRS")]
         apps: Vec<String>,
@@ -196,21 +262,25 @@ enum TiltCmd {
 
 #[derive(Subcommand)]
 enum K8sCmd {
-    /// Write each app's `k8s/values*.yaml`, its rendered manifest under
-    /// `manifests/k8s/apps/`, and the aggregate kustomization.
+    /// Write app k8s values, rendered manifests and the kustomization.
+    ///
+    /// Each app's `k8s/values*.yaml`, its rendered manifest under
+    /// `[k8s] outDir`, and the aggregate kustomization.
     Gen {
         /// Fail instead of writing when the on-disk artifacts have drifted.
         #[arg(long)]
         check: bool,
-        /// Generate only this app (workspace-relative directory). This is what
-        /// the nx plugin's per-project target runs.
+        /// Generate only this app (workspace-relative directory).
+        ///
+        /// This is what the nx plugin's per-project target runs.
         #[arg(long, value_name = "DIR", conflicts_with = "root")]
         app: Option<String>,
         /// Generate only the aggregate kustomization.
         #[arg(long)]
         root: bool,
-        /// Authoritative app list (comma-separated workspace-relative dirs),
-        /// overriding butler's own discovery. The nx plugin passes the set nx
+        /// Authoritative app list (comma-separated workspace-relative dirs).
+        ///
+        /// Overrides butler's own discovery. The nx plugin passes the set nx
         /// inferred, so the kustomization cannot disagree with nx.
         #[arg(long, value_delimiter = ',', value_name = "DIRS")]
         apps: Vec<String>,
@@ -218,10 +288,22 @@ enum K8sCmd {
 }
 
 #[derive(Subcommand)]
+enum TektonCmd {
+    /// Write the runner Tasks, the Pipelines and their kustomization.
+    Gen {
+        /// Fail instead of writing when the on-disk files have drifted.
+        #[arg(long)]
+        check: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum GraphCmd {
-    /// Diff butler's graph against an `nx graph --file` dump: every project,
-    /// target (executor, options, inputs, outputs, dependsOn, cache) and edge
-    /// must agree, or two inference implementations have drifted.
+    /// Diff butler's graph against an `nx graph --file` dump.
+    ///
+    /// Every project, target (executor, options, inputs, outputs, dependsOn,
+    /// cache) and edge must agree, or two inference implementations have
+    /// drifted.
     Verify {
         /// JSON dump produced by `nx graph --file <path>`.
         #[arg(long, value_name = "FILE")]
@@ -235,17 +317,19 @@ struct RunArgs {
     /// Projects to leave out (same patterns as `-p`).
     #[arg(long, num_args = 1.., value_delimiter = ',')]
     exclude: Vec<String>,
-    /// Max concurrent tasks (a cargo batch counts as one): a number, a
-    /// percentage of the cores, or `false` (= 1). Bare `--parallel` means
-    /// `NX_PARALLEL` or 3; absent means `NX_PARALLEL`, else nx.json
-    /// `parallel`, else 3 — nx's defaults.
+    /// Max concurrent tasks: a number, a % of the cores, or `false` (= 1).
+    ///
+    /// A cargo batch counts as one task. Bare `--parallel` means `NX_PARALLEL`
+    /// or 3; absent means `NX_PARALLEL`, else nx.json `parallel`, else 3 —
+    /// nx's defaults.
     #[arg(long, num_args = 0..=1, default_missing_value = "true", value_name = "N")]
     parallel: Option<String>,
     /// Named configuration (applied where a target defines it).
     #[arg(short = 'c', long)]
     configuration: Option<String>,
-    /// Do not read the cache (results are still stored), like nx's
-    /// `--skip-nx-cache`.
+    /// Do not read the cache (results are still stored).
+    ///
+    /// Like nx's `--skip-nx-cache`.
     #[arg(long)]
     skip_cache: bool,
     /// Print the task graph and every task's plan without running anything.
@@ -293,8 +377,10 @@ impl RangeArgs {
 
 #[derive(Subcommand)]
 enum ShowCmd {
-    /// List projects (`nx show projects`), filters applied in nx's order:
-    /// affected, type, `-p`, `--with-target`, `--exclude`.
+    /// List projects (`nx show projects`).
+    ///
+    /// Filters apply in nx's order: affected, type, `-p`, `--with-target`,
+    /// `--exclude`.
     Projects {
         /// Only projects with any of these targets.
         #[arg(long = "with-target", num_args = 1.., value_delimiter = ',')]
@@ -330,14 +416,24 @@ enum ShowCmd {
 
 fn main() -> Result<()> {
     let cli = Cli::parse_from(split_overrides(std::env::args().collect()));
-    let root = discovery::find_workspace_root()?;
-    let settings = if root.join(settings::FILE).exists() {
-        Some(settings::Root::load(&root)?)
+    let root = discovery::find_workspace_root();
+    // UI management reads the workspace's butler.toml, else the user default,
+    // so it runs anywhere — inside a workspace without one, or outside any.
+    let command = match cli.command {
+        Cmd::Ui { command } => {
+            return run_ui(&settings::resolve(root.as_deref().ok())?, command);
+        }
+        other => other,
+    };
+    let root = root?;
+    let settings_file = root.join(settings::FILE);
+    let settings = if settings_file.exists() {
+        Some(settings::Root::load(&settings_file)?)
     } else {
         None
     };
     // Submodule management needs neither nx config nor a project graph.
-    let command = match cli.command {
+    let command = match command {
         Cmd::Submodule { command } => return run_submodule(&root, settings.as_ref(), command),
         other => other,
     };
@@ -530,7 +626,9 @@ fn main() -> Result<()> {
                 tilt::write_files(&out, &files)?;
             }
         }
-        Cmd::Submodule { .. } => unreachable!("dispatched before graph discovery"),
+        Cmd::Submodule { .. } | Cmd::Ui { .. } => {
+            unreachable!("dispatched before graph discovery")
+        }
         Cmd::K8s {
             command:
                 K8sCmd::Gen {
@@ -565,6 +663,27 @@ fn main() -> Result<()> {
                 println!("{} k8s artifacts up to date", files.len());
             } else {
                 tilt::write_files(&root, &files)?;
+            }
+        }
+        Cmd::Tekton {
+            command: TektonCmd::Gen { check },
+        } => {
+            let (settings, overrides) = require_settings()?;
+            let plan = tekton::plan(&root, &graph, settings, overrides, &files)?;
+            if check {
+                let drifted = plan.drift(&root);
+                if !drifted.is_empty() {
+                    for d in &drifted {
+                        println!("drift: {d}");
+                    }
+                    bail!(
+                        "{} Tekton file(s) are stale; run `butler tekton gen`",
+                        drifted.len()
+                    );
+                }
+                println!("{} Tekton files up to date", plan.files.len());
+            } else {
+                print_report(&plan.apply(&root)?, "Tekton files");
             }
         }
     }
@@ -625,7 +744,7 @@ fn run_submodule(
                 }
                 println!("{} submodule manifests up to date", plan.files.len());
             } else {
-                print_report(&plan.apply(root)?);
+                print_report(&plan.apply(root)?, "submodule manifests");
             }
             return Ok(());
         }
@@ -668,19 +787,65 @@ fn run_submodule(
     };
     changed?;
     if let Some(report) = submodule::regenerate_after_change(root, settings)? {
-        print_report(&report);
+        print_report(&report, "submodule manifests");
     }
     Ok(())
 }
 
-fn print_report(report: &submodule::manifests::GenReport) {
+fn print_report(report: &submodule::manifests::GenReport, what: &str) {
     for rel in &report.written {
         println!("wrote {rel}");
     }
     for rel in &report.removed {
         println!("removed {rel}");
     }
-    println!("{} submodule manifests unchanged", report.unchanged);
+    println!("{} {what} unchanged", report.unchanged);
+}
+
+fn run_ui(config: &Path, command: UiCmd) -> Result<()> {
+    match command {
+        UiCmd::List { json } => {
+            let uis = ui::load(config)?;
+            let ports = ui::ports::used(&uis)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&uis)?);
+                return Ok(());
+            }
+            for u in &uis {
+                let state = if !u.local {
+                    "remote".to_string()
+                } else {
+                    match ports.iter().find(|p| p.uis.contains(&u.name)) {
+                        Some(p) => format!("listening ({} pid {})", p.command, p.pid),
+                        None => "down".to_string(),
+                    }
+                };
+                println!("{}\t{}\t{}\t{state}", u.name, u.port, u.url);
+            }
+        }
+        UiCmd::Add { name, url } => ui::add(config, &ui::AddRequest { name, url })?,
+        UiCmd::Set { name, url, port } => ui::set(config, &name, &ui::SetRequest { url, port })?,
+        UiCmd::Remove { name } => ui::remove(config, &name)?,
+        UiCmd::Ports { json } => {
+            let ports = ui::ports::used(&ui::load(config)?)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&ports)?);
+                return Ok(());
+            }
+            for p in &ports {
+                println!(
+                    "{}\t{}\t{}\t{}\t{}",
+                    p.port,
+                    p.pid,
+                    p.command,
+                    p.addresses.join(","),
+                    p.uis.join(",")
+                );
+            }
+        }
+        UiCmd::Serve { addr } => return ui::serve::run(config.to_path_buf(), addr),
+    }
+    Ok(())
 }
 
 /// nx hands every argument it does not recognize to the tasks as overrides

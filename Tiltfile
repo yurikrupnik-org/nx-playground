@@ -38,6 +38,7 @@ k8s_resource(
     labels=['config'],
 )
 
+include('./apps/taskgraph/api/Tiltfile')
 include('./apps/terran/api/Tiltfile')
 include('./apps/terran/web/Tiltfile')
 include('./apps/todo/api/Tiltfile')

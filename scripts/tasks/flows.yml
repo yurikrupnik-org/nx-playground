@@ -1,30 +1,98 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 # ============================================================================
 # Flows — composite gates. Layered:
-#   fmt / fmt-check = ALL ecosystems (aggregate the fmt-*/fmt-check-* leaves)
-#   lint / test = ALL ecosystems (aggregate the lint-*/test-* leaves)
+#   fmt / fmt-check / lint / test / outdated
+#            = every selected ECOSYSTEM's leaves, then the repo-wide ones
 #   check  = fmt + lint + test + audit                -> the everyday gate
 #   verify = check + proto lint + OSV scan            -> run before push
 #   fix    = auto-format everything, then verify      -> run when verify whines
 #   weekly = deep dep update (runs `task check` itself) + cross-major preview
 #
-# Adding an ecosystem (go, ...): write lint-<eco>/test-<eco> leaves with the
-# ecosystem's NATIVE workspace tool, append them to `lint`/`test`. A
-# full-workspace Rust gate is never routed through nx: cargo is already a
+# Ecosystems. `ECOSYSTEMS` below is the one table of which leaf tasks make up a
+# phase for which language. Rust and TypeScript are always selected; go, py and
+# kcl join only when their manifest exists somewhere in the tree (go.mod, a
+# non-root pyproject.toml, kcl.mod), so a phase never pays for a toolchain the
+# repo does not use. `task ecosystems` prints the selection and the table.
+# Narrow or force it per run with `LANGS` (space or comma separated):
+#   task lint LANGS=rust            task check LANGS="rust go"
+#
+# Adding an ecosystem: write its leaves in scripts/tasks/<eco>.yml with the
+# ecosystem's NATIVE workspace tool, include that file in the root Taskfile,
+# add a row here and, if it is optional, a detection line in `DETECTED_LANGS`. A phase
+# an ecosystem has nothing for is simply left out of its row.
+#
+# A full-workspace Rust gate is never routed through nx: cargo is already a
 # workspace orchestrator and one `--workspace` run beats N per-crate
 # invocations. The exception is scope, not orchestration:
 # `check-rust-affected` lets nx answer "which crates did this diff touch" and
 # runs the per-crate lint/test targets for those only (the CI PR path).
-# That measurement is cargo's, NOT a rule about nx: the python leaves DO go
-# through nx (`-p tag:lang:python`) because ruff/pytest are per-project
-# processes either way and the nx targets carry the cwd/output wiring pytest
-# needs — see the header of scripts/tasks/python.yml.
+# That measurement is cargo's, NOT a rule about nx: the python and kcl leaves DO
+# go through nx (`-p tag:lang:<eco>`) because ruff/pytest/kcl are per-project
+# processes either way and the nx targets carry the cwd/output wiring they
+# need — see the header of scripts/tasks/python.yml.
 #
-# Every aggregate calls its steps as sequential `cmds: - task: <leaf>` (never
-# `deps:`, which go-task runs in parallel); the leaves live in the other
-# scripts/tasks/*.yml files and are addressed by their flattened names.
+# Every aggregate runs its steps sequentially — `cmds: - task:` and `for:`
+# loops, never `deps:`, which go-task runs in parallel; the leaves live in the
+# other scripts/tasks/*.yml files and are addressed by their flattened names.
 # ============================================================================
 version: '3'
+
+vars:
+  # ecosystem -> phase -> leaf tasks, run in order. Keys are what LANGS takes.
+  ECOSYSTEMS:
+    map:
+      # `doc-check` (rustdoc) and `deps-unused` (cargo-machete) are read-only
+      # static gates only Rust has, so they ride in its lint. `test-doc` is the
+      # second test leaf on purpose: nextest cannot run doctests.
+      rust:
+        fmt: [fmt-rust]
+        fmt-check: [fmt-check-rust]
+        lint: [lint-rust, doc-check, deps-unused]
+        test: [test-rust, test-doc]
+        outdated: [outdated-rust]
+        audit: [audit]
+      # No fmt-check leaf on purpose: `lint-web` is `biome ci .`, which already
+      # fails on unformatted JS/TS/JSON/CSS, and a second biome process in the
+      # same gate would only double the wall time. `test-napi` is here because
+      # an N-API addon's deliverable is a JS package (scripts/tasks/web.yml).
+      ts:
+        fmt: [fmt-web]
+        lint: [lint-web]
+        test: [test-web, test-napi]
+        outdated: [outdated-node]
+      go:
+        fmt: [fmt-go]
+        fmt-check: [fmt-check-go]
+        lint: [lint-go]
+        test: [test-go]
+        outdated: [outdated-go]
+      py:
+        fmt: [fmt-py]
+        fmt-check: [fmt-check-py]
+        lint: [lint-py]
+        test: [test-py]
+        outdated: [outdated-py]
+      # kcl has no dependency-update preview; `kcl mod update` rewrites.
+      kcl:
+        fmt: [fmt-kcl]
+        fmt-check: [fmt-check-kcl]
+        lint: [lint-kcl]
+        test: [test-kcl]
+
+  # Default selection when LANGS is not given. It is a separate name on
+  # purpose: a var declared in an included Taskfile beats a CLI `LANGS=...`, so
+  # LANGS itself must stay undeclared and is read with `default` below.
+  # Untracked-but-not-ignored manifests count, so a freshly scaffolded project
+  # is gated before its first commit. The root pyproject.toml is only the uv
+  # workspace manifest — a python PROJECT is one below it.
+  DETECTED_LANGS:
+    sh: |
+      langs="rust ts"
+      has() { git ls-files -co --exclude-standard -- "$1" | grep -q .; }
+      if has '*go.mod'; then langs="$langs go"; fi
+      if has '*/pyproject.toml'; then langs="$langs py"; fi
+      if has '*kcl.mod'; then langs="$langs kcl"; fi
+      echo "$langs"
 
 tasks:
   default:
@@ -35,16 +103,17 @@ tasks:
       - task --list
 
   # Full read-only gate: everything in `check` + proto lint/additivity + project
-  # graph parity (butler vs nx, incl. the container/scan targets) + Tiltfile and
-  # manifest drift + agent-skill adapter drift + OSV scan + dependency boundaries
-  # + the todo browser e2e (docker + Chromium; see `e2e` in scripts/tasks/web.yml).
-  # `graph-check` runs before `tilt-check`/`k8s-check` because those two now take
-  # their app lists and per-app runs from butler's graph.
+  # graph parity (butler vs nx, incl. the container/scan targets) + Tiltfile,
+  # manifest and Tekton drift + agent-skill adapter drift + OSV scan + dependency
+  # boundaries + the todo browser e2e (docker + Chromium; see `e2e` in
+  # scripts/tasks/web.yml). `graph-check` runs before `tilt-check`/`k8s-check`/
+  # `tekton-check` because those take their app and target lists from butler's
+  # graph.
   # `proto-breaking` compares against the LOCAL `main` ref, so it is only as fresh
   # as your last fetch, and it is a no-op while you are standing on main. CI's copy
   # is the authoritative one (full history, PR-only).
   verify:
-    desc: 'Full read-only gate: check + proto/openapi/graph/tilt/k8s/tooling/agents drift + OSV scan + boundaries + e2e'
+    desc: 'Full read-only gate: check + proto/openapi/graph/tilt/k8s/tekton/tooling/agents drift + OSV scan + boundaries + e2e'
     cmds:
       - task: check
       - task: proto-lint
@@ -53,6 +122,7 @@ tasks:
       - task: graph-check
       - task: tilt-check
       - task: k8s-check
+      - task: tekton-check
       - task: tooling-check
       - task: agents-check
       - task: scan
@@ -78,33 +148,26 @@ tasks:
     cmds:
       - osv-scanner --recursive .
 
-  # Every ecosystem's native formatter, invoked once: rustfmt + cargo-sort
-  # (fmt-rust), buf (proto-fmt), biome (fmt-web), ruff (fmt-py), kcl (fmt-kcl), rumdl
-  # (fmt-docs), typos (fmt-spell). typos runs last on purpose — it rewrites words
-  # inside files the others have already reflowed. Adding an ecosystem = a new
-  # fmt-<eco> leaf appended here, same rule as `lint`/`test`.
+  # Every selected ecosystem's native formatter, then the repo-wide ones: buf
+  # (proto-fmt), rumdl (fmt-docs), typos (fmt-spell). typos runs last on
+  # purpose — it rewrites words inside files the others have already reflowed.
   fmt:
-    desc: Format every ecosystem — the ONE formatting entry point
+    desc: Format every ecosystem — the ONE formatting entry point (LANGS)
     cmds:
-      - task: fmt-rust
+      - task: _phase
+        vars: { PHASE: fmt }
       - task: proto-fmt
-      - task: fmt-web
-      - task: fmt-py
-      - task: fmt-kcl
       - task: fmt-docs
       - task: fmt-spell
 
-  # No web leaf on purpose: `lint-web` is `biome ci .`, which already fails on
-  # unformatted JS/TS/JSON/CSS, and a second biome process in the same gate would
-  # only double the wall time. CI's cargo job runs `fmt-check-rust` directly
-  # because it installs neither rumdl nor typos.
+  # CI's cargo job runs `fmt-check-rust` directly because it installs neither
+  # rumdl nor typos.
   fmt-check:
-    desc: Read-only formatting gate over every ecosystem (used by `check`)
+    desc: Read-only formatting gate over every ecosystem (used by `check`; LANGS)
     cmds:
-      - task: fmt-check-rust
+      - task: _phase
+        vars: { PHASE: fmt-check }
       - task: proto-fmt-check
-      - task: fmt-check-py
-      - task: fmt-check-kcl
       - task: fmt-check-docs
       - task: fmt-check-spell
 
@@ -120,40 +183,31 @@ tasks:
     cmds:
       - typos
 
-  # `doc-check` is rustdoc's pass over the same crates (intra-doc links, doc HTML)
-  # and `deps-unused` is cargo-machete over the manifests: both are read-only
-  # static gates that only Rust has today, so they ride with `lint-rust` rather
-  # than growing a third aggregate. `lint-py` is ruff over every project tagged
-  # `lang:python` (scripts/tasks/python.yml); `lint-nu` is `nu --ide-check` over
-  # every .nu script (scripts/tasks/nu.yml).
+  # `lint-nu` is `nu --ide-check` over every .nu script (scripts/tasks/nu.yml):
+  # repo tooling, not a project language, so it runs whatever LANGS says.
   lint:
-    desc: Lint every ecosystem (read-only) — extend with lint-go when it exists
+    desc: Lint every ecosystem, read-only (LANGS)
     cmds:
-      - task: lint-rust
-      - task: doc-check
-      - task: deps-unused
-      - task: lint-web
-      - task: lint-py
+      - task: _phase
+        vars: { PHASE: lint }
       - task: lint-nu
 
-  # `test-doc` is the second Rust leaf on purpose: nextest cannot run doctests,
-  # so `test-rust` alone leaves every documented example uncompiled.
   test:
-    desc: Test every ecosystem — extend with test-go when it exists
+    desc: Test every ecosystem (LANGS)
     cmds:
-      - task: test-rust
-      - task: test-doc
-      - task: test-web
-      - task: test-napi
-      - task: test-py
+      - task: _phase
+        vars: { PHASE: test }
 
+  # The audit phase is each ecosystem's supply-chain check of its own lockfile
+  # (cargo audit + deny for Rust); `scan` (OSV, in `verify`) covers every lockfile.
   check:
-    desc: 'The everyday gate: formatting + all linters + all tests + supply-chain audit'
+    desc: 'The everyday gate: formatting + all linters + all tests + supply-chain audit (LANGS)'
     cmds:
       - task: fmt-check
       - task: lint
       - task: test
-      - task: audit
+      - task: _phase
+        vars: { PHASE: audit }
       - cmd: echo "All checks passed!"
         silent: true
 
@@ -166,11 +220,49 @@ tasks:
   # To actually update, use `task upkg` (safe) — the raw `cargo update`/`cargo upgrade`
   # tasks were removed: upkg runs both WITH scans, pin-respect, and post-checks.
   outdated:
-    desc: Preview what a deps refresh would change (read-only), every ecosystem
+    desc: Preview what a deps refresh would change (read-only), every ecosystem (LANGS)
     cmds:
-      - task: outdated-rust
-      - task: outdated-node
-      - task: outdated-py
+      - task: _phase
+        vars: { PHASE: outdated }
+
+  ecosystems:
+    desc: Show which ecosystems the aggregates select and the leaves each phase runs
+    silent: true
+    cmds:
+      - |
+        echo "LANGS: {{.LANGS | default .DETECTED_LANGS}}{{if not .LANGS}}  (detected; override with LANGS=...){{end}}"
+        {{- range $eco, $phases := .ECOSYSTEMS}}
+        echo "  {{$eco}}:"
+        {{- range $phase, $leaves := $phases}}
+        echo "    {{printf "%-10s" $phase}} {{join " " $leaves}}"
+        {{- end}}
+        {{- end}}
+
+  # PHASE for every ecosystem in LANGS, in the order given. The whole selection
+  # is validated before the first leaf runs, so a typo in LANGS fails fast
+  # instead of after a full Rust gate.
+  _phase:
+    internal: true
+    vars:
+      SELECTED: '{{.LANGS | default .DETECTED_LANGS | replace "," " "}}'
+      KNOWN: '{{keys .ECOSYSTEMS | sortAlpha | join " "}}'
+    preconditions:
+      - sh: 'for eco in {{.SELECTED}}; do case " {{.KNOWN}} " in *" $eco "*) ;; *) exit 1 ;; esac; done'
+        msg: 'LANGS="{{.SELECTED}}" names an unknown ecosystem — known: {{.KNOWN}}'
+    cmds:
+      - for: { var: SELECTED }
+        task: _leaves
+        vars: { ECO: '{{.ITEM}}', PHASE: '{{.PHASE}}' }
+
+  # A phase missing from an ecosystem's row resolves to no leaves: nothing runs.
+  _leaves:
+    internal: true
+    vars:
+      LEAVES:
+        ref: 'index .ECOSYSTEMS .ECO .PHASE'
+    cmds:
+      - for: { var: LEAVES }
+        task: '{{.ITEM}}'
 
   upkg:
     desc: 'Daily deps refresh (cargo+node+uv): OSV scans, npm cooldown, then build/lint/test'

@@ -8,6 +8,7 @@
 //! - `postgres` (default) - PostgreSQL support with SeaORM
 //! - `redis` (default) - Redis support
 //! - `config` - Configuration support with `core_config::FromEnv`
+//! - `catalog` - Live Postgres catalog introspection and row sampling (`postgres::catalog`)
 //! - `all` - All database features
 //!
 //! # Examples

@@ -113,7 +113,166 @@ tasks:
       - cmd: ncu --workspaces --target latest
         ignore_error: true
 
+  # Everything zerg-web needs, compose path: `web-deps` (postgres/redis/nats up +
+  # empty DBs seeded), then mprocs with zerg-api + zerg-tasks + zerg-web
+  # (manifests/mprocs/web.yaml — the focused sibling of local.yaml, same env).
   web:
-    desc: Run zerg web dev server
+    desc: 'Zerg web full stack: web-deps, then mprocs zerg-api + zerg-tasks + zerg-web'
+    interactive: true
+    cmds:
+      - task: web-deps
+      - mprocs -c manifests/mprocs/web.yaml
+
+  # The vite dev server alone (:3000, proxies /api -> :8080) — for when the API
+  # is already running elsewhere.
+  web-only:
+    desc: Zerg web vite dev server only (no API, no infra)
     cmds:
       - cd apps/zerg/web && bun run dev
+
+  # Idempotent, non-interactive infra for zerg-web: compose postgres/redis/nats
+  # up, wait for postgres over TCP (the initdb-script server is socket-only, so a
+  # socket pg_isready can pass before the real server starts), then
+  # `db-fresh` every manifests/db/<db> that is missing or has zero user tables.
+  # A DB that already has tables is never reset.
+  web-deps:
+    desc: 'Ensure zerg-web infra: compose postgres/redis/nats + seed missing/empty DBs (idempotent)'
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        docker compose -f manifests/dockers/compose.yaml up -d postgres redis nats
+        echo "Waiting for PostgreSQL..."
+        ready=0
+        for _ in $(seq 1 60); do
+          if docker exec dockers-postgres-1 pg_isready -h 127.0.0.1 -U myuser -d postgres -q 2>/dev/null; then ready=1; break; fi
+          sleep 1
+        done
+        [ "$ready" = 1 ] || { echo "PostgreSQL not ready after 60s (docker logs dockers-postgres-1)" >&2; exit 1; }
+        pgq() { docker exec dockers-postgres-1 psql -U myuser -v ON_ERROR_STOP=1 -tAq "$@"; }
+        summary=""
+        for d in manifests/db/*/; do
+          db=$(basename "$d")
+          if [ -z "$(pgq -d postgres -c "SELECT 1 FROM pg_database WHERE datname = '$db'")" ]; then
+            reason="missing"
+          else
+            n=$(pgq -d "$db" -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+            if [ "$n" -gt 0 ]; then
+              summary="$summary\n  $db: kept ($n tables)"
+              continue
+            fi
+            reason="empty"
+          fi
+          echo "==> $db is $reason; applying with db-fresh"
+          task db-fresh DB="$db"
+          n=$(pgq -d "$db" -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+          summary="$summary\n  $db: seeded, was $reason ($n tables)"
+        done
+        redis=$(docker exec dockers-redis-1 redis-cli ping 2>/dev/null || echo "NOT READY")
+        nats=$(curl -sf http://localhost:8222/healthz >/dev/null && echo ok || echo "NOT READY")
+        printf "web-deps ready:\n  postgres: localhost:5432\n  redis: localhost:6379 (%s)\n  nats: localhost:4222 (%s)\ndatabases:%b\n" "$redis" "$nats" "$summary"
+
+  # Everything zerg-web needs, platform path: the Crossplane DevEnvironment on
+  # the CURRENT kube context. Crossplane core is not installed by this repo (see
+  # the `crossplane` row in docs/tooling/registry.toml) — `web-kind-preflight`
+  # stops before anything is applied when the cluster or the core is missing.
+  # Then: providers/functions/XRDs, the claim NAME (default web), readiness +
+  # schema seed (`web-kind-db`), and mprocs with port-forwards (5434/6380/4223)
+  # plus zerg-api/zerg-web pointed at them (manifests/mprocs/web-kind.yaml).
+  # Usage: task web-kind [NAME=web] [NAMESPACE=default]
+  web-kind:
+    desc: 'Zerg web on kind + Crossplane DevEnvironment NAME (default web): platform, claim, seed, mprocs'
+    interactive: true
+    vars:
+      NAME: '{{.NAME | default "web"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - task: web-kind-preflight
+        vars: { CALLER: web-kind }
+      - task: platform-install
+      - task: env-create
+        vars: { NAME: '{{.NAME}}', NAMESPACE: '{{.NAMESPACE}}' }
+      - task: web-kind-db
+        vars: { NAME: '{{.NAME}}', NAMESPACE: '{{.NAMESPACE}}' }
+      - DEVENV_NAME={{.NAME}} mprocs -c manifests/mprocs/web-kind.yaml
+
+  # Stop with an actionable message when the current kube context is unset or
+  # unreachable (kubectl would otherwise fall back to localhost:8080), or has no
+  # Crossplane core. A cmd, not `preconditions:`, which Task evaluates even
+  # under --dry. CALLER names the task to rerun.
+  web-kind-preflight:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if ! ctx=$(kubectl config current-context 2>/dev/null) || ! kubectl get --raw /readyz --request-timeout=5s >/dev/null 2>&1; then
+          echo "{{.CALLER}}: no reachable Kubernetes cluster on the current kubectl context (${ctx:-none set})." >&2
+          echo "  Create/select one first (e.g. a kind cluster from the cluster bootstrap) and check it with:" >&2
+          echo "    kubectl config current-context && kubectl get nodes" >&2
+          echo "  then rerun: task {{.CALLER}}. Docker-only variant: task web" >&2
+          exit 1
+        fi
+        if ! kubectl get crd providers.pkg.crossplane.io >/dev/null 2>&1; then
+          echo "{{.CALLER}}: Crossplane core is not installed on context $ctx (CRD providers.pkg.crossplane.io missing)." >&2
+          echo "  This repo installs only Crossplane providers/functions/XRDs; the core comes from the cluster" >&2
+          echo "  bootstrap (docs/tooling/registry.toml, row crossplane). Install it there, then rerun: task {{.CALLER}}" >&2
+          exit 1
+        fi
+        echo "{{.CALLER}}: context $ctx reachable, Crossplane core present"
+
+  # Wait for DevEnvironment NAME to be usable (claim Ready, CNPG cluster Ready,
+  # redis + nats rolled out), then apply manifests/db/zerg/{schema,seed}.sql into
+  # the CNPG `app` database AS the `app` role — only when it has no user tables.
+  # psql runs inside the primary pod with the secret's `uri`; the password is
+  # never written to disk. schema.sql needs PostgreSQL 18 (uuidv7()).
+  # Usage: task web-kind-db [NAME=web] [NAMESPACE=default]
+  web-kind-db:
+    desc: 'Wait for DevEnvironment NAME (default web) Ready; seed zerg schema into its CNPG app DB if empty'
+    vars:
+      NAME: '{{.NAME | default "web"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - task: web-kind-preflight
+        vars: { CALLER: web-kind-db }
+      - cmd: |
+          if ! kubectl get devenvironment -n '{{.NAMESPACE}}' '{{.NAME}}' >/dev/null 2>&1; then
+            echo "web-kind-db: no DevEnvironment {{.NAMESPACE}}/{{.NAME}} on this context. Create it with:" >&2
+            echo "    task web-kind NAME={{.NAME}} NAMESPACE={{.NAMESPACE}}   (platform + claim + seed + mprocs)" >&2
+            echo "    devenv create {{.NAME}} NAMESPACE={{.NAMESPACE}}        (claim only; needs task platform-install)" >&2
+            exit 1
+          fi
+        silent: true
+      - |
+        set -euo pipefail
+        name='{{.NAME}}'; ns="devenv-$name"; cluster="cluster.postgresql.cnpg.io/$name-pg"
+        wait_exists() {
+          for _ in $(seq 1 150); do kubectl get "$@" >/dev/null 2>&1 && return 0; sleep 2; done
+          echo "timed out after 300s waiting for: kubectl get $*" >&2; return 1
+        }
+        echo "Waiting for DevEnvironment {{.NAMESPACE}}/$name..."
+        kubectl wait --for=condition=Ready --timeout=600s -n '{{.NAMESPACE}}' "devenvironment/$name"
+        # Claim Ready means the Objects were applied, not that their workloads run.
+        wait_exists -n "$ns" "$cluster"
+        kubectl wait --for=condition=Ready --timeout=600s -n "$ns" "$cluster"
+        wait_exists -n "$ns" deployment/redis
+        kubectl rollout status -n "$ns" deployment/redis --timeout=300s
+        wait_exists -n "$ns" statefulset/nats
+        kubectl rollout status -n "$ns" statefulset/nats --timeout=300s
+        primary=$(kubectl get -n "$ns" "$cluster" -o jsonpath='{.status.currentPrimary}')
+        uri=$(kubectl get secret -n "$ns" "$name-pg-app" -o jsonpath='{.data.uri}' | base64 -d)
+        pg() { kubectl exec -i -n "$ns" "$primary" -c postgres -- psql "$uri" -v ON_ERROR_STOP=1 "$@"; }
+        n=$(pg -tAq -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+        if [ "$n" -gt 0 ]; then
+          echo "$ns/$name-pg app DB: kept ($n tables)"
+          exit 0
+        fi
+        ver=$(pg -tAq -c 'SHOW server_version_num')
+        if [ "$ver" -lt 180000 ]; then
+          echo "$ns/$name-pg runs PostgreSQL $ver; manifests/db/zerg/schema.sql needs 18+ (uuidv7()). Give the CNPG Cluster a PG18 imageName and recreate the env." >&2
+          exit 1
+        fi
+        echo "Applying manifests/db/zerg/{schema,seed}.sql to $ns/$name-pg app DB as role app..."
+        pg -q < manifests/db/zerg/schema.sql
+        pg -q < manifests/db/zerg/seed.sql
+        n=$(pg -tAq -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+        echo "$ns/$name-pg app DB: seeded ($n tables)"

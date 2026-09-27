@@ -37,7 +37,7 @@ the target may be the cwd itself or `~/gitorgs/kcl-packages` / `~/dotconfig`).
 | dotconfig | `just generate` exits 0 (`output/` is gitignored — nothing to diff); `nu --ide-check 100 config/scripts/*.nu` prints no `diagnostic`; `just brew-preflight` | none — the generator is the artifact |
 
 Never edit generated trees by hand (`libs/**/types`, `libs/rpc/src/generated`,
-`docs/openapi`, every `Tiltfile`, `manifests/k8s/apps/**`, dotconfig `output/`).
+`docs/openapi`, every `Tiltfile`, `manifests/k8s/dev/**`, dotconfig `output/`).
 
 ### pins — versions that must move by hand
 

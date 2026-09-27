@@ -31,6 +31,7 @@
 const SCOPE_OVERRIDES: Record<string, string> = {
   'apps/zerg/tasks': 'tasks',
   'libs/domains/tasks': 'tasks',
+  'libs/domains/taskgraph': 'taskgraph',
   'libs/domains/todo': 'todo',
   'libs/domains/projects': 'zerg',
   'libs/domains/users': 'zerg',

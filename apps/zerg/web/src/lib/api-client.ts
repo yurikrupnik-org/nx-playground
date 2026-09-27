@@ -1,5 +1,6 @@
 import type { CreateTask, Task, UpdateTask } from '@contract/tasks';
 import { csrfHeaders } from './auth';
+import type { CatalogResponse, RowsPage } from './data-map/types';
 
 const API_BASE_URL = '/api';
 
@@ -164,5 +165,69 @@ export const orgApi = {
       },
     );
     await orgJson(response, 'revoke invitation');
+  },
+};
+
+/** Why the catalog could not be read. The data-map page is public (repo
+ *  schemas need no backend), so a 401 is surfaced, not redirected to /login. */
+export type CatalogErrorReason =
+  | 'unauthenticated' // no zerg session
+  | 'disabled' // 404: dev-only routes, zerg-api not in APP_ENV=development
+  | 'unavailable' // vite proxy could not reach zerg-api
+  | 'failed';
+
+export class CatalogError extends Error {
+  constructor(
+    readonly reason: CatalogErrorReason,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function catalogJson<T>(response: Response, action: string): Promise<T> {
+  if (response.ok) return response.json() as Promise<T>;
+  const detail = await response.text().catch(() => '');
+  if (response.status === 401) {
+    throw new CatalogError('unauthenticated', 'Sign in to browse databases.');
+  }
+  if (response.status === 404 && action === 'databases') {
+    throw new CatalogError(
+      'disabled',
+      'Database catalog is disabled: zerg-api is not running with APP_ENV=development.',
+    );
+  }
+  // Vite's proxy answers 5xx with an empty body when zerg-api is down.
+  if (response.status >= 500 && !detail) {
+    throw new CatalogError(
+      'unavailable',
+      'zerg-api is not reachable on :8080 — start the stack with `task web`.',
+    );
+  }
+  throw new CatalogError('failed', detail || `Failed to fetch ${action}`);
+}
+
+export const catalogApi = {
+  databases: async (): Promise<CatalogResponse> => {
+    const response = await fetch(`${API_BASE_URL}/catalog/databases`, {
+      credentials: 'include',
+    });
+    return catalogJson(response, 'databases');
+  },
+
+  rows: async (
+    db: string,
+    schema: string,
+    table: string,
+    page: { limit: number; offset: number },
+  ): Promise<RowsPage> => {
+    const path = [db, 'tables', schema, table]
+      .map(encodeURIComponent)
+      .join('/');
+    const response = await fetch(
+      `${API_BASE_URL}/catalog/databases/${path}/rows?limit=${page.limit}&offset=${page.offset}`,
+      { credentials: 'include' },
+    );
+    return catalogJson(response, `rows of ${schema}.${table}`);
   },
 };

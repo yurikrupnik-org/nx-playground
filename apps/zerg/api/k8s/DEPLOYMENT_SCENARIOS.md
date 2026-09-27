@@ -172,7 +172,7 @@ kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 80:80 443
 ```bash
 # Regenerate the manifests after adding the extraManifests entry, then apply
 task k8s-gen
-kubectl apply -k manifests/k8s/apps
+kubectl apply -k manifests/k8s/dev
 
 # Port-forward ingress controller
 kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 80:80
@@ -438,7 +438,7 @@ To switch from port-forward to ingress:
 1. Change the three URLs in `apps/zerg/api/butler.toml` `[env.dev.config]` (Option B above).
 2. Add the Ingress (or HTTPRoute) object to `[[env.dev.workload.extraManifests]]` in the
    app whose hostname it is — `apps/zerg/web/butler.toml` for the SPA.
-3. Run `task k8s-gen`, then `kubectl apply -k manifests/k8s/apps`.
+3. Run `task k8s-gen`, then `kubectl apply -k manifests/k8s/dev`.
 4. Drop `[tilt] hostPort` from that app's `butler.toml` if you no longer want the port
    forward, and run `task tilt-gen`. Do not edit the Tiltfile: it is generated output
    (`task tilt-check` fails on a hand edit), and the `k8s_yaml(local('kcl run ...'))`

@@ -16,10 +16,25 @@ DevEnvironment claim ──► XDevEnvironment ──► function-kcl pipeline
 
 ```bash
 task platform-install          # one-time per cluster: CNPG + providers + XRD + composition
-task env-create NAME=myenv     # or: kubectl apply -f platform/dev-env/examples/demo.yaml
-task env-status NAME=myenv
-task env-delete NAME=myenv     # tears down everything, namespace included
+devenv create myenv           # = task env-create NAME=myenv — applies the default preset
+devenv status myenv
+devenv connection myenv       # DATABASE_URL / REDIS_HOST / NATS_URL (cluster-internal hosts)
+devenv delete myenv           # tears down everything, namespace included
 ```
+
+`devenv` (`platform/dev-env/bin/devenv`, on PATH via `.envrc`) is a thin front end
+for `platform/dev-env/Taskfile.yml`: `devenv <verb> [NAME] [VAR=value ...]` runs
+`task env-<verb>`, a bare word becomes `NAME`. The same tasks are flattened into
+the root Taskfile, so `task env-create NAME=myenv` is equivalent. `devenv` alone
+lists the commands; every one takes `NAMESPACE=` (default `default`).
+
+### Presets
+
+The pre-made development configuration is `platform/dev-env/presets/default.yaml`
+— a complete claim, so `kubectl apply -f` on it works too. `devenv create` swaps in
+`NAME`/`NAMESPACE` and applies it; `PRESET=<file stem>` picks another file from
+that directory, and `devenv presets` lists them with their parameters. Add a
+preset by committing another claim there.
 
 Claim spec (all optional, defaults on):
 

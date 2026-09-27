@@ -1,8 +1,8 @@
 # Generated from one config surface: the project graph owns the lists, butler owns the logic
 
-Three tracks come out of `butler.toml` — every app's `Tiltfile`, every app's nx
-`container`/`scan` target, and every app's k8s manifests. Nine pieces, each doing
-the one thing it is good at:
+Four tracks come out of `butler.toml` — every app's `Tiltfile`, every app's nx
+`container`/`scan` target, every app's k8s manifests, and a Tekton Pipeline per
+runnable target. Ten pieces, each doing the one thing it is good at:
 
 | piece | responsibility |
 |---|---|
@@ -14,8 +14,9 @@ the one thing it is good at:
 | `tools/nx/openapi-targets.ts` | gives `openapi-gate` to the four crates that WRITE a committed document — a `utoipa` dependency plus an `export_openapi*` test under `src/` naming a `docs/openapi/*.json` path. The target re-runs that test and `git diff --exit-code`s exactly those documents, because the export rides inside the normal suite: a changed annotation rewrites the file and the suite still passes. |
 | `tools/nx/polyglot-targets.ts` | owns the two names both ecosystems answer to, for every crate and every `{apps,libs}/**/package.json` project: `lint` (cached — `cargo clippy --package <crate> --all-targets -- -D warnings` and/or `bunx biome ci <dir>`) and `fmt` (uncached — `cargo fmt --package <crate>` + `cargo sort <dir>`, `biome check --write --linter-enabled=false <dir>`). A directory that is both gets the commands composed under one name. An excluded crate is formatted through `--manifest-path` (the only formatter that reaches `apps/todo/web-leptos`) and not clippy'd. `task lint-rust`/`lint-web`/`fmt-rust`/`fmt-web` stay the whole-repo passes; these are the affected-scoped ones. |
 | `butler tilt gen` (Rust) | derives and renders the Tiltfile content — image inputs, k8s backend, and the tight `docker_build(only=...)` |
-| `butler k8s gen` (Rust) | merges the workload payload, injects the facts an app must never hand-type, writes `<app>/k8s/values*.yaml`, and renders them through the pinned KCL package into `manifests/k8s/apps/` |
+| `butler k8s gen` (Rust) | merges the workload payload, injects the facts an app must never hand-type, writes `<app>/k8s/values*.yaml`, and renders them through the pinned KCL package into `manifests/k8s/dev/` |
 | `butler graph verify` (Rust) | infers the whole project graph natively (`apps/butler/cli/src/infer/native`, the Rust port of `tools/nx/plugin.ts`) and diffs it against `nx graph --file` — every project, target and edge, the `container`/`scan` targets included — so the TS plugin and the port cannot drift |
+| `butler tekton gen` (Rust) | derives every runnable target — nx `project:target`, Taskfile task, justfile recipe, nu script, build-and-deploy per `[workload]` app — and writes the runner Tasks plus one Pipeline each to `manifests/tekton` ([below](#tekton-pipelines-for-every-target)) |
 | `butler.toml`, two levels | the facts that cannot be derived: the per-kind image conventions `[imageDefaults.{service,web,node}]`, the per-kind workload shape `[workloadDefaults.{service,web,node}]`, and the renderer under `[k8s]` (`package`, `tag`, the per-env `[k8s.imageTag]`, `extraResources`). The node image's `buildArg` is `"APP_DIR"` — the app *directory*, not a `dist` path, because that image installs and builds the app itself: its N-API addon must be compiled for the image's platform, so a locally built `dist/` cannot be copied in |
 
 ```bash
@@ -275,8 +276,8 @@ butler k8s gen [--app DIR] [--root] [--check] [--apps CSV]
 |---|---|
 | `<app>/k8s/values.yaml` | the merged payload the package validates |
 | `<app>/k8s/values.<env>.yaml`, one per env | that env's deltas only |
-| `manifests/k8s/apps/<app>.yaml` | stdout of `kcl run "<package>?tag=<tag>" -D env=<env> -q`, run in a scratch directory holding nothing but the freshly computed values |
-| `manifests/k8s/apps/kustomization.yaml` | one entry per app, sorted, plus the `[k8s] extraResources` |
+| `manifests/k8s/dev/<app>.yaml` | stdout of `kcl run "<package>?tag=<tag>" -D env=<env> -q`, run in a scratch directory holding nothing but the freshly computed values |
+| `manifests/k8s/dev/kustomization.yaml` | one entry per app, sorted, plus the `[k8s] extraResources` |
 
 All four are committed and drift-gated: `task k8s-check` ("11 k8s artifacts up
 to date") sits in `task verify` beside `tilt-check` and `graph-check`. The
@@ -319,11 +320,11 @@ an image that nothing in this repo deploys.
 Three zerg overlays used to carry `secretGenerator` literals for dev-only
 Secrets. Those are environment fixtures, not workload shape — and the package
 renders **ExternalSecrets, never literal Secrets** — so they live in exactly one
-place now, `manifests/k8s/dev/app-secrets.yaml`, pulled in by:
+place now, `manifests/k8s/fixtures/dev/app-secrets.yaml`, pulled in by:
 
 ```toml
 [k8s]
-extraResources = ["../dev"]
+extraResources = ["../fixtures/dev"]
 ```
 
 That directory carries a `kustomization.yaml` of its own because kustomize
@@ -381,6 +382,89 @@ The web UI binds to loopback by default and rejects non-loopback `Host`
 headers there; every state change needs a JSON body or a non-simple method, so a
 foreign page cannot trigger one without a CORS preflight the server never
 answers.
+
+## Tekton Pipelines for every target
+
+`butler tekton gen` turns everything this repo can run into Tekton objects under
+`[tekton] outDir` (`manifests/tekton`, owned outright like `[submodules] outDir`).
+The target set is derived; `[tekton]` in the root `butler.toml` holds only what
+cannot be: step images, the go-task/just release to download, the repository
+URL and default revision, and `exclude` globs.
+
+```bash
+butler tekton gen [--check]     # task tekton-gen / task tekton-check (in `task verify`)
+kubectl apply -k manifests/tekton -n <ns>
+```
+
+| file | content |
+|---|---|
+| `tasks.yaml` | the runner Tasks, only those in use: `butler-git-clone`, `butler-nx` (`bun install` + `bun nx run <project>:<target>`), `butler-task` / `butler-just` (download the pinned release, checksum-verified, then run it in the toolchain image), `butler-nu` (`nu --no-config-file <script>`), `butler-buildkit`, `butler-kubectl-apply` |
+| `nx.yaml` | one Pipeline per nx `project:target` in butler's graph (`nx-<project>-<target>`) |
+| `task.yaml` | one per task `task --list-all` shows: the root Taskfile plus its local includes, namespaced unless `flatten`ed, minus `internal` tasks and an include's `excludes`; remote includes are skipped (generation never touches the network) |
+| `just.yaml` | one per public recipe of the root justfile (`just --dump`), modules as `mod::recipe`; absent here — `just` is rejected in this repo |
+| `nu.yaml` | one per tracked `.nu` file that defines `main` |
+| `deploy.yaml` | one per app with a `[workload]`: Tilt's dev loop in-cluster — nx builds what the image needs first (a web app's `build`), buildkit builds the stage the Tiltfile and the `container` target build and pushes the tag the rendered manifest names, then the manifest `butler k8s gen` committed is applied with that image pinned by digest |
+| `kustomization.yaml` | every file above, plus `namespace` when `[tekton] namespace` is set |
+
+Every runner Pipeline is `clone -> run` with params `url`, `revision` and an
+`args` array appended to the target's argv (Taskfile vars, script arguments, nx
+overrides). It does not restate dependencies: `nx run` resolves `dependsOn` and
+`task` resolves `deps`, so a Pipeline carrying that graph would be a second copy
+to drift. Names are DNS labels (`nx-zerg-api-build-debug`); past 63 characters
+they are cut and suffixed with a hash of the target id, and two targets that
+normalise to one name are an error.
+
+`exclude` globs match target ids — `nx:<project>:<target>`, `task:<name>`,
+`just:<recipe>`, `nu:<path>`, `deploy:<app>` — and a glob that matches nothing
+fails generation. This repo excludes what never terminates (`serve`, `dev`,
+`run`, watchers), needs a TTY, or acts on the developer's machine (local
+kind/compose/zellij lifecycle, `cargo install`, opening a browser).
+
+Images are per runner and required only once a Pipeline uses one. `nx` and
+`task` are toolchain images: `oven/bun` runs the JS targets, and a target that
+shells out to cargo, kubectl or kcl needs an image carrying it. A deploy
+PipelineRun binds an optional `dockerconfig` workspace for the push and runs
+under a ServiceAccount that may apply into the apps' namespaces. The Tekton
+controller itself is a `devkit.toml` `[[deps]]` row, installed by `devkit up` /
+`devkit cluster deps`.
+
+## Web UIs and used ports
+
+`butler ui` keeps the dev loop's web UIs (Flux, Alertmanager, Grafana,
+Prometheus, ...) in butler.toml and serves one page that frames them all:
+
+```bash
+butler ui list [--json]                    # name, port, url, and what listens there
+butler ui add <name> <url>                 # butler ui add grafana http://localhost:55558/login
+butler ui set <name> [--url U] [--port P]  # --port rewrites only the url's port
+butler ui remove <name>
+butler ui ports [--json]                   # every listening TCP port, its process, the UIs behind it
+butler ui serve [--addr 127.0.0.1:7879]    # dashboard · manage · used ports
+```
+
+```toml
+[ui.alerts]
+url = "http://localhost:55505/#/alerts"  # the port lives in the url, once
+```
+
+Which butler.toml: the workspace's own, else the user default
+`$XDG_CONFIG_HOME/butler/butler.toml` (`~/.config/butler/butler.toml` when
+unset, macOS included) — never both merged. So `butler ui` works in a repo that
+has no butler.toml, or outside any workspace, and edits whichever file it read.
+The user default is a full butler.toml, so it too needs `registry`. Only
+`butler ui` falls back; the generators and the project graph read the
+workspace's file alone, so a personal file never changes what a repo builds.
+
+Edits go through `toml_edit`, so the rest of butler.toml keeps its comments and
+layout, and the edited file must load exactly like `butler.toml` itself before
+it is written. The dashboard probes each UI: nothing answering shows the UI as
+down with its port, and a UI that forbids framing (`X-Frame-Options`, or CSP
+`frame-ancestors` without `*` — the Flux Operator UI, and Grafana unless
+`security.allow_embedding = true`) gets an open-in-a-new-tab panel instead of a
+blank frame. Used ports come from `lsof`, so only your own user's processes are
+listed; a UI is matched to a listener bound to loopback or every interface on
+its port. The server has the same loopback and cross-site guards as the
+submodule UI.
 
 ## Two intentional behaviour changes
 
@@ -559,7 +643,7 @@ tight `only=` list is what makes that affordable.
 | every `apps/*/*/k8s/kustomize/**` tree for the 11 workload apps | the workload is a `[workload]` table rendered by the pinned KCL package; a hand-written overlay beside it is a second spelling of the same fact. `apps/zerg/shared/k8s/kustomize` STAYS — it has no app kind and the root `[[tilt.sharedResource]]` references it by path. |
 | `apps/terran/{api,web}/k8s/{main.k,kcl.mod,kcl.mod.lock}` | per-app KCL modules depending on `manifests/kcl/app`, a package path that no longer exists — `kcl run` failed with `CannotFindModule`. Both apps now render the published package like every other app. |
 | `manifests/apps/core/backend` and its only consumer, `apps/terran/api/k8s/kustomize/overlays/local` | a superseded earlier attempt at the same cross-app-DRY goal, referenced nowhere else. |
-| dev-only `secretGenerator` literals in three zerg overlays | environment fixtures, not workload shape; one file now, `manifests/k8s/dev/app-secrets.yaml`, reached through `[k8s] extraResources`. |
+| dev-only `secretGenerator` literals in three zerg overlays | environment fixtures, not workload shape; one file now, `manifests/k8s/fixtures/dev/app-secrets.yaml`, reached through `[k8s] extraResources`. |
 
 Before removal both generators were run head to head: identical output except the
 header comment, the `only=` list, and web `deps=` — i.e. the KCL track's 249
@@ -585,4 +669,4 @@ both apps render `oci://docker.io/yurikrupnik/app` like every other app — whic
 also retires the "extending the CLI to generate k8s resources" plan that used to
 close this document. It is the k8s track above, shipped: `[k8s]` in the root
 file, `[workload]` in the app file, `butler k8s gen` writing `<app>/k8s/` and
-`manifests/k8s/apps/`.
+`manifests/k8s/dev/`.

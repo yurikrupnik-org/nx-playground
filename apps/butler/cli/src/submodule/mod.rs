@@ -62,8 +62,9 @@ pub enum Checkout {
 /// The workspace's butler.toml, when it has one. Submodule management works
 /// without it; manifest generation does not.
 pub fn load_settings(root: &Path) -> Result<Option<Root>> {
-    if root.join(settings::FILE).is_file() {
-        Root::load(root).map(Some)
+    let path = root.join(settings::FILE);
+    if path.is_file() {
+        Root::load(&path).map(Some)
     } else {
         Ok(None)
     }

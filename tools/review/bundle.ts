@@ -51,7 +51,7 @@ import { argv, exit } from 'node:process';
  */
 const GENERATED: Record<string, { regen: string; proof: string }> = {
   '**/Tiltfile': { regen: 'task tilt-gen', proof: 'task tilt-check' },
-  'manifests/k8s/apps/**': { regen: 'task k8s-gen', proof: 'task k8s-check' },
+  'manifests/k8s/dev/**': { regen: 'task k8s-gen', proof: 'task k8s-check' },
   '**/k8s/values.yaml': { regen: 'task k8s-gen', proof: 'task k8s-check' },
   '**/k8s/values.*.yaml': { regen: 'task k8s-gen', proof: 'task k8s-check' },
   'libs/*/*/types/**': {

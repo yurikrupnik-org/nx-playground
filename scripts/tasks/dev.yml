@@ -32,8 +32,8 @@ tasks:
   lol:
     desc: 'GCP login, fetch .env.local, devkit up (gitops/flux), then attach zellij'
     cmds:
-      - gcloud auth application-default login
-      - task: generate-env
+#      - gcloud auth application-default login
+#      - task: generate-env
       - devkit up --skip-dbs --skip-tilt --gitops --flux --skip-secrets
       - task: zj
 
@@ -69,18 +69,6 @@ tasks:
     desc: Render .github/workflows/generated-ci.yml from the KCL CI config
     cmds:
       - kcl run scripts/kcl/ci/main.k -D config_file=manifests/ci/ci-config.yaml -S githubWorkflow > .github/workflows/generated-ci.yml
-
-  # Scoped to scripts/kcl: `kcl fmt ./...` from the root walks node_modules and
-  # target/ (14s vs 0.1s). Indent width comes from .editorconfig `[*.k]`.
-  fmt-kcl:
-    desc: Format every KCL file (kcl fmt)
-    cmds:
-      - kcl fmt ./scripts/kcl/...
-
-  fmt-check-kcl:
-    desc: KCL formatting gate — fails when `fmt-kcl` would change a file
-    cmds:
-      - kcl fmt --dry-run ./scripts/kcl/...
 
   # Run bacon, layering secrets resolved from vals (GCP Secret Manager) on top of
   # the inherited shell env (DATABASE_URL, REDIS_HOST, ... from direnv). `-i` keeps

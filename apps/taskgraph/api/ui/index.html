@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>taskgraph</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262a33; --text: #d7dae0; --dim: #8a90a0;
+    --accent: #6ea8fe; --ok: #3fb950; --fail: #f85149; --skip: #8b949e; --cancel: #d29922; --run: #a371f7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); color: var(--text); }
+  a { color: var(--accent); text-decoration: none; cursor: pointer; }
+  a:hover { text-decoration: underline; }
+  header { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 15px; margin: 0; }
+  header select, input { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  nav a { margin-right: 12px; color: var(--dim); }
+  nav a.active { color: var(--text); border-bottom: 2px solid var(--accent); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fail); display: inline-block; }
+  .dot.on { background: var(--ok); }
+  main { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 47px - 120px); }
+  main.wide { grid-template-columns: 1fr; }
+  aside { border-right: 1px solid var(--line); overflow: auto; }
+  section.detail { overflow: auto; padding: 16px 20px; }
+  .list-item { padding: 6px 12px; border-bottom: 1px solid var(--line); cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+  .list-item:hover, .list-item.sel { background: #1d2230; }
+  .list-item .desc { color: var(--dim); font-size: 11px; }
+  .badge { font-size: 11px; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; white-space: nowrap; }
+  .succeeded, .ok { color: var(--ok); } .failed { color: var(--fail); } .up_to_date { color: var(--skip); }
+  .cancelled { color: var(--cancel); } .running { color: var(--run); }
+  .cards { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; min-width: 110px; }
+  .card .k { color: var(--dim); font-size: 11px; } .card .v { font-size: 16px; }
+  h2 { font-size: 16px; margin: 0 0 4px; } h3 { font-size: 13px; color: var(--dim); margin: 18px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .dim { color: var(--dim); }
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 18px; }
+  ul.tree { padding-left: 0; }
+  ul.tree li { position: relative; }
+  ul.tree details > summary { list-style: none; cursor: pointer; }
+  ul.tree details > summary::before { content: "▸ "; color: var(--dim); }
+  ul.tree details[open] > summary::before { content: "▾ "; }
+  ul.tree .leaf::before { content: "· "; color: var(--dim); }
+  .via { color: var(--dim); font-size: 11px; }
+  pre { background: var(--panel); border: 1px solid var(--line); padding: 8px; border-radius: 4px; white-space: pre-wrap; margin: 4px 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: normal; }
+  tr.click { cursor: pointer; } tr.click:hover { background: #1d2230; }
+  .gantt-row { display: grid; grid-template-columns: 320px 1fr 90px; align-items: center; gap: 8px; padding: 2px 0; }
+  .gantt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gantt-track { position: relative; height: 14px; background: #12151b; border-radius: 3px; }
+  .gantt-bar { position: absolute; top: 0; height: 14px; border-radius: 3px; min-width: 2px; opacity: .85; }
+  .bg-succeeded { background: var(--ok); } .bg-failed { background: var(--fail); } .bg-up_to_date { background: var(--skip); }
+  .bg-cancelled { background: var(--cancel); } .bg-running { background: var(--run); }
+  footer { height: 120px; border-top: 1px solid var(--line); overflow: auto; padding: 6px 16px; background: var(--panel); font-size: 12px; }
+  footer div { white-space: nowrap; }
+  .chip { display: inline-block; padding: 1px 8px; margin: 2px; border-radius: 10px; background: #1d2230; border: 1px solid var(--line); }
+  .warn { color: var(--cancel); }
+</style>
+</head>
+<body>
+<header>
+  <h1>taskgraph</h1>
+  <select id="graph"></select>
+  <nav><a id="tab-tasks">Tasks</a><a id="tab-runs">Runs</a></nav>
+  <span class="dim" id="status"></span>
+  <span style="margin-left:auto" class="dim">live <span id="live" class="dot"></span></span>
+</header>
+<main id="main">
+  <aside id="side"></aside>
+  <section class="detail" id="detail"><p class="dim">Loading…</p></section>
+</main>
+<footer id="feed"><div class="dim">live events appear here</div></footer>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ms = (v) => v == null ? "—" : v < 1000 ? `${v}ms` : v < 60000 ? `${(v / 1000).toFixed(1)}s` : `${Math.floor(v / 60000)}m${String(Math.floor(v % 60000 / 1000)).padStart(2, "0")}s`;
+const outcome = (o) => o || "running";
+const badge = (o) => `<span class="badge ${outcome(o)}">${esc(outcome(o).replace(/_/g, " "))}</span>`;
+const api = async (path) => { const r = await fetch(path); if (!r.ok) throw new Error(`${r.status} ${path}`); return r.json(); };
+
+const state = { config: {}, graphs: [], graph: null, view: null, route: {} };
+
+function parseRoute() {
+  const p = location.hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  // #/g/<id>/task/<name> | #/g/<id>/runs | #/g/<id>/run/<runId>
+  return { graph: p[0] === "g" ? p[1] : null, kind: p[2] || "tasks", arg: p.slice(3).join("/") || null };
+}
+function go(kind, arg) {
+  const g = state.graph ? state.graph.graph.id : "";
+  location.hash = `#/g/${encodeURIComponent(g)}/${kind}${arg ? "/" + encodeURIComponent(arg) : ""}`;
+}
+
+async function loadGraphs() {
+  state.graphs = await api("/api/graphs");
+  const sel = $("graph");
+  sel.innerHTML = state.graphs.map((g) => `<option value="${esc(g.id)}">${esc(g.taskfile)} @ ${esc(g.host)} (${g.tasks} tasks)</option>`).join("");
+  if (!state.graphs.length) {
+    $("detail").innerHTML = `<p class="dim">No Taskfile published yet. Run <code>taskgraph publish</code> or <code>taskgraph run &lt;task&gt;</code> against this NATS.</p>`;
+  }
+}
+
+async function loadGraph(id) {
+  state.graph = await api(`/api/graphs/${encodeURIComponent(id)}`);
+  $("graph").value = id;
+  const w = state.graph.graph.warnings.length;
+  $("status").innerHTML = `digest ${esc(state.graph.graph.digest)} · published ${new Date(state.graph.published_at).toLocaleString()}${w ? ` · <span class="warn">${w} warning(s)</span>` : ""}`;
+}
+
+function renderTaskList(filter = "") {
+  const g = state.graph;
+  const roots = new Set(g.roots);
+  const f = filter.toLowerCase();
+  const items = g.graph.tasks.filter((t) => !f || t.name.toLowerCase().includes(f) || (t.desc || "").toLowerCase().includes(f));
+  $("side").innerHTML = `<div style="padding:8px"><input id="filter" placeholder="filter tasks" style="width:100%" value="${esc(filter)}"></div>` +
+    items.map((t) => {
+      const s = g.stats[t.name];
+      return `<div class="list-item ${state.route.arg === t.name ? "sel" : ""}" data-task="${esc(t.name)}">
+        <div><div>${roots.has(t.name) ? "◆ " : ""}${esc(t.name)}${t.internal ? ' <span class="dim">internal</span>' : ""}</div>
+        <div class="desc">${esc(t.desc || "")}</div></div>
+        <div style="text-align:right">${s ? `${badge(s.last_outcome)}<div class="desc">p50 ${ms(s.p50_ms)} · ${s.runs}×</div>` : ""}</div></div>`;
+    }).join("");
+  $("filter").oninput = (e) => { renderTaskList(e.target.value); $("filter").focus(); $("filter").setSelectionRange(e.target.value.length, e.target.value.length); };
+  $("side").querySelectorAll("[data-task]").forEach((el) => el.onclick = () => go("task", el.dataset.task));
+}
+
+function treeHtml(node, stats) {
+  const s = stats[node.task];
+  const label = `<a data-task="${esc(node.task)}">${esc(node.task)}</a> ${node.via !== "root" ? `<span class="via">${node.via}</span>` : ""}
+    ${!node.resolved ? '<span class="warn">unresolved</span>' : ""}${node.repeated ? ' <span class="dim">↑ shown above</span>' : ""}
+    ${node.truncated ? ' <span class="dim">… depth limit</span>' : ""}${s ? ` <span class="dim">p50 ${ms(s.p50_ms)} · self ${ms(s.self_p50_ms)}</span> ${badge(s.last_outcome)}` : ""}`;
+  if (!node.children.length) return `<li><span class="leaf"></span>${label}</li>`;
+  return `<li><details open><summary>${label}</summary><ul>${node.children.map((c) => treeHtml(c, stats)).join("")}</ul></details></li>`;
+}
+
+const list = (title, items, fmt = esc) => items && items.length ? `<h3>${title}</h3>${items.map((i) => `<div>${fmt(i)}</div>`).join("")}` : "";
+const ref = (r) => r.resolved ? `<a data-task="${esc(r.name)}">${esc(r.name)}</a>` : `${esc(r.name)} <span class="warn">unresolved</span>`;
+
+async function renderTask(name) {
+  const g = state.graph;
+  if (!name) {
+    $("detail").innerHTML = `<h2>${esc(g.graph.taskfile)}</h2><p class="dim">${g.graph.tasks.length} tasks · ${g.graph.includes.length} includes · pick a task, or start from an entry point (◆)</p>` +
+      list("entry points", g.roots, (r) => `<a data-task="${esc(r)}">${esc(r)}</a>`) +
+      list("warnings", g.graph.warnings, (w) => `<span class="warn">${esc(w)}</span>`);
+    wireTaskLinks($("detail"));
+    return;
+  }
+  const v = await api(`/api/graphs/${encodeURIComponent(g.graph.id)}/tasks/${encodeURIComponent(name)}?depth=6`);
+  state.view = v;
+  const t = v.task, s = v.stats, e = v.estimate;
+  $("detail").innerHTML = `
+    <h2>${esc(t.name)} ${t.internal ? '<span class="dim">internal</span>' : ""}</h2>
+    <div class="dim">${esc(t.desc || "")}</div>
+    <div class="dim">defined in ${esc(t.taskfile)}${t.aliases.length ? ` · aliases ${esc(t.aliases.join(", "))}` : ""}${t.run ? ` · run: ${esc(t.run)}` : ""}</div>
+    <div class="cards">
+      <div class="card"><div class="k">runs</div><div class="v">${s.runs}</div></div>
+      <div class="card"><div class="k">last</div><div class="v">${s.runs ? badge(s.last_outcome) : "—"}</div></div>
+      <div class="card"><div class="k">p50 / p90</div><div class="v">${ms(s.p50_ms)} / ${ms(s.p90_ms)}</div></div>
+      <div class="card"><div class="k">self p50 / p90</div><div class="v">${ms(s.self_p50_ms)} / ${ms(s.self_p90_ms)}</div></div>
+      <div class="card"><div class="k">ok · up-to-date · failed</div><div class="v">${s.succeeded} · ${s.up_to_date} · ${s.failed}</div></div>
+      ${e ? `<div class="card"><div class="k">estimate (pessimistic)</div><div class="v">~${ms(e.expected_ms)} (${ms(e.pessimistic_ms)})</div></div>` : ""}
+    </div>
+    ${e ? `<div><span class="dim">critical path</span> ${e.critical_path.map((c) => `<a class="chip" data-task="${esc(c)}">${esc(c)}</a>`).join(" → ")}</div>
+      ${e.unknown.length ? `<div class="dim">no history (counted as 0): ${e.unknown.map(esc).join(", ")}</div>` : ""}` : ""}
+    <h3>drill-down · ${v.closure.length} reachable</h3>
+    <ul class="tree">${treeHtml(v.tree, g.stats)}</ul>
+    ${list("used by", v.dependents, (d) => `<a data-task="${esc(d.task)}">${esc(d.task)}</a> <span class="via">${d.via}</span>`)}
+    ${v.transitive_dependents.length > v.dependents.length ? `<div class="dim">… ${v.transitive_dependents.length} tasks transitively</div>` : ""}
+    ${list("deps (concurrent)", t.deps, ref)}${list("calls (sequential)", t.calls, ref)}
+    ${t.cmds.length ? `<h3>cmds</h3>${t.cmds.map((c) => `<pre>${esc(c)}</pre>`).join("")}` : ""}
+    ${list("sources", t.sources)}${list("generates", t.generates)}${list("status", t.status)}
+    ${list("preconditions", t.preconditions)}${list("requires vars", t.requires)}
+    ${v.recent.length ? `<h3>recent executions</h3><table><tr><th>when</th><th>outcome</th><th>took</th><th>self</th><th>run</th></tr>
+      ${v.recent.map((r) => `<tr class="click" data-run="${r.run_id}"><td>${new Date(r.at).toLocaleString()}</td><td>${badge(r.outcome)}</td><td>${ms(r.duration_ms)}</td><td>${ms(r.self_ms)}</td><td class="dim">${r.run_id.slice(-12)}</td></tr>`).join("")}</table>` : ""}`;
+  wireTaskLinks($("detail"));
+}
+
+function wireTaskLinks(root) {
+  root.querySelectorAll("[data-task]").forEach((el) => el.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); go("task", el.dataset.task); });
+  root.querySelectorAll("[data-run]").forEach((el) => el.onclick = () => go("run", el.dataset.run));
+}
+
+async function renderRuns() {
+  const runs = await api(`/api/runs?graph=${encodeURIComponent(state.graph.graph.id)}&limit=200`);
+  $("detail").innerHTML = runs.length ? `<table><tr><th>started</th><th>target</th><th>outcome</th><th>took</th><th>expected</th><th>failed/tasks</th><th>by</th><th>trace</th></tr>
+    ${runs.map((r) => `<tr class="click" data-run="${r.run_id}"><td>${new Date(r.started_at).toLocaleString()}</td><td>${esc(r.target)}</td><td>${badge(r.outcome)}</td>
+      <td>${ms(r.duration_ms)}</td><td>${ms(r.estimate_ms)}</td><td>${r.failed}/${r.executions}</td><td class="dim">${esc(r.user)}@${esc(r.host)}</td><td class="dim">${r.trace_id ? esc(r.trace_id.slice(0, 8)) : ""}</td></tr>`).join("")}</table>`
+    : `<p class="dim">No runs recorded for this Taskfile yet.</p>`;
+  wireTaskLinks($("detail"));
+}
+
+function depthOf(run, e) {
+  let d = 0, p = e.parent;
+  const byId = new Map(run.executions.map((x) => [x.instance, x]));
+  while (p != null && byId.has(p) && d < 50) { d++; p = byId.get(p).parent; }
+  return d;
+}
+
+function orderTree(run) {
+  const children = new Map();
+  const ids = new Set(run.executions.map((e) => e.instance));
+  for (const e of run.executions) {
+    const key = e.parent != null && ids.has(e.parent) ? e.parent : 0;
+    if (!children.has(key)) children.set(key, []);
+    children.get(key).push(e);
+  }
+  const out = [];
+  const walk = (k) => (children.get(k) || []).forEach((e) => { out.push(e); walk(e.instance); });
+  walk(0);
+  return out;
+}
+
+async function renderRun(id) {
+  const run = await api(`/api/runs/${encodeURIComponent(id)}`);
+  const t0 = Date.parse(run.started_at);
+  const end = run.finished_at ? Date.parse(run.finished_at) : Date.now();
+  const total = Math.max(end - t0, 1);
+  const trace = run.trace ? (state.config.trace_url
+    ? `<a href="${esc(state.config.trace_url.replace("{trace_id}", run.trace.trace_id))}" target="_blank">trace ${esc(run.trace.trace_id)}</a>`
+    : `trace ${esc(run.trace.trace_id)}`) : "no trace (OTLP export was off)";
+  $("detail").innerHTML = `
+    <div><a data-back>← runs</a></div>
+    <h2>${esc(run.target)} ${badge(run.outcome)}</h2>
+    <div class="dim">${esc(run.user)}@${esc(run.host)} in ${esc(run.cwd)} · ${new Date(run.started_at).toLocaleString()} · ${trace}</div>
+    ${run.args.length ? `<div class="dim">args: ${esc(run.args.join(" "))}</div>` : ""}
+    ${run.error ? `<pre class="failed">${esc(run.error)}</pre>` : ""}
+    <div class="cards">
+      <div class="card"><div class="k">took</div><div class="v">${ms(run.duration_ms)}</div></div>
+      <div class="card"><div class="k">expected</div><div class="v">${ms(run.estimate_ms)}</div></div>
+      <div class="card"><div class="k">executions</div><div class="v">${run.executions.length}</div></div>
+      <div class="card"><div class="k">exit code</div><div class="v">${run.exit_code ?? "—"}</div></div>
+    </div>
+    <h3>timeline</h3>
+    ${orderTree(run).map((e) => {
+      const start = Date.parse(e.started_at) - t0;
+      const dur = e.duration_ms ?? (Date.now() - Date.parse(e.started_at));
+      const cmds = e.commands.map((c) => c.command).join("\n");
+      return `<div class="gantt-row" title="${esc(cmds)}">
+        <div class="gantt-name" style="padding-left:${depthOf(run, e) * 14}px"><a data-task="${esc(e.task)}">${esc(e.task)}</a> <span class="via">${e.via}</span></div>
+        <div class="gantt-track"><div class="gantt-bar bg-${outcome(e.outcome)}" style="left:${(start / total * 100).toFixed(2)}%;width:${(dur / total * 100).toFixed(2)}%"></div></div>
+        <div class="dim">${ms(e.duration_ms)} <span title="self time">(${ms(e.self_ms)})</span></div></div>`;
+    }).join("")}
+    <h3>executions</h3>
+    <table><tr><th>#</th><th>task</th><th>via</th><th>outcome</th><th>took</th><th>self</th><th>commands</th></tr>
+    ${run.executions.map((e) => `<tr><td class="dim">${e.instance}${e.parent != null ? ` ← ${e.parent}` : ""}</td><td><a data-task="${esc(e.task)}">${esc(e.task)}</a></td><td class="via">${e.via}</td>
+      <td>${badge(e.outcome)}${e.error ? ` <span class="dim">${esc(e.error)}</span>` : ""}</td><td>${ms(e.duration_ms)}</td><td>${ms(e.self_ms)}</td>
+      <td>${e.commands.map((c) => `<code>${esc(c.command)}</code>`).join("<br>")}</td></tr>`).join("")}</table>`;
+  wireTaskLinks($("detail"));
+  $("detail").querySelector("[data-back]").onclick = () => go("runs");
+}
+
+async function render() {
+  const route = parseRoute();
+  state.route = route;
+  if (!state.graphs.length) await loadGraphs();
+  if (!state.graphs.length) return;
+  const id = route.graph && state.graphs.some((g) => g.id === route.graph) ? route.graph : state.graphs[0].id;
+  if (!state.graph || state.graph.graph.id !== id) await loadGraph(id);
+  const runsTab = route.kind === "runs" || route.kind === "run";
+  $("tab-tasks").classList.toggle("active", !runsTab);
+  $("tab-runs").classList.toggle("active", runsTab);
+  $("main").classList.toggle("wide", runsTab);
+  $("side").style.display = runsTab ? "none" : "";
+  try {
+    if (route.kind === "runs") await renderRuns();
+    else if (route.kind === "run") await renderRun(route.arg);
+    else { renderTaskList($("filter") ? $("filter").value : ""); await renderTask(route.arg); }
+  } catch (err) {
+    $("detail").innerHTML = `<p class="failed">${esc(err.message)}</p>`;
+  }
+}
+
+let refreshTimer = null;
+function scheduleRefresh(reloadGraph) {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(async () => {
+    if (reloadGraph && state.graph) { await loadGraphs(); await loadGraph(state.graph.graph.id); }
+    render();
+  }, 400);
+}
+
+function connect() {
+  const es = new EventSource("/api/events/sse");
+  es.onopen = () => $("live").classList.add("on");
+  es.onerror = () => $("live").classList.remove("on");
+  const kinds = ["graph_published", "run_started", "task_started", "command_started", "task_finished", "run_finished", "lagged"];
+  for (const kind of kinds) {
+    es.addEventListener(kind, (msg) => {
+      if (kind === "lagged") { scheduleRefresh(true); return; }
+      const ev = JSON.parse(msg.data);
+      const feed = $("feed");
+      const line = document.createElement("div");
+      const what = ev.task ? `${ev.task}${ev.outcome ? " " + ev.outcome : ""}${ev.command ? ": " + ev.command : ""}`
+        : ev.target ? `${ev.target}${ev.outcome ? " " + ev.outcome : ""}` : ev.graph ? ev.graph.taskfile : "";
+      line.innerHTML = `<span class="dim">${new Date(ev.at).toLocaleTimeString()}</span> <b>${esc(kind)}</b> ${esc(what)}${ev.duration_ms != null ? ` <span class="dim">${ms(ev.duration_ms)}</span>` : ""}`;
+      feed.prepend(line);
+      while (feed.childElementCount > 200) feed.lastChild.remove();
+      const r = state.route;
+      if (kind === "graph_published" || kind === "task_finished" || kind === "run_finished") scheduleRefresh(true);
+      else if (r.kind === "runs" || (r.kind === "run" && r.arg === ev.run_id)) scheduleRefresh(false);
+    });
+  }
+}
+
+$("graph").onchange = (e) => { location.hash = `#/g/${encodeURIComponent(e.target.value)}/tasks`; };
+$("tab-tasks").onclick = () => go("task", state.view ? state.view.task.name : null);
+$("tab-runs").onclick = () => go("runs");
+window.addEventListener("hashchange", render);
+(async () => {
+  state.config = await api("/api/config");
+  connect();
+  render();
+})();
+</script>
+</body>
+</html>

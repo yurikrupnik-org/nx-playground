@@ -122,6 +122,57 @@ pub fn init_tracing(environment: &Environment, app: AppInfo) -> TracingGuard {
     TracingGuard { provider }
 }
 
+/// Initialize tracing for an interactive CLI whose stdout belongs to the user.
+///
+/// Differs from [`init_tracing`] in three ways that matter at a terminal:
+/// - human-readable logs go to **stderr**, so they never interleave with the
+///   program's output;
+/// - the log filter comes from `log_env` (e.g. `TASKGRAPH_LOG`), default
+///   `warn` — **not** `RUST_LOG`, which the repo's `.env` sets for services
+///   and which would otherwise flood every CLI invocation;
+/// - the OTLP layer has its **own** filter (`warn` everywhere, `info` for
+///   `span_target`) instead of sharing the log filter, so the spans a CLI
+///   records for export are not discarded just because the terminal is quiet.
+///   Pass `env!("CARGO_CRATE_NAME")`: a binary's module paths start with its
+///   *bin* name, which need not match the package name in `app`.
+///
+/// OTLP export activates exactly as in [`init_tracing`]
+/// (`OTEL_EXPORTER_OTLP_ENDPOINT`); `APP_ENV` sets `deployment.environment.name`
+/// and an unparseable value falls back to development rather than failing a CLI.
+pub fn init_cli_tracing(app: AppInfo, span_target: &str, log_env: &str) -> TracingGuard {
+    install_color_eyre();
+    opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+
+    let environment = Environment::from_env().unwrap_or(Environment::Development);
+    let (otel_layer, provider) = match build_otel_layer(&environment, &app) {
+        Ok(Some((layer, provider))) => (Some(layer), Some(provider)),
+        Ok(None) => (None, None),
+        Err(e) => {
+            eprintln!("OTEL initialization failed, continuing without OTLP export: {e:#}");
+            (None, None)
+        }
+    };
+    let otel_filter = EnvFilter::new(format!("warn,{span_target}=info"));
+    let log_filter = EnvFilter::try_from_env(log_env).unwrap_or_else(|_| EnvFilter::new("warn"));
+
+    let result = tracing_subscriber::registry()
+        .with(otel_layer.map(|layer| layer.with_filter(otel_filter)))
+        .with(tracing_error::ErrorLayer::default())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stderr)
+                .with_target(false)
+                .compact()
+                .with_filter(log_filter),
+        )
+        .try_init();
+    if result.is_err() {
+        debug!("Tracing already initialized, skipping re-initialization");
+    }
+
+    TracingGuard { provider }
+}
+
 type OtelLayer = tracing_opentelemetry::OpenTelemetryLayer<
     tracing_subscriber::Registry,
     opentelemetry_sdk::trace::Tracer,

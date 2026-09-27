@@ -907,6 +907,7 @@ dependencies = [
  "sha2 0.11.0",
  "tokio",
  "toml",
+ "toml_edit",
 ]
 
 [[package]]
@@ -1174,6 +1175,17 @@ dependencies = [
 
 [[package]]
 name = "contract_projects"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "messaging",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "contract_taskgraph"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -1592,10 +1604,13 @@ dependencies = [
  "core_retry",
  "redis",
  "sea-orm",
+ "serde",
+ "serde_json",
  "temp-env",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "utoipa",
  "uuid",
 ]
 
@@ -1862,6 +1877,27 @@ dependencies = [
  "utoipa",
  "uuid",
  "validator",
+]
+
+[[package]]
+name = "domain_taskgraph"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "async-trait",
+ "chrono",
+ "contract_taskgraph",
+ "futures",
+ "messaging",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "sha2 0.11.0",
+ "test-utils",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -6937,6 +6973,53 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "876fef147edbcbddc8ac5cbbba92c7b86519e314e86638596c09673b2ed01e7f"
 
 [[package]]
+name = "taskgraph_api"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "axum",
+ "axum-helpers",
+ "chrono",
+ "contract_taskgraph",
+ "core_config",
+ "domain_taskgraph",
+ "eyre",
+ "futures",
+ "messaging",
+ "metrics",
+ "parking_lot",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "test-utils",
+ "tokio",
+ "tokio-stream",
+ "tower-http 0.7.1",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "taskgraph_cli"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "chrono",
+ "clap",
+ "contract_taskgraph",
+ "core_config",
+ "domain_taskgraph",
+ "eyre",
+ "messaging",
+ "opentelemetry",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-opentelemetry",
+ "uuid",
+]
+
+[[package]]
 name = "temp-env"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7735,6 +7818,7 @@ dependencies = [
  "indexmap 2.14.2",
  "toml_datetime",
  "toml_parser",
+ "toml_writer",
  "winnow",
 ]
 

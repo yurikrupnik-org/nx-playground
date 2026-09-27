@@ -37,7 +37,7 @@ tasks:
     desc: nx build+test for every project tagged lang:python
     cmds:
       - bun nx run-many -t build test -p tag:lang:python
-      # - uv test
+      #- uv build --all-packages
 
   fmt-py:
     desc: ruff format --write over every project tagged lang:python

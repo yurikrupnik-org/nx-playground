@@ -2,7 +2,7 @@
 #
 # THREE consumers read these files, so every fact lives in exactly one of them:
 #   butler            renders Tiltfiles and, with the `app` KCL package, the
-#                     k8s manifests under manifests/k8s/apps/
+#                     k8s manifests under [k8s] outDir (manifests/k8s/{env}/)
 #   tools/nx/*.ts     infers each app's nx `container`/`scan` target (butler's
 #                     Rust port of it infers the same graph natively)
 #   the KCL package   validates the workload payload against its typed schema
@@ -36,7 +36,7 @@ env = "dev"
 [k8s]
 package = "oci://docker.io/yurikrupnik/app"
 tag = "0.1.2"
-outDir = "manifests/k8s/lol"
+outDir = "manifests/k8s/{env}"
 # Where the rendered manifests and their aggregate land. `{env}` expands to `env`
 # above, so a repo that renders several environments keeps them apart with one
 # line (`outDir = "manifests/gitops/{env}/apps"`). Both butler and
@@ -46,8 +46,10 @@ outDir = "manifests/k8s/lol"
 # Appended verbatim to the generated aggregate kustomization, and resolved
 # RELATIVE TO outDir — change one and check the other. Environment fixtures only:
 # objects that are not workload shape and that the package does not render (it
-# emits ExternalSecrets, not literal Secrets).
-extraResources = ["../dev"]
+# emits ExternalSecrets, not literal Secrets). They live outside every
+# `manifests/k8s/{env}` so the generated aggregate never overwrites their
+# kustomization.
+extraResources = ["../fixtures/dev"]
 
 [k8s.imageTag]
 dev = "dev"
@@ -67,6 +69,24 @@ outDir = "manifests/k8s/submodules"
 # first-rust-app ships its own kustomize base, so Flux applies that.
 [submodule.first-rust-app]
 kustomize = "k8s/base"
+
+# Web UIs of the dev loop (`butler ui`, docs/tilt-generators.md): one
+# `[ui.<name>]` per UI, its `url` carrying the port. `butler ui serve` frames
+# them all in one page next to the ports in use; `butler ui add/set/remove`
+# edit the tables below and keep the rest of this file as written.
+[ui]
+
+[ui.flux]
+url = "http://localhost:9080/"
+
+[ui.alerts]
+url = "http://localhost:55505/#/alerts"
+
+[ui.grafana]
+url = "http://localhost:55558/login"
+
+[ui.prometheus]
+url = "http://localhost:55798/query"
 
 # Apps that ship an image but no workload of their own: nothing in this repo
 # deploys them, but CI still builds and scans the image. Every other app earns
@@ -272,3 +292,77 @@ probePort = 8025
 name = "zerg-shared-config"
 kustomize = "apps/zerg/shared/k8s/kustomize/overlays/dev"
 objects = ["zerg-shared-config:configmap", "zerg-shared-secrets:secret"]
+
+# Tekton (`butler tekton gen`, docs/tilt-generators.md): the runner Tasks plus
+# one Pipeline per runnable target, written to `outDir` (owned outright, like
+# `[submodules] outDir`). The targets are derived — every nx project:target,
+# Taskfile task (root file + local includes; remote includes are skipped),
+# public justfile recipe, `.nu` script with a `main`, and one build-and-deploy
+# Pipeline per app with a `[workload]` (Tilt's dev loop, in-cluster: buildkit
+# builds the image the Tiltfile builds, then the manifest `butler k8s gen`
+# rendered is applied with that image pinned by digest). This table holds only
+# what cannot be derived. Apply with `kubectl apply -k manifests/tekton -n <ns>`;
+# the ServiceAccount a deploy PipelineRun uses needs apply rights in the apps'
+# namespaces.
+[tekton]
+outDir = "manifests/tekton"
+repository = "https://github.com/yurikrupnik-org/nx-playground.git"
+revision = "main"
+# The task and nu runners download their binary (checked against the release's
+# own checksum list) into the toolchain image below: go-task ships no
+# maintained image, and the nushell image carries no git, which scripts call.
+taskVersion = "3.53.1"
+nuVersion = "0.116.0"
+
+# Target ids: nx:<project>:<target>, task:<name>, just:<recipe>, nu:<path>,
+# deploy:<app>. Excluded here: what never terminates, needs a TTY, or acts on
+# the developer's machine rather than a checkout (local kind/compose/zellij,
+# `cargo install`, opening a browser). A glob matching nothing is an error.
+exclude = [
+    # dev servers, bacon/mprocs loops, `cargo run` of long-running services
+    "nx:*:serve",
+    "nx:*:dev",
+    "nx:*:run",
+    "nx:*:e2e:ui",
+    # uv dependency edits: need a package argument and rewrite the lockfile
+    "nx:*:add",
+    "nx:*:remove",
+    "nx:*:update",
+    # installs the butler binary onto the host
+    "nx:butler:install",
+    "task:dev",
+    "task:dev-*",
+    "task:run",
+    "task:web",
+    "task:events",
+    "task:cnpg-logs",
+    "task:self-update",
+    # host-local: devkit/compose/kind/zellij lifecycle, secrets onto disk,
+    # installs, browsers, scaffolding
+    "task:local-*",
+    "task:docker-*",
+    "task:reset-db",
+    "task:kube-*",
+    "task:lol",
+    "task:z",
+    "task:zj",
+    "task:zj-kill",
+    "task:generate-env",
+    "task:slava",
+    "task:docs-open",
+    "task:flags-open",
+    "task:create-nx-project",
+]
+
+# Step image per runner, required only once a Pipeline uses it (no justfile
+# here, so no `just` image). `nx`, `task` and `nu` name the toolchain the
+# targets shell out to: bun covers the JS side, alpine/git the nu scripts; a
+# target that needs cargo, kubectl, kcl, ... needs an image carrying it here.
+[tekton.images]
+git = "alpine/git:2.54.0"
+fetch = "alpine:3.24.2"
+nx = "oven/bun:1.4.2"
+task = "oven/bun:1.4.2"
+nu = "alpine/git:2.54.0"
+buildkit = "moby/buildkit:v0.33.0-rootless"
+kubectl = "alpine/k8s:1.35.9"

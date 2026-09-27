@@ -94,6 +94,173 @@
       }
     },
     "schemas": {
+      "CatalogColumn": {
+        "description": "A column of a [`CatalogTable`].",
+        "properties": {
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "data_type": {
+            "description": "`format_type(atttypid, atttypmod)`, e.g. `character varying(255)`.",
+            "type": "string"
+          },
+          "default": {
+            "description": "Default (or generation) expression as SQL text.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enum_values": {
+            "description": "Labels in sort order when the column's type (or its array element /\ndomain base type) is an enum.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "is_primary_key": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
+          "position": {
+            "description": "1-based ordinal (`pg_attribute.attnum`).",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "position",
+          "data_type",
+          "nullable",
+          "is_primary_key"
+        ],
+        "type": "object"
+      },
+      "CatalogDatabase": {
+        "description": "One database on the server.",
+        "properties": {
+          "current": {
+            "description": "`true` for the database the service's own connection points at.",
+            "type": "boolean"
+          },
+          "error": {
+            "description": "Why this database could not be connected to or introspected; `tables`\nis then empty. One broken database never fails the whole listing.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogTable"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "current",
+          "tables"
+        ],
+        "type": "object"
+      },
+      "CatalogForeignKey": {
+        "description": "A foreign key declared on a [`CatalogTable`].",
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ref_schema": {
+            "type": "string"
+          },
+          "ref_table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "columns",
+          "ref_schema",
+          "ref_table",
+          "ref_columns"
+        ],
+        "type": "object"
+      },
+      "CatalogTable": {
+        "description": "A table-like relation.",
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogColumn"
+            },
+            "type": "array"
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "foreign_keys": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogForeignKey"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RelationKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "row_estimate": {
+            "description": "Planner estimate (`pg_class.reltuples`); `null` when never analyzed\nor when the relation stores no rows itself (views).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "schema": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "name",
+          "kind",
+          "columns",
+          "foreign_keys"
+        ],
+        "type": "object"
+      },
       "CloudProvider": {
         "description": "Supported cloud providers",
         "enum": [
@@ -480,6 +647,21 @@
         "required": [
           "email",
           "name"
+        ],
+        "type": "object"
+      },
+      "DatabasesResponse": {
+        "description": "Every browsable database on the server.",
+        "properties": {
+          "databases": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogDatabase"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "databases"
         ],
         "type": "object"
       },
@@ -1118,6 +1300,17 @@
         ],
         "type": "string"
       },
+      "RelationKind": {
+        "description": "Kind of a browsable relation (`pg_class.relkind`).",
+        "enum": [
+          "table",
+          "view",
+          "materialized_view",
+          "partitioned_table",
+          "foreign_table"
+        ],
+        "type": "string"
+      },
       "ResourceStatus": {
         "description": "Resource status",
         "enum": [
@@ -1142,6 +1335,46 @@
           "other"
         ],
         "type": "string"
+      },
+      "RowsPage": {
+        "description": "One page of a relation's rows.",
+        "properties": {
+          "columns": {
+            "description": "Column names in position order.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rows": {
+            "description": "`row_to_json` objects, keys in column order. Kept as raw JSON so the\nserver's rendering (key order, numeric precision) reaches the client\nuntouched.",
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "description": "Exact `count(*)` of the relation.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "columns",
+          "rows",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
       },
       "SearchFilter": {
         "description": "Search filter conditions",
@@ -2085,6 +2318,153 @@
         ],
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/catalog/databases": {
+      "get": {
+        "operationId": "list_databases",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabasesResponse"
+                }
+              }
+            },
+            "description": "Databases on the server; one that cannot be introspected carries `error`"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Catalog query failed"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List databases with their tables, columns and foreign keys",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/databases/{db}/tables/{schema}/{table}/rows": {
+      "get": {
+        "operationId": "list_table_rows",
+        "parameters": [
+          {
+            "description": "Database name",
+            "in": "path",
+            "name": "db",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Schema name",
+            "in": "path",
+            "name": "schema",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Table, view or materialized view name",
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, default 50, clamped to 1..=500.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Rows to skip, default 0.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RowsPage"
+                }
+              }
+            },
+            "description": "One page of rows as JSON objects"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Database, schema or table not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Row query failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Database exists but is unreachable"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Page through a table's rows",
+        "tags": [
+          "catalog"
         ]
       }
     },
@@ -4274,6 +4654,10 @@
     {
       "description": "Vector storage and search operations",
       "name": "vector"
+    },
+    {
+      "description": "Live Postgres introspection (mounted only when APP_ENV=development)",
+      "name": "catalog"
     }
   ]
 }

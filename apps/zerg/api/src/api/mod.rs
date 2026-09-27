@@ -3,6 +3,7 @@ use axum::{Extension, Router, middleware};
 use axum_helpers::RateLimitTier;
 
 pub mod auth;
+pub mod catalog;
 pub mod cloud_resources;
 pub mod health;
 pub mod org;
@@ -131,6 +132,21 @@ pub fn routes(state: &crate::state::AppState) -> Router {
                 .layer(auth_mw())
                 .layer(csrf_mw()),
         );
+
+    // Dev-only data catalog: introspects every database on the server, so it is
+    // never mounted outside development (production answers 404).
+    let router = if state.config.environment.is_development() {
+        router.nest(
+            "/catalog",
+            catalog::router(state)
+                .layer(rl_layer())
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
+        )
+    } else {
+        router
+    };
 
     // Add vector routes with stricter tier if Qdrant is configured
     if let Some(vector_router) = vector::router(state) {

@@ -44,10 +44,12 @@ struct ApiResourceInput {
 ///
 /// Default behavior with automatic pluralization:
 ///
-/// ```ignore
+/// ```
+/// use core_proc_macros::ApiResource;
+///
 /// #[derive(ApiResource)]
 /// pub struct Product {
-///     id: Uuid,
+///     id: String,
 ///     name: String,
 /// }
 ///
@@ -58,7 +60,9 @@ struct ApiResourceInput {
 ///
 /// Custom configuration:
 ///
-/// ```ignore
+/// ```
+/// use core_proc_macros::ApiResource;
+///
 /// #[derive(ApiResource)]
 /// #[api_resource(
 ///     collection = "product_items",
@@ -66,7 +70,7 @@ struct ApiResourceInput {
 ///     tag = "Product Catalog"
 /// )]
 /// pub struct Product {
-///     id: Uuid,
+///     id: String,
 /// }
 ///
 /// assert_eq!(Product::COLLECTION, "product_items");
@@ -76,10 +80,12 @@ struct ApiResourceInput {
 ///
 /// Handles irregular pluralization:
 ///
-/// ```ignore
+/// ```
+/// use core_proc_macros::ApiResource;
+///
 /// #[derive(ApiResource)]
 /// pub struct Story {
-///     id: Uuid,
+///     id: String,
 /// }
 ///
 /// assert_eq!(Story::COLLECTION, "stories");

@@ -492,10 +492,10 @@ optional = false
 ```
 
 and the dev-only literals are one file for every zerg app,
-`manifests/k8s/dev/app-secrets.yaml`, pulled into the generated aggregate through the
+`manifests/k8s/fixtures/dev/app-secrets.yaml`, pulled into the generated aggregate through the
 root `butler.toml` `[k8s] extraResources`.
 
-**Verified.** `kubectl kustomize manifests/k8s/apps` renders the `zerg-tasks` Deployment
+**Verified.** `kubectl kustomize manifests/k8s/dev` renders the `zerg-tasks` Deployment
 with no `zerg-api-secrets` reference and decodes `DATABASE_URL` to `…/tasks`.
 
 ### 2.2 Give `zerg_tasks` `WORKOS_CLIENT_ID` · S · ✅ FIXED 2026-07-26

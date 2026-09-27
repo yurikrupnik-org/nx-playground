@@ -130,7 +130,6 @@ schema CIConfig:
 
     # Provider-specific overrides
     github?: GitHubConfig
-    tekton?: TektonConfig
 
 schema GitHubConfig:
     """GitHub Actions specific configuration"""
@@ -149,12 +148,3 @@ schema GitHubConfig:
     # Override GHA action pins by logical name (keys match common.GHA_ACTIONS),
     # e.g. {checkout = "actions/checkout@v5"}. Merged over the defaults.
     action_versions: {str:str} = {}
-
-schema TektonConfig:
-    """Tekton specific configuration"""
-    namespace: str = "default"
-    workspace_size: str = "1Gi"
-    service_account?: str
-    # Override container images by logical name (keys match common.TEKTON_IMAGES),
-    # e.g. {rust = "rust:1.86"}. Merged over the defaults.
-    images: {str:str} = {}

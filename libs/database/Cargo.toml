@@ -9,7 +9,9 @@ default = ["postgres", "redis"]
 postgres = ["dep:sea-orm"]
 redis = ["dep:redis"]
 config = ["dep:core_config"]
-all = ["postgres", "redis", "config"]
+# Live Postgres catalog introspection + row sampling (serde/utoipa DTOs).
+catalog = ["postgres", "dep:serde", "dep:serde_json", "dep:utoipa"]
+all = ["postgres", "redis", "config", "catalog"]
 
 [dependencies]
 # Core dependencies (always available)
@@ -25,6 +27,12 @@ redis = { workspace = true, optional = true }
 # PostgreSQL dependencies (optional)
 # Note: Migrations are managed by Atlas CLI, not sea-orm-migration
 sea-orm = { workspace = true, optional = true }
+
+# Catalog DTOs (optional)
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true, features = ["raw_value"] }
+utoipa = { workspace = true, optional = true }
+
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

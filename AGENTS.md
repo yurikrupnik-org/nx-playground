@@ -11,12 +11,24 @@ must be unique, `task --list` shows everything). `scripts/tasks/flows.yml` holds
 cross-ecosystem flows and aggregates, `scripts/tasks/dev.yml` the run/dev/scaffold
 tasks. Parameters are named upper-case vars (`task migrate-add DB=terran
 NAME=add_col`); pass-through args go after `--` (`task run -- zerg-api`).
+
+Languages: `fmt`/`fmt-check`/`lint`/`test`/`check`/`outdated` loop over the
+`ECOSYSTEMS` table in flows.yml (ecosystem → phase → leaf tasks). `rust` and `ts`
+always run; `go`, `py`, `kcl` join only when a go.mod / non-root pyproject.toml /
+kcl.mod exists. `task ecosystems` prints the selection; `LANGS="rust go"` overrides
+it per run (unknown names fail before any leaf runs). A new ecosystem = a
+`scripts/tasks/<eco>.yml` with its leaves, an include in the root, a table row.
 Domain tasks:
 
 - `scripts/tasks/rust.yml` — all cargo commands (lint-rust, test-rust, test-doc, doc-check, deps-unused, fmt-rust, audit, crates-*)
 - `scripts/tasks/web.yml` — nx/biome/ncu (lint-web, test-web, fmt-web, outdated-node)
 - `scripts/tasks/python.yml` — uv/ruff/pytest via nx, scoped by TAG not project name
   (`-p tag:lang:python`): lint-py, test-py, fmt-py, fmt-check-py, outdated-py
+- `scripts/tasks/go.yml` — go vet/test/gofmt per module (every dir with a go.mod, no
+  nx): lint-go, test-go, fmt-go, fmt-check-go, outdated-go; with no go.mod in the
+  tree they exit 0 (lint-go/test-go say so)
+- `scripts/tasks/kcl.yml` — lint-kcl/test-kcl via nx by TAG (`-p tag:lang:kcl`),
+  fmt-kcl/fmt-check-kcl as direct `kcl fmt` over scripts/kcl
 - `scripts/tasks/nu.yml` — the script-language rule. bash runs INLINE in `cmds:`
   (go-task's built-in mvdan/sh interpreter; no shebang). Nushell is never inline
   (go-task has no interpreter/shebang option): it lives in `scripts/<area>/<name>.nu`
@@ -40,8 +52,10 @@ Domain tasks:
   `docs-lint` is NOT in `verify`: 36 of 60 projects have no README, so it is the
   worklist, not yet a gate. Markdown formatting is rumdl's (`.rumdl.toml`), not
   `monodocs fmt`'s — one formatter per file.
-- `scripts/tasks/platform.yml` — DevEnvironment manager (Crossplane): platform-install,
-  env-create/status/delete. XRD+KCL composition in `platform/dev-env/`, SDKs in
+- `scripts/tasks/platform.yml` — DevEnvironment manager (Crossplane): platform-install.
+  env-create/status/connection/delete/list/presets live in `platform/dev-env/Taskfile.yml`
+  (flattened into the root; `platform/dev-env/bin/devenv <verb> [NAME]` is its CLI, default
+  config in `platform/dev-env/presets/`). XRD+KCL composition in `platform/dev-env/`, SDKs in
   `libs/platform/devenv-sdk` (rust) and `platform/sdk/{python,node}` — see `platform/README.md`.
   Node SDK examples must run under `node`, not bun (client-node TLS agent incompatibility).
 - `scripts/tasks/{k8s,k8s-apps,local-env,tilt,graph,todo,zellij,flags}.yml`,
@@ -139,8 +153,9 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   stays the whole-tree pass.
 - **Generated files, do not edit or lint**: `libs/**/types` (ts-rs bindings from
   `export_bindings_*` tests), `libs/rpc/src/generated` (buf), `docs/openapi`
-  (OpenAPI v1 specs from `export_openapi_*` tests), and every `Tiltfile`
-  (`task tilt-gen`). biome.json ignores the first three.
+  (OpenAPI v1 specs from `export_openapi_*` tests), every `Tiltfile`
+  (`task tilt-gen`) and `manifests/tekton/**` (`task tekton-gen`). biome.json
+  ignores the first three.
 - **`butler.toml` is the CLI's config, at two levels — root required, per-app optional.** Root
   `butler.toml` owns everything repo-wide (registry, `env`, infra port-forwards,
   shared cluster resources, per-kind image conventions
@@ -278,7 +293,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `scripts/tasks/tilt.yml` from `butler graph --json`), the roots of those same
   graph nodes, so the include list is the graph's answer; `task k8s-gen` does the
   same with `K8S_APPS_SH` (`scripts/tasks/k8s-apps.yml`) for
-  `manifests/k8s/apps/kustomization.yaml`.
+  `manifests/k8s/dev/kustomization.yaml`.
 - **`nx show projects --with-target scan` IS the image/scan set CI matrixes
   over.** 12 apps: a recognizable kind (service, web or node) AND (a `[workload]`
   in the app's `butler.toml` OR root `butler.toml` `[container] extra`). It grew
@@ -297,9 +312,16 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   at the ROOT of butler.toml, NOT under `[tilt]`, because the `tilt.` prefix is
   what made the stage look dev-only and hid this for as long as it existed.
 - **A manifest is never hand-written and never hand-edited.**
-  `manifests/k8s/apps/**` (11 rendered apps + the aggregate kustomization),
-  every `<app>/k8s/values.yaml` and `values.<env>.yaml`, and every `Tiltfile` are
-  generated from `butler.toml` and gated by `task k8s-check` / `task tilt-check`.
+  `manifests/k8s/dev/**` (12 rendered apps + the aggregate kustomization),
+  every `<app>/k8s/values.yaml` and `values.<env>.yaml`, every `Tiltfile` and
+  `manifests/tekton/**` are generated from `butler.toml` and gated by
+  `task k8s-check` / `task tilt-check` / `task tekton-check`. The Tekton set is
+  one Pipeline per runnable target — every nx `project:target`, Taskfile task,
+  nu script with a `main`, and a build-and-deploy per `[workload]` app — so a
+  new target, task or app fails `tekton-check` until `task tekton-gen` runs; a
+  long-running or host-local one goes in `[tekton] exclude`. It replaced the
+  unused Tekton provider of `scripts/kcl/ci`, which now emits GitHub Actions
+  only.
   The image reference has exactly ONE home: butler injects it, and declaring
   `image` in any `[workload]` is a hard error — it used to be spelled three ways
   (`yurikrupnik/todo-api:dev`, `yurikrupnik/zerg-api:main`,
@@ -311,7 +333,7 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   `apps/zerg/shared/k8s/kustomize` is the ONE surviving hand-written
   app-adjacent kustomize tree — no app kind, and the root
   `[[tilt.sharedResource]]` references it by path. Dev-only Secret literals moved
-  out of the deleted overlays into `manifests/k8s/dev/app-secrets.yaml`, reached
+  out of the deleted overlays into `manifests/k8s/fixtures/dev/app-secrets.yaml`, reached
   through `[k8s] extraResources`.
 - **Never derive `docker_build(only=…)` from the nx graph.** `@monodon/rust`
   flattens `[dependencies]` and `[dev-dependencies]` into one edge type, so the nx

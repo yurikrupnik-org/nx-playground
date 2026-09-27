@@ -3,8 +3,14 @@
 #
 # This file is only the entry point: every task lives in scripts/tasks/<area>.yml.
 # The includes are FLATTENED, so task names are global (`task check`, not
-# `task flows:check`) and must be unique across all included files. Included
+# `task flows:check`) and must be unique across all included files — CI,
+# lefthook and scripts/rust/gate call the leaves by those flat names. Included
 # tasks run from the repository root, whatever directory you invoke `task` from.
+#
+# Languages: Rust and TypeScript are the defaults every aggregate runs; Go,
+# Python and KCL join `task fmt|lint|test|check` only when their manifests
+# exist. `task ecosystems` shows the selection; `LANGS=` overrides it
+# (scripts/tasks/flows.yml).
 #
 # Composite tasks call their steps as sequential `cmds: - task: <name>`, never
 # `deps:` — go-task runs deps in parallel, and the gates share cargo's
@@ -18,25 +24,105 @@ version: '3'
 # DATABASE_URL, ... even without direnv). direnv (.envrc) also loads it for shells.
 dotenv: ['.env']
 
+tasks:
+  self-update:
+    cmds:
+      - echo "Running CLI_ARGS {{.CLI_ARGS}}"
+      - echo "Running CLI_ARGS_LIST {{.CLI_ARGS_LIST}}"
+      - echo "Running CLI_SILENT {{.CLI_SILENT}}"
+      - echo "Running TASKFILE {{.TASKFILE}}"
+      - echo "Running TASKFILE_DIR {{.TASKFILE_DIR}}"
+      - echo "Running USER_WORKING_DIR {{.USER_WORKING_DIR}}"
+      - echo "Running ROOT_DIR {{.ROOT_DIR}}"
+      - echo "Running ROOT_TASKFILE {{.ROOT_TASKFILE}}"
+      - echo "Running TASK {{.TASK}}"
+      - echo "Running TASK_EXE {{.TASK_EXE}}"
+      - echo "Running ALIAS {{.ALIAS}}"
+      - butler show projects --json | jq
+      - butler ui ports
+      - butler ui serve
+      - calltrace
+      - flux-graph
+      - task test-doc
+      - just --summary                       # fails if the justfile doesn't parse
+      - just --dump --dump-format json       # justfile as JSON, which you can `kcl vet` against a schema
+      - make -n                              # Makefile dry run
+      - task --list                          # Taskfile parse check
+      - kcl run build.k | yq -r .justfile > justfile
+      - kcl run build.k | yq -r .makefile > Makefile
+      - just --summary                       # fails if the justfile doesn't parse
+      - just --dump --dump-format json       # justfile as JSON, which you can `kcl vet` against a schema
+      - make -n                              # Makefile dry run
+      - task --list                          # Taskfile parse check
+      - kcl run build.k | yq -r .taskfile > Taskfile.yml
+#      - update
+  testd:
+    desc: testd
+    requires:
+      vars: [service]
+#      vars:
+#        - deploy
+#        - name: env
+#          enum: [dev, staging, prod]
+    vars:
+      ns: '{{.ns | default "default"}}'
+      tail: '{{.tail | default "100"}}'
+    cmds:
+      - kubectl get {{.service}} -A {{.CLI_ARGS_LIST}}
+  hello:
+    desc: Print a greeting message
+    requires:
+      vars:
+#      vars: [ENV]
+        - name: hello
+          value: world
+    cmds:
+      - task --taskfile https://raw.githubusercontent.com/go-task/task/main/website/src/public/Taskfile.yml hello
+    silent: true
+  hell:
+    cmds:
+      - echo "hell"
+  run-remote:
+    cmds:
+      - task --taskfile https://raw.githubusercontent.com/go-task/task/main/website/src/public/Taskfile.yml dam
+      - task hell
+  dam:
+    cmds:
+      - echo "dam"
 includes:
+  # Phase aggregates: fmt / fmt-check / lint / test / check / verify / outdated.
   flows: { taskfile: ./scripts/tasks/flows.yml, flatten: true }
-  dev: { taskfile: ./scripts/tasks/dev.yml, flatten: true }
+
+  # Language leaves. rust + web (TypeScript) are always on; go, python and kcl
+  # are occasional and selected by manifest detection.
   rust: { taskfile: ./scripts/tasks/rust.yml, flatten: true }
-  python: { taskfile: ./scripts/tasks/python.yml, flatten: true }
-  nu: { taskfile: ./scripts/tasks/nu.yml, flatten: true }
   web: { taskfile: ./scripts/tasks/web.yml, flatten: true }
-  docs: { taskfile: ./scripts/tasks/docs.yml, flatten: true }
-  db: { taskfile: ./scripts/tasks/db.yml, flatten: true }
+  go: { taskfile: ./scripts/tasks/go.yml, flatten: true }
+  python: { taskfile: ./scripts/tasks/python.yml, flatten: true }
+  kcl: { taskfile: ./scripts/tasks/kcl.yml, flatten: true }
+
+  # Repo tooling, code generation and drift gates.
+  nu: { taskfile: ./scripts/tasks/nu.yml, flatten: true }
   proto: { taskfile: ./scripts/tasks/proto.yml, flatten: true }
-  email: { taskfile: ./scripts/tasks/email.yml, flatten: true }
-  bench: { taskfile: ./scripts/tasks/bench.yml, flatten: true }
+  docs: { taskfile: ./scripts/tasks/docs.yml, flatten: true }
+  graph: { taskfile: ./scripts/tasks/graph.yml, flatten: true }
+  dev: { taskfile: ./scripts/tasks/dev.yml, flatten: true }
+
+  # Local environment, cluster and service workflows.
+  db: { taskfile: ./scripts/tasks/db.yml, flatten: true }
+  local-env: { taskfile: ./scripts/tasks/local-env.yml, flatten: true }
   k8s: { taskfile: ./scripts/tasks/k8s.yml, flatten: true }
   k8s-apps: { taskfile: ./scripts/tasks/k8s-apps.yml, flatten: true }
-  local-env: { taskfile: ./scripts/tasks/local-env.yml, flatten: true }
   kube-run: { taskfile: ./scripts/tasks/kube-run.yml, flatten: true }
   platform: { taskfile: ./scripts/tasks/platform.yml, flatten: true }
+  # DevEnvironment CLI (env-*); also runs standalone as platform/dev-env/bin/devenv.
+  devenv: { taskfile: ./platform/dev-env/Taskfile.yml, flatten: true }
   tilt: { taskfile: ./scripts/tasks/tilt.yml, flatten: true }
+  tekton: { taskfile: ./scripts/tasks/tekton.yml, flatten: true }
   todo: { taskfile: ./scripts/tasks/todo.yml, flatten: true }
   zellij: { taskfile: ./scripts/tasks/zellij.yml, flatten: true }
-  graph: { taskfile: ./scripts/tasks/graph.yml, flatten: true }
+  email: { taskfile: ./scripts/tasks/email.yml, flatten: true }
+  bench: { taskfile: ./scripts/tasks/bench.yml, flatten: true }
   flags: { taskfile: ./scripts/tasks/flags.yml, flatten: true }
+
+  hello: { taskfile: https://raw.githubusercontent.com/go-task/task/main/website/src/public/Taskfile.yml }
