@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use chrono::{DateTime, Utc};
 use contract_taskgraph::{
-    EventBody, Graph, RunOutcome, TaskNode, TaskOutcome, TaskgraphEvent, TraceRef, Via,
+    EventBody, Graph, RunOrigin, RunOutcome, TaskNode, TaskOutcome, TaskgraphEvent, TraceRef, Via,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -85,6 +85,8 @@ pub struct Run {
     pub estimate_ms: Option<u64>,
     pub error: Option<String>,
     pub trace: Option<TraceRef>,
+    /// CI job / invoker / commit the run started from.
+    pub origin: RunOrigin,
     /// In start order.
     pub executions: Vec<Execution>,
 }
@@ -154,6 +156,7 @@ pub struct RunSummary {
     pub executions: usize,
     pub failed: usize,
     pub trace_id: Option<String>,
+    pub origin: RunOrigin,
 }
 
 impl From<&Run> for RunSummary {
@@ -177,6 +180,7 @@ impl From<&Run> for RunSummary {
                 .filter(|e| e.outcome == Some(TaskOutcome::Failed))
                 .count(),
             trace_id: run.trace.as_ref().map(|t| t.trace_id.clone()),
+            origin: run.origin.clone(),
         }
     }
 }
@@ -230,6 +234,7 @@ impl Projection {
                 user,
                 cwd,
                 estimate_ms,
+                origin,
             } => {
                 if self.runs.contains_key(run_id) {
                     return false;
@@ -252,6 +257,7 @@ impl Projection {
                         estimate_ms: *estimate_ms,
                         error: None,
                         trace: event.trace.clone(),
+                        origin: origin.clone(),
                         executions: Vec::new(),
                     },
                 );
@@ -627,6 +633,7 @@ mod tests {
                     user: "u".into(),
                     cwd: "/".into(),
                     estimate_ms: None,
+                    origin: RunOrigin::default(),
                 },
                 clock.at(0),
             ),
@@ -716,6 +723,7 @@ mod tests {
                     user: "u".into(),
                     cwd: "/".into(),
                     estimate_ms: None,
+                    origin: RunOrigin::default(),
                 },
                 clock.at(0),
             ),
@@ -769,6 +777,7 @@ mod tests {
                     user: "u".into(),
                     cwd: "/".into(),
                     estimate_ms: None,
+                    origin: RunOrigin::default(),
                 },
                 now,
             ));

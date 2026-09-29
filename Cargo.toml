@@ -5,6 +5,7 @@ members = [
     'apps/butler/cli',
     'apps/taskgraph/api',
     'apps/taskgraph/cli',
+    'apps/taskgraph/insights',
     'apps/terran/api',
     'apps/todo/api',
     'apps/todo/cli',
@@ -20,6 +21,7 @@ members = [
     'libs/contracts/projects',
     'libs/contracts/taskgraph',
     'libs/contracts/tasks',
+    'libs/core/authorship',
     'libs/core/axum-helpers',
     'libs/core/config',
     'libs/core/feature-flags',
@@ -35,6 +37,7 @@ members = [
     'libs/core/strings',
     'libs/database',
     'libs/domains/cloud_resources',
+    'libs/domains/insights',
     'libs/domains/projects',
     'libs/domains/taskgraph',
     'libs/domains/tasks',
@@ -80,6 +83,7 @@ color-eyre = '0.6.5'
 contract_projects = { path = 'libs/contracts/projects' }
 contract_taskgraph = { path = 'libs/contracts/taskgraph' }
 contract_tasks = { path = 'libs/contracts/tasks' }
+core_authorship = { path = 'libs/core/authorship' }
 core_config = { path = 'libs/core/config', version = '0.1.0' }
 core_proc_macros = { path = 'libs/core/proc_macros' }
 core_retry = { path = 'libs/core/retry' }
@@ -88,6 +92,7 @@ core_strings = { path = 'libs/core/strings', version = '0.1.0' }
 darling = '0.24.1'
 database = { path = 'libs/database' }
 domain_cloud_resources = { path = 'libs/domains/cloud_resources' }
+domain_insights = { path = 'libs/domains/insights' }
 domain_projects = { path = 'libs/domains/projects' }
 domain_taskgraph = { path = 'libs/domains/taskgraph' }
 domain_tasks = { path = 'libs/domains/tasks' }
@@ -181,6 +186,8 @@ utoipa-scalar = { version = "0.4.0", features = ['axum'] }
 utoipa-swagger-ui = { version = "10.0.1", features = ['axum'] }
 uuid = { version = "1.26.1", features = ['serde', 'v4', 'v7'] }
 validator = { version = '0.21.0', features = ['derive'] }
+# Reads GitHub Actions artifact archives (deflate only; no writer features).
+zip = { version = '8.6.0', default-features = false, features = ['deflate-flate2-zlib-rs'] }
 
 [workspace.package]
 version = '0.1.0'

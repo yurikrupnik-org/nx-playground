@@ -18,6 +18,10 @@ spec:
   workspaces:
   - name: source
     description: Receives the checkout.
+  results:
+  - name: commit
+    type: string
+    description: The commit checked out.
   steps:
   - name: clone
     image: alpine/git:2.54.0
@@ -27,6 +31,8 @@ spec:
       value: $(params.url)
     - name: REVISION
       value: $(params.revision)
+    - name: COMMIT_PATH
+      value: $(results.commit.path)
     script: |
       #!/bin/sh
       set -eu
@@ -38,6 +44,7 @@ spec:
       git fetch -q --depth 1 origin "$REVISION"
       git checkout -q FETCH_HEAD
       git log -1 --format='%H %s'
+      printf %s "$(git rev-parse HEAD)" > "$COMMIT_PATH"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -94,7 +101,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: butler
 spec:
-  description: Download go-task, then `task <task>` in the source workspace.
+  description: 'Download go-task and taskgraph, then `taskgraph shim <task>` in the source workspace: go-task runs the task, taskgraph publishes its executions.'
   params:
   - name: task
     type: string
@@ -103,6 +110,14 @@ spec:
     type: array
     description: Extra arguments after the target.
     default: []
+  - name: pipeline-run
+    type: string
+    description: PipelineRun this task runs in; empty for a standalone TaskRun.
+    default: ''
+  - name: commit
+    type: string
+    description: Commit the checkout is at; empty if unknown.
+    default: ''
   workspaces:
   - name: source
     description: The checkout.
@@ -137,12 +152,60 @@ spec:
     volumeMounts:
     - name: butler-bin
       mountPath: /butler/bin
+  - name: fetch-taskgraph
+    image: alpine:3.24.2
+    computeResources: {}
+    env:
+    - name: RELEASE
+      value: https://github.com/yurikrupnik-org/nx-playground/releases/download/taskgraph-cli-latest
+    script: |
+      #!/bin/sh
+      # Best-effort, unlike fetch-task: anything short of a checksum-verified
+      # binary that has `shim` leaves none, and run falls back to go-task.
+      set -u
+      cd /butler/bin
+      archive=taskgraph-x86_64-unknown-linux-musl.tar.gz
+      if wget -q "$RELEASE/$archive" "$RELEASE/$archive.sha256" \
+        && sha256sum -c "$archive.sha256" \
+        && tar -xzf "$archive" taskgraph \
+        && ./taskgraph help shim >/dev/null; then
+        ./taskgraph --version
+      else
+        echo 'taskgraph unavailable: the task runs untraced' >&2
+        rm -f taskgraph
+      fi
+      rm -f "$archive" "$archive.sha256"
+      exit 0
+    volumeMounts:
+    - name: butler-bin
+      mountPath: /butler/bin
   - name: run
     image: oven/bun:1.4.2
     computeResources: {}
-    command:
-    - /butler/bin/task
-    - $(params.task)
+    env:
+    - name: TASK
+      value: $(params.task)
+    - name: PIPELINE_RUN
+      value: $(params.pipeline-run)
+    - name: COMMIT
+      value: $(params.commit)
+    - name: TASKGRAPH_TASK_BIN
+      value: /butler/bin/task
+    - name: TASKGRAPH_CI_PROVIDER
+      value: tekton
+    - name: TASKGRAPH_CI_JOB
+      value: $(context.taskRun.name)
+    - name: NATS_URL
+      value: nats://nats.dbs.svc.cluster.local:4222
+    script: |
+      #!/bin/sh
+      set -eu
+      # "$@" is the args param.
+      if [ ! -x /butler/bin/taskgraph ]; then exec /butler/bin/task "$TASK" "$@"; fi
+      # A TaskRun outside any PipelineRun is its own CI run.
+      export TASKGRAPH_CI_RUN_ID="${PIPELINE_RUN:-$TASKGRAPH_CI_JOB}"
+      if [ -n "$COMMIT" ]; then export TASKGRAPH_CI_SHA="$COMMIT"; fi
+      exec /butler/bin/taskgraph shim "$TASK" "$@"
     args:
     - $(params.args[*])
     workingDir: $(workspaces.source.path)

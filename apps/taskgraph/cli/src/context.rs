@@ -2,7 +2,7 @@
 //! where we are, and (optionally) a JetStream connection plus the history
 //! replayed from it.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use async_nats::jetstream::Context;
@@ -27,6 +27,9 @@ pub struct Ctx {
     pub cwd: PathBuf,
     pub nats_url: String,
     pub offline: bool,
+    /// `$TASKGRAPH_EVENTS_OUT`, made absolute: every published event is also
+    /// appended here as one JSON line.
+    pub events_out: Option<PathBuf>,
 }
 
 impl Ctx {
@@ -43,6 +46,9 @@ impl Ctx {
                 )
             })?,
         };
+        let events_out = std::env::var_os(EVENTS_OUT_ENV)
+            .filter(|v| !v.is_empty())
+            .map(|v| cwd.join(v));
         Ok(Self {
             taskfile,
             explicit_taskfile,
@@ -53,6 +59,7 @@ impl Ctx {
             cwd,
             nats_url,
             offline,
+            events_out,
         })
     }
 
@@ -66,16 +73,10 @@ impl Ctx {
         if self.offline {
             return None;
         }
-        match tokio::time::timeout(CONNECT_TIMEOUT, messaging::nats::jetstream(&self.nats_url))
-            .await
-        {
-            Ok(Ok(js)) => Some(js),
-            Ok(Err(e)) => {
+        match connect(&self.nats_url).await {
+            Ok(js) => Some(js),
+            Err(e) => {
                 warn!(nats_url = %self.nats_url, error = %e, "NATS unreachable; continuing without events/history");
-                None
-            }
-            Err(_) => {
-                warn!(nats_url = %self.nats_url, "NATS connect timed out; continuing without events/history");
                 None
             }
         }
@@ -85,14 +86,30 @@ impl Ctx {
     pub async fn require_jetstream(&self) -> Result<Context> {
         if self.offline {
             return Err(eyre!(
-                "this command reads history from NATS; drop --offline"
+                "this command needs NATS; drop --offline / unset TASKGRAPH_OFFLINE"
             ));
         }
-        tokio::time::timeout(CONNECT_TIMEOUT, messaging::nats::jetstream(&self.nats_url))
-            .await
-            .map_err(|_| eyre!("NATS connect to {} timed out", self.nats_url))?
-            .wrap_err_with(|| format!("connecting to NATS at {}", self.nats_url))
+        connect(&self.nats_url).await
     }
+}
+
+/// Env var naming the JSONL file `run` appends every event to.
+pub const EVENTS_OUT_ENV: &str = "TASKGRAPH_EVENTS_OUT";
+
+/// JetStream at `nats_url`, bounded by [`CONNECT_TIMEOUT`].
+pub async fn connect(nats_url: &str) -> Result<Context> {
+    tokio::time::timeout(CONNECT_TIMEOUT, messaging::nats::jetstream(nats_url))
+        .await
+        .map_err(|_| eyre!("NATS connect to {nats_url} timed out"))?
+        .wrap_err_with(|| format!("connecting to NATS at {nats_url}"))
+}
+
+/// Directory of the root Taskfile: what repository-relative paths are
+/// relative to.
+pub fn root_dir(graph: &Graph) -> &Path {
+    Path::new(&graph.taskfile)
+        .parent()
+        .unwrap_or(Path::new("/"))
 }
 
 /// Replay retained history into a projection that also knows `graph` (the

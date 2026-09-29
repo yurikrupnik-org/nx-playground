@@ -31,6 +31,26 @@ local_resource(
     ),
 )
 
+local_resource(
+    'grafana',
+    serve_cmd='kubectl port-forward -n monitoring deployment/grafana 55558:3000',
+    labels=['port-forward'],
+    readiness_probe=probe(
+        period_secs=5,
+        exec=exec_action(['sh', '-c', 'nc -z localhost 55558']),
+    ),
+)
+
+local_resource(
+    'prometheus',
+    serve_cmd='kubectl port-forward -n monitoring deployment/prometheus-server 55798:9090',
+    labels=['port-forward'],
+    readiness_probe=probe(
+        period_secs=5,
+        exec=exec_action(['sh', '-c', 'nc -z localhost 55798']),
+    ),
+)
+
 k8s_yaml(kustomize('apps/zerg/shared/k8s/kustomize/overlays/dev'))
 k8s_resource(
     objects=['zerg-shared-config:configmap', 'zerg-shared-secrets:secret'],
@@ -39,6 +59,7 @@ k8s_resource(
 )
 
 include('./apps/taskgraph/api/Tiltfile')
+include('./apps/taskgraph/insights/Tiltfile')
 include('./apps/terran/api/Tiltfile')
 include('./apps/terran/web/Tiltfile')
 include('./apps/todo/api/Tiltfile')

@@ -52,6 +52,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -108,6 +112,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -164,6 +172,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -220,6 +232,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -276,6 +292,130 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: task-authorship-check
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: task
+  annotations:
+    butler/target: task:authorship-check
+spec:
+  description: task authorship-check
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-task
+      kind: Task
+    params:
+    - name: task
+      value: authorship-check
+    - name: args
+      value:
+      - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: task-authorship-report
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: task
+  annotations:
+    butler/target: task:authorship-report
+spec:
+  description: task authorship-report
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-task
+      kind: Task
+    params:
+    - name: task
+      value: authorship-report
+    - name: args
+      value:
+      - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -332,6 +472,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -388,6 +532,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -444,6 +592,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -500,6 +652,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -556,6 +712,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -612,6 +772,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -668,6 +832,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -724,6 +892,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -780,6 +952,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -836,6 +1012,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -892,6 +1072,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -948,6 +1132,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1004,6 +1192,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1060,6 +1252,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1116,6 +1312,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1172,6 +1372,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1228,6 +1432,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1284,6 +1492,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1340,6 +1552,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1396,6 +1612,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1452,6 +1672,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1508,6 +1732,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1564,6 +1792,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1620,6 +1852,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1676,6 +1912,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1732,6 +1972,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1788,6 +2032,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1844,6 +2092,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1900,6 +2152,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -1956,6 +2212,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2012,6 +2272,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2068,6 +2332,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2124,6 +2392,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2180,6 +2452,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2236,6 +2512,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2292,6 +2572,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2348,6 +2632,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2404,6 +2692,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2460,6 +2752,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2516,6 +2812,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2572,6 +2872,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2628,6 +2932,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2684,6 +2992,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2740,6 +3052,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2796,6 +3112,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2852,6 +3172,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2908,6 +3232,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -2964,6 +3292,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3020,6 +3352,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3076,6 +3412,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3132,6 +3472,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3188,6 +3532,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3244,6 +3592,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3300,6 +3652,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3356,6 +3712,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3412,6 +3772,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3468,6 +3832,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3524,6 +3892,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3580,6 +3952,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3636,6 +4012,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3692,6 +4072,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3748,6 +4132,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3804,6 +4192,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3860,6 +4252,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3916,6 +4312,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -3972,6 +4372,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4028,6 +4432,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4084,6 +4492,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4140,6 +4552,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4196,6 +4612,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4252,6 +4672,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4308,6 +4732,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4364,6 +4792,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4420,6 +4852,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4476,6 +4912,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4532,6 +4972,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4588,6 +5032,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4644,6 +5092,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4700,6 +5152,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4756,6 +5212,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4812,6 +5272,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4868,6 +5332,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4924,6 +5392,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -4980,6 +5452,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5036,6 +5512,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5092,6 +5572,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5148,6 +5632,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5204,6 +5692,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5260,6 +5752,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5316,6 +5812,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5372,6 +5872,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5428,6 +5932,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5484,6 +5992,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5540,6 +6052,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5596,6 +6112,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5652,6 +6172,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5708,6 +6232,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5764,6 +6292,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5820,6 +6352,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5876,6 +6412,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5932,6 +6472,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -5988,6 +6532,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6044,6 +6592,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6100,6 +6652,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6156,6 +6712,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6212,6 +6772,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6268,6 +6832,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6324,6 +6892,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6380,6 +6952,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6436,6 +7012,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6492,6 +7072,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6548,6 +7132,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6604,6 +7192,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6660,6 +7252,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6716,6 +7312,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6772,6 +7372,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6828,6 +7432,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6884,6 +7492,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6940,6 +7552,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -6996,6 +7612,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7052,6 +7672,70 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: task-shell-scan
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: task
+  annotations:
+    butler/target: task:shell-scan
+spec:
+  description: task shell-scan
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-task
+      kind: Task
+    params:
+    - name: task
+      value: shell-scan
+    - name: args
+      value:
+      - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7108,6 +7792,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7164,6 +7852,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7220,6 +7912,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7276,6 +7972,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7332,6 +8032,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7388,6 +8092,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7444,6 +8152,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7500,6 +8212,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7556,6 +8272,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7612,6 +8332,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7668,6 +8392,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7724,6 +8452,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7780,6 +8512,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7836,6 +8572,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7892,6 +8632,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -7948,6 +8692,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8004,6 +8752,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8060,6 +8812,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8116,6 +8872,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8172,6 +8932,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8228,6 +8992,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8284,6 +9052,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8340,6 +9112,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8396,6 +9172,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8452,6 +9232,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8508,6 +9292,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8564,6 +9352,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8620,6 +9412,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8676,6 +9472,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8732,6 +9532,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8788,6 +9592,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8844,6 +9652,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source
@@ -8900,6 +9712,10 @@ spec:
     - name: args
       value:
       - $(params.args[*])
+    - name: pipeline-run
+      value: $(context.pipelineRun.name)
+    - name: commit
+      value: $(tasks.clone.results.commit)
     workspaces:
     - name: source
       workspace: source

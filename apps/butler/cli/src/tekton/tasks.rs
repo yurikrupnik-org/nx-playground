@@ -8,6 +8,7 @@
 
 use serde_yaml_ng::{Mapping, Value as Y};
 
+use crate::settings::TektonTaskgraph;
 use crate::submodule::manifests::{map, s};
 
 /// Where the task/just runners drop the downloaded binary.
@@ -26,6 +27,15 @@ pub(super) const APPLY: &str = "butler-kubectl-apply";
 pub(super) const SOURCE: &str = "source";
 /// Optional registry credentials (a `config.json`) for pushing images.
 pub(super) const DOCKERCONFIG: &str = "dockerconfig";
+/// The clone's result and the traced task runner's param: the commit checked out.
+pub(super) const COMMIT: &str = "commit";
+/// The traced task runner's param naming the PipelineRun it runs in.
+pub(super) const PIPELINE_RUN: &str = "pipeline-run";
+
+/// The one `taskgraph` build the rolling release carries: static, so it runs
+/// in any step image; on an arm64 node only where the kernel emulates x86_64
+/// (Docker Desktop's, so a kind cluster on a Mac) — `fetch-taskgraph` probes.
+const TASKGRAPH_ASSET: &str = "taskgraph-x86_64-unknown-linux-musl.tar.gz";
 
 pub(super) fn git_clone(image: &str) -> Y {
     task(
@@ -36,12 +46,20 @@ pub(super) fn git_clone(image: &str) -> Y {
             param("revision", "Branch, tag or commit to check out."),
         ],
         vec![workspace(SOURCE, "Receives the checkout.")],
-        Vec::new(),
+        vec![map([
+            ("name", s(COMMIT)),
+            ("type", s("string")),
+            ("description", s("The commit checked out.")),
+        ])],
         Vec::new(),
         vec![script_step(
             "clone",
             image,
-            &[("URL", "$(params.url)"), ("REVISION", "$(params.revision)")],
+            &[
+                ("URL", "$(params.url)"),
+                ("REVISION", "$(params.revision)"),
+                ("COMMIT_PATH", "$(results.commit.path)"),
+            ],
             "#!/bin/sh\n\
              set -eu\n\
              cd \"$(workspaces.source.path)\"\n\
@@ -51,7 +69,8 @@ pub(super) fn git_clone(image: &str) -> Y {
              git remote add origin \"$URL\"\n\
              git fetch -q --depth 1 origin \"$REVISION\"\n\
              git checkout -q FETCH_HEAD\n\
-             git log -1 --format='%H %s'\n",
+             git log -1 --format='%H %s'\n\
+             printf %s \"$(git rev-parse HEAD)\" > \"$COMMIT_PATH\"\n",
         )],
     )
 }
@@ -92,27 +111,116 @@ pub(super) struct Release<'a> {
     pub version: &'a str,
 }
 
-pub(super) fn go_task(image: &str, release: &Release<'_>) -> Y {
-    downloaded(
-        TASK,
-        "Download go-task, then `task <task>` in the source workspace.",
-        (
+/// go-task's release asset for the running architecture.
+const GO_TASK_LOCATE: &str = "case \"$(uname -m)\" in\n  \
+       x86_64) arch=amd64 ;;\n  \
+       aarch64 | arm64) arch=arm64 ;;\n  \
+       *) echo \"no go-task build for $(uname -m)\" >&2; exit 1 ;;\n\
+     esac\n\
+     archive=\"task_linux_${arch}.tar.gz\"\n\
+     member=task\n\
+     sums=task_checksums.txt\n\
+     base=\"https://github.com/go-task/task/releases/download/v${VERSION}\"\n";
+
+const GO_TASK_TARGET: (&str, &str) = (
+    "task",
+    "Taskfile task name, namespaced as `task --list-all` prints it.",
+);
+
+/// With `[tekton.taskgraph]`, every task runs as `taskgraph shim <task>`:
+/// go-task still runs it, and taskgraph publishes each execution to NATS with
+/// the PipelineRun, TaskRun and commit as its CI origin. Telemetry never costs
+/// a target its run: without a working `taskgraph`, `run` is plain go-task.
+pub(super) fn go_task(
+    image: &str,
+    release: &Release<'_>,
+    taskgraph: Option<&TektonTaskgraph>,
+) -> Y {
+    let Some(taskgraph) = taskgraph else {
+        return downloaded(
+            TASK,
+            "Download go-task, then `task <task>` in the source workspace.",
+            GO_TASK_TARGET,
             "task",
-            "Taskfile task name, namespaced as `task --list-all` prints it.",
-        ),
-        "task",
-        &["$(params.task)"],
+            &["$(params.task)"],
+            image,
+            release,
+            GO_TASK_LOCATE,
+        );
+    };
+    let fetch = format!(
+        "#!/bin/sh\n\
+         # Best-effort, unlike fetch-task: anything short of a checksum-verified\n\
+         # binary that has `shim` leaves none, and run falls back to go-task.\n\
+         set -u\n\
+         cd {BIN_DIR}\n\
+         archive={TASKGRAPH_ASSET}\n\
+         if wget -q \"$RELEASE/$archive\" \"$RELEASE/$archive.sha256\" \\\n  \
+           && sha256sum -c \"$archive.sha256\" \\\n  \
+           && tar -xzf \"$archive\" taskgraph \\\n  \
+           && ./taskgraph help shim >/dev/null; then\n  \
+           ./taskgraph --version\n\
+         else\n  \
+           echo 'taskgraph unavailable: the task runs untraced' >&2\n  \
+           rm -f taskgraph\n\
+         fi\n\
+         rm -f \"$archive\" \"$archive.sha256\"\n\
+         exit 0\n"
+    );
+    let run_script = format!(
+        "#!/bin/sh\n\
+         set -eu\n\
+         # \"$@\" is the args param.\n\
+         if [ ! -x {BIN_DIR}/taskgraph ]; then exec {BIN_DIR}/task \"$TASK\" \"$@\"; fi\n\
+         # A TaskRun outside any PipelineRun is its own CI run.\n\
+         export TASKGRAPH_CI_RUN_ID=\"${{PIPELINE_RUN:-$TASKGRAPH_CI_JOB}}\"\n\
+         if [ -n \"$COMMIT\" ]; then export TASKGRAPH_CI_SHA=\"$COMMIT\"; fi\n\
+         exec {BIN_DIR}/taskgraph shim \"$TASK\" \"$@\"\n"
+    );
+    let task_bin = format!("{BIN_DIR}/task");
+    let pipeline_run = format!("$(params.{PIPELINE_RUN})");
+    let commit = format!("$(params.{COMMIT})");
+    let mut run = script_step(
+        "run",
         image,
-        release,
-        "case \"$(uname -m)\" in\n  \
-           x86_64) arch=amd64 ;;\n  \
-           aarch64 | arm64) arch=arm64 ;;\n  \
-           *) echo \"no go-task build for $(uname -m)\" >&2; exit 1 ;;\n\
-         esac\n\
-         archive=\"task_linux_${arch}.tar.gz\"\n\
-         member=task\n\
-         sums=task_checksums.txt\n\
-         base=\"https://github.com/go-task/task/releases/download/v${VERSION}\"\n",
+        &[
+            ("TASK", "$(params.task)"),
+            ("PIPELINE_RUN", &pipeline_run),
+            ("COMMIT", &commit),
+            ("TASKGRAPH_TASK_BIN", &task_bin),
+            ("TASKGRAPH_CI_PROVIDER", "tekton"),
+            ("TASKGRAPH_CI_JOB", "$(context.taskRun.name)"),
+            ("NATS_URL", &taskgraph.nats_url),
+        ],
+        &run_script,
+    );
+    set(&mut run, "args", Y::Sequence(vec![s("$(params.args[*])")]));
+    task(
+        TASK,
+        "Download go-task and taskgraph, then `taskgraph shim <task>` in the source \
+         workspace: go-task runs the task, taskgraph publishes its executions.",
+        vec![
+            param(GO_TASK_TARGET.0, GO_TASK_TARGET.1),
+            args_param(),
+            optional_param(
+                PIPELINE_RUN,
+                "PipelineRun this task runs in; empty for a standalone TaskRun.",
+            ),
+            optional_param(COMMIT, "Commit the checkout is at; empty if unknown."),
+        ],
+        vec![workspace(SOURCE, "The checkout.")],
+        Vec::new(),
+        vec![bin_volume()],
+        vec![
+            fetch_step("task", release, GO_TASK_LOCATE),
+            with_bin(script_step(
+                "fetch-taskgraph",
+                release.fetch_image,
+                &[("RELEASE", &taskgraph.release)],
+                &fetch,
+            )),
+            with_bin(in_source(run)),
+        ],
     )
 }
 
@@ -179,6 +287,27 @@ fn downloaded(
     release: &Release<'_>,
     locate: &str,
 ) -> Y {
+    let program = format!("{BIN_DIR}/{binary}");
+    let command: Vec<&str> = std::iter::once(program.as_str())
+        .chain(argv.iter().copied())
+        .collect();
+    task(
+        name,
+        description,
+        vec![param(target, target_description), args_param()],
+        vec![workspace(SOURCE, "The checkout.")],
+        Vec::new(),
+        vec![bin_volume()],
+        vec![
+            fetch_step(binary, release, locate),
+            with_bin(in_source(argv_step("run", image, &[], &command))),
+        ],
+    )
+}
+
+/// Downloads `binary` from its pinned release, checksum-verified, into the
+/// shared volume; `locate` as for [`downloaded`].
+fn fetch_step(binary: &str, release: &Release<'_>, locate: &str) -> Y {
     let fetch = format!(
         "#!/bin/sh\n\
          set -eu\n\
@@ -190,30 +319,19 @@ fn downloaded(
          if [ \"$member\" != {binary} ]; then mv \"$member\" {binary}; rm -rf \"${{member%%/*}}\"; fi\n\
          rm \"$archive\" \"$sums\"\n"
     );
-    let program = format!("{BIN_DIR}/{binary}");
-    let command: Vec<&str> = std::iter::once(program.as_str())
-        .chain(argv.iter().copied())
-        .collect();
-    task(
-        name,
-        description,
-        vec![param(target, target_description), args_param()],
-        vec![workspace(SOURCE, "The checkout.")],
-        Vec::new(),
-        vec![map([
-            ("name", s(BIN_VOLUME)),
-            ("emptyDir", Y::Mapping(Mapping::new())),
-        ])],
-        vec![
-            with_bin(script_step(
-                &format!("fetch-{binary}"),
-                release.fetch_image,
-                &[("VERSION", release.version)],
-                &fetch,
-            )),
-            with_bin(in_source(argv_step("run", image, &[], &command))),
-        ],
-    )
+    with_bin(script_step(
+        &format!("fetch-{binary}"),
+        release.fetch_image,
+        &[("VERSION", release.version)],
+        &fetch,
+    ))
+}
+
+fn bin_volume() -> Y {
+    map([
+        ("name", s(BIN_VOLUME)),
+        ("emptyDir", Y::Mapping(Mapping::new())),
+    ])
 }
 
 pub(super) fn buildkit(image: &str) -> Y {
@@ -374,6 +492,16 @@ fn param(name: &str, description: &str) -> Y {
         ("name", s(name)),
         ("type", s("string")),
         ("description", s(description)),
+    ])
+}
+
+/// A param a direct TaskRun may omit.
+fn optional_param(name: &str, description: &str) -> Y {
+    map([
+        ("name", s(name)),
+        ("type", s("string")),
+        ("description", s(description)),
+        ("default", s("")),
     ])
 }
 

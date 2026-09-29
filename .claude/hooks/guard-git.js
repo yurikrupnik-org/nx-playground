@@ -12,13 +12,31 @@
  *     (checked by the hook, no git call needed: reads .git/HEAD of the cwd
  *     the command runs in — `cd <dir> && git …` is honoured)
  *   - `gh pr merge`, `gh repo delete`, `gh release delete`
+ *   - `git commit` in a repo with a lefthook config whose prepare-commit-msg /
+ *     commit-msg hooks are not lefthook's: without them the commit gets no
+ *     `Assisted-by:` trailer and CI cannot tell it from a human one
+ *     (tools/authorship). Asks for `lefthook install`; one git call locates
+ *     the hooks dir (honours core.hooksPath and worktrees).
  *
  * Same contract as guard-secrets.js: tool-call JSON on stdin; on a match prints
  * a PreToolUse deny decision and exits 0; fails open on unexpected input.
  */
 
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+const LEFTHOOK_CONFIGS = [
+  "lefthook.yml",
+  ".lefthook.yml",
+  "lefthook.yaml",
+  ".lefthook.yaml",
+  "lefthook.toml",
+  ".lefthook.toml",
+  "lefthook.json",
+  ".lefthook.json",
+];
+const ATTRIBUTION_HOOKS = ["prepare-commit-msg", "commit-msg"];
 
 const PROTECTED = /^(?:main|master)$/;
 
@@ -50,12 +68,30 @@ function currentBranch(dir) {
   }
 }
 
-function deny(reason) {
+// Attribution hooks missing from the repo at `dir`, or [] when installed, when
+// the repo has no lefthook config, or when git cannot tell (fail open).
+function missingLefthookHooks(dir) {
+  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel", "--git-path", "hooks"], {
+    encoding: "utf8",
+  });
+  if (r.status !== 0 || typeof r.stdout !== "string") return [];
+  const [top, hooks] = r.stdout.trim().split("\n");
+  if (!top || !hooks || !LEFTHOOK_CONFIGS.some((f) => existsSync(resolve(top, f)))) return [];
+  return ATTRIBUTION_HOOKS.filter((name) => {
+    try {
+      return !readFileSync(resolve(dir, hooks, name), "utf8").includes("lefthook");
+    } catch {
+      return true; // not installed
+    }
+  });
+}
+
+function deny(reason, advice = "Open a pull request from a branch instead.") {
   return {
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: `Denied by git-guard hook: ${reason} Open a pull request from a branch instead.`,
+      permissionDecisionReason: `Denied by git-guard hook: ${reason} ${advice}`,
     },
   };
 }
@@ -98,6 +134,18 @@ function decide(command, cwd) {
       const branch = currentBranch(effectiveDir(command, cwd));
       if (branch && PROTECTED.test(branch)) {
         return deny(`HEAD is '${branch}'; committing on it is not allowed.`);
+      }
+    }
+
+    const commit = /^git\s+(?:-C\s+(\S+)\s+)?commit\b/.exec(seg);
+    if (commit) {
+      const base = effectiveDir(command, cwd);
+      const missing = missingLefthookHooks(commit[1] ? resolve(base, commit[1]) : base);
+      if (missing.length > 0) {
+        return deny(
+          `the lefthook git hooks are not installed in this repo (${missing.join(", ")}), so the commit would not get its Assisted-by trailer.`,
+          "Run `lefthook install` in the repository, then retry the commit.",
+        );
       }
     }
 

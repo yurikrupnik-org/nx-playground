@@ -22,7 +22,9 @@
 //! carries only what cannot be derived: step images, the task/just release to
 //! download, the repository URL, and `exclude` globs over target ids
 //! (`nx:<project>:<target>`, `task:<name>`, `just:<recipe>`, `nu:<path>`,
-//! `deploy:<app>`) for the long-running and interactive ones.
+//! `deploy:<app>`) for the long-running and interactive ones. An optional
+//! `[tekton.taskgraph]` runs every Taskfile task through `taskgraph shim`, so
+//! in-cluster runs publish their executions like CI and developer runs do.
 //!
 //! `<outDir>` is owned outright, like `[submodules] outDir`: a generated file
 //! nothing produces any more is deleted by `gen` and is drift for `--check`.
@@ -273,6 +275,7 @@ fn runner_tasks(
                 fetch_image: image(images.fetch.as_ref(), "fetch", &why)?,
                 version: version(cfg.task_version.as_ref(), "taskVersion", &why)?,
             },
+            cfg.taskgraph.as_ref(),
         ));
     }
     if count(Runner::Just) > 0 {
@@ -341,6 +344,18 @@ fn runner_pipeline(cfg: &Tekton, target: &Target, name: &str) -> Y {
         "args",
         Y::Sequence(vec![s("$(params.args[*])")]),
     ));
+    if target.runner == Runner::Task && cfg.taskgraph.is_some() {
+        // The traced runner's CI origin. A Task sees only its own TaskRun, so
+        // the PipelineRun comes in as a param, and the commit from the clone.
+        params.push(param_value(
+            tasks::PIPELINE_RUN,
+            s("$(context.pipelineRun.name)"),
+        ));
+        params.push(param_value(
+            tasks::COMMIT,
+            s(&format!("$(tasks.clone.results.{})", tasks::COMMIT)),
+        ));
+    }
     let mut spec_params = clone_params(cfg);
     spec_params.push(map([
         ("name", s("args")),
@@ -686,6 +701,8 @@ impl<'a> Exclude<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     #[test]
@@ -723,5 +740,234 @@ mod tests {
         assert!(err.to_string().contains("task:tilt-*"), "{err}");
         assert!(exclude.hits("task:tilt-up"));
         exclude.all_used().expect("every glob matched");
+    }
+
+    /// The bindings Tekton checks only once a run starts: a Pipeline passes
+    /// every param the Task requires and none it does not declare, binds
+    /// declared workspaces, and every `$(…)` in a Pipeline or a Task resolves —
+    /// a Task cannot see `context.pipelineRun`, and a task result read must be
+    /// one an earlier Task declares. For every runner, traced or not.
+    #[test]
+    fn every_pipeline_binding_and_reference_resolves() {
+        for traced in [false, true] {
+            let cfg = config(traced);
+            let targets = [
+                target(
+                    Runner::Nx,
+                    "api:build",
+                    &[("project", "api"), ("target", "build")],
+                ),
+                target(Runner::Task, "check", &[("task", "check")]),
+                target(Runner::Just, "fmt", &[("recipe", "fmt")]),
+                target(Runner::Nu, "scripts/x.nu", &[("script", "scripts/x.nu")]),
+            ];
+            let mut pipelines: BTreeMap<Runner, BTreeMap<String, Y>> = BTreeMap::new();
+            for t in &targets {
+                let name = t.stem();
+                let doc = runner_pipeline(&cfg, t, &name);
+                pipelines.entry(t.runner).or_default().insert(name, doc);
+            }
+            let deploy = Deploy {
+                name: "api".into(),
+                project: "api".into(),
+                prebuild: vec!["build".into()],
+                image: "registry/api:dev".into(),
+                dockerfile: "Dockerfile".into(),
+                context: ".".into(),
+                stage: "rust".into(),
+                build_args: vec!["APP_NAME=api".into()],
+                manifest: "k8s/api.yaml".into(),
+            };
+            let deploy_doc = deploy_pipeline(&cfg, &deploy, "deploy-api");
+            let tasks: BTreeMap<String, Y> =
+                runner_tasks(&cfg, &pipelines, std::slice::from_ref(&deploy))
+                    .expect("every image and release is configured")
+                    .into_iter()
+                    .map(|t| (t["metadata"]["name"].as_str().unwrap().to_string(), t))
+                    .collect();
+            for task in tasks.values() {
+                check_task(task);
+            }
+            for doc in pipelines.values().flat_map(BTreeMap::values) {
+                check_pipeline(doc, &tasks);
+            }
+            check_pipeline(&deploy_doc, &tasks);
+        }
+    }
+
+    const TASK_CONTEXT: &[&str] = &[
+        "context.taskRun.name",
+        "context.taskRun.namespace",
+        "context.taskRun.uid",
+        "context.task.name",
+        "context.task.retry-count",
+    ];
+    const PIPELINE_CONTEXT: &[&str] = &[
+        "context.pipelineRun.name",
+        "context.pipelineRun.namespace",
+        "context.pipelineRun.uid",
+        "context.pipeline.name",
+        "context.pipelineTask.retries",
+    ];
+
+    fn config(traced: bool) -> Tekton {
+        let image = |name: &str| Some(format!("{name}:1"));
+        Tekton {
+            task_version: Some("3.53.1".into()),
+            just_version: Some("1.40.0".into()),
+            nu_version: Some("0.116.0".into()),
+            images: settings::TektonImages {
+                git: image("git"),
+                fetch: image("fetch"),
+                nx: image("nx"),
+                task: image("task"),
+                just: image("just"),
+                nu: image("nu"),
+                buildkit: image("buildkit"),
+                kubectl: image("kubectl"),
+            },
+            taskgraph: traced.then(|| settings::TektonTaskgraph {
+                release: "https://example.test/releases/download/taskgraph".into(),
+                nats_url: "nats://nats:4222".into(),
+            }),
+            ..Tekton::default()
+        }
+    }
+
+    fn target(runner: Runner, name: &str, params: &[(&'static str, &str)]) -> Target {
+        Target {
+            runner,
+            name: name.into(),
+            params: params.iter().map(|(k, v)| (*k, (*v).to_string())).collect(),
+        }
+    }
+
+    fn check_task(task: &Y) {
+        let name = task["metadata"]["name"].as_str().unwrap();
+        let spec = &task["spec"];
+        let (params, results, workspaces) = (
+            names(&spec["params"]),
+            names(&spec["results"]),
+            names(&spec["workspaces"]),
+        );
+        for r in references(&spec["steps"]) {
+            let ok = if let Some(p) = name_after(r, "params") {
+                params.contains(p)
+            } else if let Some(x) = name_after(r, "results") {
+                results.contains(x)
+            } else if let Some(w) = name_after(r, "workspaces") {
+                workspaces.contains(w)
+            } else {
+                TASK_CONTEXT.contains(&r)
+            };
+            assert!(ok, "Task {name}: `$({r})` resolves to nothing it declares");
+        }
+    }
+
+    fn check_pipeline(pipeline: &Y, tasks: &BTreeMap<String, Y>) {
+        let name = pipeline["metadata"]["name"].as_str().unwrap();
+        let spec = &pipeline["spec"];
+        let (params, workspaces) = (names(&spec["params"]), names(&spec["workspaces"]));
+        let mut earlier: BTreeMap<&str, &Y> = BTreeMap::new();
+        for pt in spec["tasks"].as_sequence().unwrap() {
+            let at = format!("Pipeline {name}, task {}", pt["name"].as_str().unwrap());
+            let task_ref = pt["taskRef"]["name"].as_str().unwrap();
+            let task = &tasks
+                .get(task_ref)
+                .unwrap_or_else(|| panic!("{at}: no Task {task_ref}"))["spec"];
+            let passed = names(&pt["params"]);
+            let declared = names(&task["params"]);
+            let required: BTreeSet<&str> = task["params"]
+                .as_sequence()
+                .unwrap()
+                .iter()
+                .filter(|p| p.get("default").is_none())
+                .filter_map(|p| p["name"].as_str())
+                .collect();
+            assert!(
+                passed.is_subset(&declared),
+                "{at}: passes {:?}, which {task_ref} does not declare",
+                passed.difference(&declared).collect::<Vec<_>>()
+            );
+            assert!(
+                required.is_subset(&passed),
+                "{at}: never passes {:?}, which {task_ref} requires",
+                required.difference(&passed).collect::<Vec<_>>()
+            );
+            let task_workspaces = names(&task["workspaces"]);
+            for binding in pt["workspaces"].as_sequence().unwrap() {
+                let (inner, outer) = (
+                    binding["name"].as_str().unwrap(),
+                    binding["workspace"].as_str().unwrap(),
+                );
+                assert!(
+                    task_workspaces.contains(inner) && workspaces.contains(outer),
+                    "{at}: binds workspace {inner} to {outer}"
+                );
+            }
+            for r in references(&pt["params"]) {
+                let ok = if let Some(p) = name_after(r, "params") {
+                    params.contains(p)
+                } else if let Some(rest) = r.strip_prefix("tasks.") {
+                    let (from, result) = rest.split_once(".results.").unwrap();
+                    earlier
+                        .get(from)
+                        .is_some_and(|t| names(&t["results"]).contains(result))
+                } else {
+                    PIPELINE_CONTEXT.contains(&r)
+                };
+                assert!(ok, "{at}: `$({r})` resolves to nothing");
+            }
+            earlier.insert(pt["name"].as_str().unwrap(), task);
+        }
+    }
+
+    /// The `name` of every entry of a sequence of params/results/workspaces.
+    fn names(seq: &Y) -> BTreeSet<&str> {
+        seq.as_sequence()
+            .into_iter()
+            .flatten()
+            .filter_map(|entry| entry["name"].as_str())
+            .collect()
+    }
+
+    /// Every Tekton substitution in the strings under `value`, without its
+    /// `$(…)`: `params.args[*]`, `tasks.clone.results.commit`. Shell command
+    /// substitutions (`$(uname -m)`) are not Tekton's and are skipped.
+    fn references(value: &Y) -> Vec<&str> {
+        let mut texts = Vec::new();
+        strings(value, &mut texts);
+        texts
+            .into_iter()
+            .flat_map(|text| {
+                text.match_indices("$(").filter_map(move |(at, _)| {
+                    let rest = &text[at + 2..];
+                    Some(&rest[..rest.find(')')?])
+                })
+            })
+            .filter(|r| {
+                ["params.", "results.", "workspaces.", "tasks.", "context."]
+                    .iter()
+                    .any(|kind| r.starts_with(kind))
+            })
+            .collect()
+    }
+
+    fn strings<'a>(value: &'a Y, out: &mut Vec<&'a str>) {
+        match value {
+            Y::String(text) => out.push(text),
+            Y::Sequence(items) => items.iter().for_each(|v| strings(v, out)),
+            Y::Mapping(entries) => entries.values().for_each(|v| strings(v, out)),
+            _ => {}
+        }
+    }
+
+    /// `params.args[*]` under `params` is `args`.
+    fn name_after<'a>(reference: &'a str, kind: &str) -> Option<&'a str> {
+        reference
+            .strip_prefix(kind)?
+            .strip_prefix('.')?
+            .split(['.', '['])
+            .next()
     }
 }

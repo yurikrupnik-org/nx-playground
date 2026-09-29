@@ -29,13 +29,20 @@ Types: feat, fix, refactor, docs, test, chore, perf, style
 - Why the change was made
 - Any important context
 
-**Footer**:
+**Footer** — attribution follows the `Assisted-by` policy (tools/authorship):
 
-```text
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-```
+- Do NOT add `Co-Authored-By:`, a "Generated with" line, or any model name.
+- The lefthook `prepare-commit-msg` hook (`tools/authorship/stamp.ts`) appends
+  `Assisted-by: <agent-id>` when the commit is made from an agent shell
+  (Claude Code → `claude-code`); the `commit-msg` hook rejects an agent commit
+  without it and any `Assisted-by` value that is not a registered agent id
+  (`libs/core/authorship/agents.json`). The user runs the commit from their
+  own shell, where the hook stamps nothing: when the staged change was written
+  with Claude, end the message with the single trailer
+  `Assisted-by: claude-code` (agent id only, no model) — the hook never
+  duplicates it.
+- If the hooks are not installed (`git commit` is denied with that reason),
+  run `lefthook install` — never bypass with `--no-verify` or `LEFTHOOK=0`.
 
 ## Output Format
 

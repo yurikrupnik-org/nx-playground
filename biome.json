@@ -14,7 +14,8 @@
       "!manifests",
       "!.claude",
       "!**/web-htmx/assets",
-      "!**/tests/fixtures"
+      "!**/tests/fixtures",
+      "!first-rust-app"
     ]
   },
   "formatter": {

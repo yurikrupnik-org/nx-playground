@@ -14,6 +14,7 @@ async-nats = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 contract_taskgraph = { workspace = true }
+core_authorship = { workspace = true }
 core_config = { workspace = true }
 domain_taskgraph = { workspace = true }
 eyre = { workspace = true }

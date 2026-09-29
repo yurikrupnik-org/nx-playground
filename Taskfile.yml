@@ -53,7 +53,8 @@ tasks:
       - just --summary                       # fails if the justfile doesn't parse
       - just --dump --dump-format json       # justfile as JSON, which you can `kcl vet` against a schema
       - make -n                              # Makefile dry run
-      - task --list                          # Taskfile parse check
+      - task --list
+      - toolbelt govern --json # Taskfile parse check
       - kcl run build.k | yq -r .taskfile > Taskfile.yml
 #      - update
   testd:
@@ -82,6 +83,8 @@ tasks:
   hell:
     cmds:
       - echo "hell"
+      - task nx -- show projects
+      -
   run-remote:
     cmds:
       - task --taskfile https://raw.githubusercontent.com/go-task/task/main/website/src/public/Taskfile.yml dam
@@ -107,13 +110,16 @@ includes:
   docs: { taskfile: ./scripts/tasks/docs.yml, flatten: true }
   graph: { taskfile: ./scripts/tasks/graph.yml, flatten: true }
   dev: { taskfile: ./scripts/tasks/dev.yml, flatten: true }
+  authorship: { taskfile: ./scripts/tasks/authorship.yml, flatten: true }
 
   # Local environment, cluster and service workflows.
   db: { taskfile: ./scripts/tasks/db.yml, flatten: true }
+  insights: { taskfile: ./scripts/tasks/insights.yml, flatten: true }
   local-env: { taskfile: ./scripts/tasks/local-env.yml, flatten: true }
   k8s: { taskfile: ./scripts/tasks/k8s.yml, flatten: true }
   k8s-apps: { taskfile: ./scripts/tasks/k8s-apps.yml, flatten: true }
   kube-run: { taskfile: ./scripts/tasks/kube-run.yml, flatten: true }
+  observability: { taskfile: ./scripts/tasks/observability.yml, flatten: true }
   platform: { taskfile: ./scripts/tasks/platform.yml, flatten: true }
   # DevEnvironment CLI (env-*); also runs standalone as platform/dev-env/bin/devenv.
   devenv: { taskfile: ./platform/dev-env/Taskfile.yml, flatten: true }

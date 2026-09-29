@@ -70,15 +70,32 @@ post-merge:
     deps-update:
       run: bun install --frozen-lockfile 2>/dev/null || true
 
-# Commit message: Enforce conventional commits
+# Attribution (tools/authorship, registry libs/core/authorship/agents.json): in
+# an AI agent's shell, stamp `Assisted-by: <agent-id>`; a human shell is a no-op.
+# Git's hook arguments reach a `run:` string only as lefthook placeholders —
+# {1} message file, {2} source — never as $1; an absent one stays literal
+# (`{2}` on a plain editor commit), which stamp.ts treats as absent.
+prepare-commit-msg:
+  jobs:
+    - name: authorship-stamp
+      run: bun tools/authorship/stamp.ts "{1}" "{2}"
+
+# Commit message: Conventional Commits subject + attribution trailers. The
+# subject is the first non-comment line; git-generated subjects (merge, revert,
+# fixup!/squash!/amend!) are not conventional and pass through.
 commit-msg:
-  commands:
-    conventional:
+  jobs:
+    - name: conventional
       run: |
-        msg=$(cat "$1")
-        if ! echo "$msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?: .+"; then
+        subject=$(grep -vE '^(#|[[:space:]]*$)' "{1}" | head -n1)
+        case "$subject" in "Merge "*|"Revert \""*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;; esac
+        if ! printf '%s\n' "$subject" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?: .+"; then
           echo "Commit message must follow Conventional Commits format"
           echo "Example: feat(api): add user authentication"
-          echo "Got: $msg"
+          echo "Got: $subject"
           exit 1
         fi
+    # Agent shell without its trailer, or an Assisted-by value that is not
+    # `<registered-agent-id>[:<model>]` → rejected.
+    - name: authorship
+      run: bun tools/authorship/check.ts commit-msg "{1}"

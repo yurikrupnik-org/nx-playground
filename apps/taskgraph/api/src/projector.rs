@@ -17,7 +17,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use async_nats::jetstream::Context;
-use contract_taskgraph::{EventBody, RunOutcome, TaskOutcome, TaskgraphEvent};
+use contract_taskgraph::{
+    EventBody, InvokerKind, RunOrigin, RunOutcome, TaskOutcome, TaskgraphEvent,
+};
 use domain_taskgraph::{Limits, Projection, TaskgraphResult, nats};
 use futures::StreamExt;
 use metrics::{counter, gauge, histogram};
@@ -92,7 +94,13 @@ async fn follow(jetstream: &Context, shared: &Shared) -> TaskgraphResult<()> {
             None => {
                 let changed = shared.projection.write().apply(&event);
                 if changed {
-                    record(&event);
+                    let invoker = match &event.body {
+                        EventBody::RunFinished { run_id, .. } => {
+                            invoker_label(shared.projection.read().run(*run_id).map(|r| &r.origin))
+                        }
+                        _ => UNKNOWN_INVOKER,
+                    };
+                    record(&event, invoker);
                     // No subscribers is not an error.
                     let _ = shared.events.send(event);
                 }
@@ -131,9 +139,23 @@ fn run_outcome(outcome: RunOutcome) -> &'static str {
     }
 }
 
+const UNKNOWN_INVOKER: &str = "unknown";
+
+/// `human` | `agent` | `ci`, or `unknown` for a run started by a CLI that
+/// predates origins (or evicted from the projection): four values at most.
+fn invoker_label(origin: Option<&RunOrigin>) -> &'static str {
+    match origin.and_then(|o| o.invoker.as_ref()).map(|i| i.kind) {
+        Some(InvokerKind::Human) => "human",
+        Some(InvokerKind::Agent) => "agent",
+        Some(InvokerKind::Ci) => "ci",
+        None => UNKNOWN_INVOKER,
+    }
+}
+
 /// Prometheus view of live facts. `task` is a label: bounded by the number of
 /// tasks in the Taskfiles publishing here, which is small by construction.
-fn record(event: &TaskgraphEvent) {
+/// `invoker` (run metrics only) is bounded by [`invoker_label`].
+fn record(event: &TaskgraphEvent, invoker: &'static str) {
     counter!("taskgraph_events_total", "type" => event.body.kind()).increment(1);
     match &event.body {
         EventBody::TaskFinished {
@@ -154,8 +176,9 @@ fn record(event: &TaskgraphEvent) {
             ..
         } => {
             let outcome = run_outcome(*outcome);
-            counter!("taskgraph_runs_total", "outcome" => outcome).increment(1);
-            histogram!("taskgraph_run_duration_seconds", "outcome" => outcome)
+            counter!("taskgraph_runs_total", "outcome" => outcome, "invoker" => invoker)
+                .increment(1);
+            histogram!("taskgraph_run_duration_seconds", "outcome" => outcome, "invoker" => invoker)
                 .record(*duration_ms as f64 / 1000.0);
         }
         _ => {}

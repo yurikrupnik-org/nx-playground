@@ -7,6 +7,9 @@
 //! - [`projection`] — fold facts into runs, per-task history and views.
 //! - [`estimate`] — self-time statistics recombined along the graph.
 //! - [`nats`] — publish to / replay from the `TASKGRAPH` stream.
+//! - [`sink`] — JSONL file sink and fan-out for events outside NATS.
+//! - [`origin`] — CI job, invoker and commit a run starts from.
+//! - [`shell`] — static shell scan: discovery, metrics, ShellCheck mapping.
 //!
 //! No HTTP, no database: the CLI and the API compose these pieces.
 
@@ -15,7 +18,10 @@ pub mod estimate;
 pub mod graph;
 pub mod nats;
 pub mod observe;
+pub mod origin;
 pub mod projection;
+pub mod shell;
+pub mod sink;
 pub mod taskfile;
 
 pub use error::{TaskgraphError, TaskgraphResult};
@@ -24,3 +30,4 @@ pub use graph::{GraphIndex, TreeNode};
 pub use nats::{EventPublisher, NatsPublisher, NoopPublisher};
 pub use observe::Tracker;
 pub use projection::{Limits, Projection};
+pub use sink::{FanOut, FilePublisher};

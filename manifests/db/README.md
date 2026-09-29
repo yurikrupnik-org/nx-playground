@@ -24,7 +24,7 @@ manifests/db/
             └── prod/kustomization.yaml         # what Flux applies to clusters
 ```
 
-Currently registered DBs: **`zerg` (declarative)**, **`terran` (versioned)**. Add another DB by creating a sibling folder with the same shape, picking one mode.
+Currently registered DBs: **`zerg` (declarative)**, **`terran` (versioned)**, **`insights` (versioned; CI/developer analytics written by `apps/taskgraph/insights`, see `docs/ci-insights.md`)**. Add another DB by creating a sibling folder with the same shape, picking one mode.
 
 ## Conventions
 

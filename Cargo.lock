@@ -1259,6 +1259,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
+name = "core_authorship"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "core_config"
 version = "0.1.0"
 dependencies = [
@@ -1849,6 +1858,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "domain_insights"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "chrono",
+ "contract_taskgraph",
+ "core_authorship",
+ "domain_taskgraph",
+ "messaging",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "test-utils",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "domain_projects"
 version = "0.1.0"
 dependencies = [
@@ -1887,6 +1922,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "contract_taskgraph",
+ "core_authorship",
  "futures",
  "messaging",
  "serde",
@@ -6990,13 +7026,11 @@ dependencies = [
  "parking_lot",
  "reqwest",
  "serde",
- "serde_json",
  "test-utils",
  "tokio",
  "tokio-stream",
  "tower-http 0.7.1",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -7007,6 +7041,7 @@ dependencies = [
  "chrono",
  "clap",
  "contract_taskgraph",
+ "core_authorship",
  "core_config",
  "domain_taskgraph",
  "eyre",
@@ -7017,6 +7052,23 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "uuid",
+]
+
+[[package]]
+name = "taskgraph_insights"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "axum-helpers",
+ "clap",
+ "core_config",
+ "domain_insights",
+ "eyre",
+ "messaging",
+ "metrics",
+ "tokio",
+ "tower-http 0.7.1",
+ "tracing",
 ]
 
 [[package]]

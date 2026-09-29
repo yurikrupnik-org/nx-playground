@@ -140,7 +140,7 @@ async function api(method, path, body) {
 
 async function busy(label, work) {
   const buttons = document.querySelectorAll("button");
-  buttons.forEach((b) => (b.disabled = true));
+  buttons.forEach((b) => { b.disabled = true; });
   say(label + "…");
   try {
     await work();
@@ -148,7 +148,7 @@ async function busy(label, work) {
   } catch (err) {
     say(err.message, true);
   } finally {
-    buttons.forEach((b) => (b.disabled = false));
+    buttons.forEach((b) => { b.disabled = false; });
   }
 }
 
@@ -205,7 +205,7 @@ function route() {
 function render() {
   const { view, name } = route();
   for (const v of ["dashboard", "manage", "ports"]) $("#view-" + v).hidden = v !== view;
-  document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("on", a.dataset.view === view));
+  document.querySelectorAll("nav a").forEach((a) => { a.classList.toggle("on", a.dataset.view === view); });
   renderSide(name);
   if (view === "dashboard") renderStage(state.uis.find((u) => u.name === name));
   if (view === "manage") renderManage();
@@ -237,8 +237,8 @@ function openButton(ui) {
 function renderStage(ui) {
   const bar = $("#bar");
   const frames = $("#frames");
-  Object.values(state.frames).forEach((f) => (f.hidden = true));
-  frames.querySelectorAll(":scope > :not(iframe)").forEach((n) => n.remove());
+  Object.values(state.frames).forEach((f) => { f.hidden = true; });
+  frames.querySelectorAll(":scope > :not(iframe)").forEach((n) => { n.remove(); });
   bar.replaceChildren();
 
   if (!ui) {

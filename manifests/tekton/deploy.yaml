@@ -82,6 +82,85 @@ spec:
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
+  name: deploy-taskgraph-insights
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: deploy
+  annotations:
+    butler/target: deploy:taskgraph-insights
+spec:
+  description: Build yurikrupnik/taskgraph-insights:dev (manifests/dockers/rust.Dockerfile, stage rust), then apply manifests/k8s/dev/taskgraph-insights.yaml pinned to its digest.
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  - name: dockerconfig
+    description: 'Registry credentials for the push: a docker config.json.'
+    optional: true
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: image
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-buildkit
+      kind: Task
+    params:
+    - name: image
+      value: yurikrupnik/taskgraph-insights:dev
+    - name: dockerfile
+      value: manifests/dockers/rust.Dockerfile
+    - name: context
+      value: .
+    - name: target
+      value: rust
+    - name: build-args
+      value:
+      - APP_NAME=taskgraph_insights
+    workspaces:
+    - name: source
+      workspace: source
+    - name: dockerconfig
+      workspace: dockerconfig
+  - name: deploy
+    runAfter:
+    - image
+    taskRef:
+      name: butler-kubectl-apply
+      kind: Task
+    params:
+    - name: manifest
+      value: manifests/k8s/dev/taskgraph-insights.yaml
+    - name: image
+      value: yurikrupnik/taskgraph-insights:dev
+    - name: digest
+      value: $(tasks.image.results.digest)
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
   name: deploy-terran-api
   labels:
     app.kubernetes.io/managed-by: butler

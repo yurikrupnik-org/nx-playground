@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use chrono::Utc;
-use contract_taskgraph::{EventBody, RunOutcome, TaskOutcome, TaskgraphEvent, Via};
+use contract_taskgraph::{EventBody, RunOrigin, RunOutcome, TaskOutcome, TaskgraphEvent, Via};
 use domain_taskgraph::nats::replay;
 use domain_taskgraph::{EventPublisher, Limits, NatsPublisher, Projection};
 use test_utils::TestNats;
@@ -38,6 +38,7 @@ async fn replay_rebuilds_runs_from_the_stream_and_stops_when_caught_up() {
             user: "u".into(),
             cwd: "/".into(),
             estimate_ms: None,
+            origin: RunOrigin::default(),
         },
         EventBody::TaskStarted {
             run_id,
@@ -86,4 +87,35 @@ async fn replay_rebuilds_runs_from_the_stream_and_stops_when_caught_up() {
     assert_eq!(run.outcome, Some(RunOutcome::Succeeded));
     assert_eq!(run.executions[0].commands[0].command, "cargo build");
     assert_eq!(projection.stats("g", "build").p50_ms, Some(1_500));
+}
+
+#[tokio::test]
+async fn republishing_an_event_is_deduplicated_by_its_id() {
+    let nats = TestNats::new().await;
+    let js = nats.jetstream();
+    let publisher = NatsPublisher::new(js.clone()).await.expect("publisher");
+    let event = TaskgraphEvent::new(
+        EventBody::RunFinished {
+            run_id: Uuid::now_v7(),
+            outcome: RunOutcome::Failed,
+            exit_code: Some(201),
+            duration_ms: 10,
+            error: None,
+        },
+        Utc::now(),
+        None,
+    );
+    assert!(!publisher.send(&event).await.expect("first publish"));
+    // Same event again (an artifact ingested twice): acked, not stored.
+    assert!(publisher.send(&event).await.expect("second publish"));
+    // A distinct event with the same body is a new fact.
+    let other = TaskgraphEvent::new(event.body.clone(), event.at, None);
+    assert!(!publisher.send(&other).await.expect("third publish"));
+
+    let mut projection = Projection::new(Limits::default());
+    let read = tokio::time::timeout(DEADLINE, replay(&js, &mut projection))
+        .await
+        .expect("replay returns")
+        .expect("replay");
+    assert_eq!(read, 2);
 }

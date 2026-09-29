@@ -18,7 +18,7 @@ subscription rebuilds from the stream rather than patching.
 | `GET /api/graphs` | published Taskfiles (newest first) |
 | `GET /api/graphs/{id}` | graph + entry points + per-task stats |
 | `GET /api/graphs/{id}/tasks/{task}?depth=6` | drill-down: tree, dependents, closure, stats, estimate, recent executions |
-| `GET /api/runs?graph={id}&limit=50` | run summaries (newest first) |
+| `GET /api/runs?graph={id}&limit=50` | run summaries (newest first), each with `origin` (`ci` job/run link, `invoker` human/agent/ci, `sha`) |
 | `GET /api/runs/{run_id}` | executions with parent/via, self time, commands, trace id |
 | `GET /api/events/sse` | live facts as named SSE events (`task_finished`, …) |
 | `GET /api/config` | UI config (trace link template, readiness) |
@@ -26,10 +26,16 @@ subscription rebuilds from the stream rather than patching.
 
 Metrics (live facts only — replayed history is not re-counted on restart):
 `taskgraph_events_total{type}`, `taskgraph_task_executions_total{task,outcome}`,
-`taskgraph_task_duration_seconds{task,outcome}`, `taskgraph_runs_total{outcome}`,
-`taskgraph_run_duration_seconds{outcome}`, `taskgraph_projection_applied`,
+`taskgraph_task_duration_seconds{task,outcome}`, `taskgraph_runs_total{outcome,invoker}`,
+`taskgraph_run_duration_seconds{outcome,invoker}`, `taskgraph_projection_applied`,
 `taskgraph_projection_pending`, `taskgraph_events_undecodable_total`, plus the
-`axum_helpers` HTTP RED series.
+`axum_helpers` HTTP RED series. `invoker` is `human` | `agent` | `ci` from the
+run's `RunStarted.origin`, or `unknown` for runs from a CLI that predates
+origins.
+
+The UI's runs list and run detail show the origin: invoker (with the agent
+id), the CI provider / pipeline / job / run id linked to the CI run, and the
+short commit sha.
 
 ## Configuration
 

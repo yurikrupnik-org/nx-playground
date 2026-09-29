@@ -17,7 +17,7 @@ use async_nats::jetstream::stream::Stream as JsStream;
 use async_trait::async_trait;
 use contract_taskgraph::{TASKGRAPH_KIND, TASKGRAPH_STREAM, TASKGRAPH_SUBJECT, TaskgraphEvent};
 use futures::{Stream, StreamExt};
-use messaging::nats::{NatsProducer, stream_config_for};
+use messaging::nats::stream_config_for;
 use tracing::warn;
 
 use crate::error::{TaskgraphError, TaskgraphResult};
@@ -39,9 +39,13 @@ impl EventPublisher for NoopPublisher {
     }
 }
 
+/// Publishes each fact with `Nats-Msg-Id: <event_id>`, so the server drops a
+/// re-publish of the same event (an artifact ingested twice, a retried
+/// publish) within the stream's duplicate window. `NatsProducer` has no
+/// header support, hence the direct JetStream publish.
 #[derive(Clone)]
 pub struct NatsPublisher {
-    producer: NatsProducer,
+    jetstream: Context,
 }
 
 impl NatsPublisher {
@@ -49,20 +53,36 @@ impl NatsPublisher {
     /// the API has ever started.
     pub async fn new(jetstream: Context) -> TaskgraphResult<Self> {
         ensure_stream(&jetstream).await?;
-        Ok(Self {
-            producer: NatsProducer::new(jetstream, TASKGRAPH_STREAM, TASKGRAPH_SUBJECT),
-        })
+        Ok(Self { jetstream })
+    }
+
+    /// Publish and wait for the stream's ack; `Ok(true)` when the server
+    /// recognised the event id as a duplicate and did not store it again.
+    pub async fn send(&self, event: &TaskgraphEvent) -> TaskgraphResult<bool> {
+        let subject = event.body.subject();
+        let fail =
+            |e: &dyn std::fmt::Display| TaskgraphError::Nats(format!("publish {subject}: {e}"));
+        let payload = serde_json::to_vec(event).map_err(|e| fail(&e))?;
+        let mut headers = async_nats::HeaderMap::new();
+        headers.insert(
+            async_nats::header::NATS_MESSAGE_ID,
+            event.event_id.to_string().as_str(),
+        );
+        let ack = self
+            .jetstream
+            .publish_with_headers(subject, headers, payload.into())
+            .await
+            .map_err(|e| fail(&e))?
+            .await
+            .map_err(|e| fail(&e))?;
+        Ok(ack.duplicate)
     }
 }
 
 #[async_trait]
 impl EventPublisher for NatsPublisher {
     async fn publish(&self, event: &TaskgraphEvent) -> TaskgraphResult<()> {
-        self.producer
-            .send_to(event.body.subject(), event)
-            .await
-            .map(|_| ())
-            .map_err(|e| TaskgraphError::Nats(format!("publish {}: {e}", event.body.subject())))
+        self.send(event).await.map(|_| ())
     }
 }
 

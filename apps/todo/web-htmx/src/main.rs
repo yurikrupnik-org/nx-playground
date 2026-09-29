@@ -48,9 +48,19 @@ const IDENTITY_MAX_LEN: usize = 64;
 /// htmx marks its own requests; without it the identity form is a plain POST.
 const HX_REQUEST: &str = "hx-request";
 
-/// Short-circuit responses (app disabled, writes disabled) travel as `Err`;
-/// axum renders either arm, so handlers can use `?` on the gates.
-type Handler = Result<Response, Response>;
+/// Short-circuit responses (app disabled) travel as `Err`; axum renders either
+/// arm, so handlers can use `?` on the gate.
+type Handler = Result<Response, Halt>;
+
+/// Boxed short-circuit response: `Response` is 128 bytes, and an unboxed `Err`
+/// bloats every `Result` on the happy path (`clippy::result_large_err`).
+struct Halt(Box<Response>);
+
+impl IntoResponse for Halt {
+    fn into_response(self) -> Response {
+        *self.0
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -132,7 +142,7 @@ async fn gate(
     api: &TodoApi,
     headers: &HeaderMap,
     page: bool,
-) -> Result<(Option<String>, Flags), Response> {
+) -> Result<(Option<String>, Flags), Halt> {
     let identity = identity_from_headers(headers);
     let flags = api.flags_or_defaults(identity.as_deref()).await;
     if flags.enabled(FLAG_APP) {
@@ -143,7 +153,7 @@ async fn gate(
     } else {
         render_disabled_notice(FLAG_APP)
     };
-    Err(fragment(body, StatusCode::SERVICE_UNAVAILABLE))
+    Err(Halt(Box::new(fragment(body, StatusCode::SERVICE_UNAVAILABLE))))
 }
 
 /// Mutations need `todo_write`: `Some(403)` when off, and the caller returns it

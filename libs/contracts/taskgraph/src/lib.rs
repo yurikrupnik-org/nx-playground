@@ -24,6 +24,18 @@
 //! a run-scoped `instance` number, and `parent` + [`Via`] record which
 //! execution pulled it in. Durations are inclusive: go-task reports a task as
 //! started before its deps run and finished after its last command.
+//!
+//! # Origin
+//!
+//! [`RunOrigin`] says where a run happened (a CI job or a workstation), who
+//! started it (a person, an AI coding agent, CI automation) and at which
+//! commit. It is optional on the wire: facts recorded before it existed
+//! decode with an empty origin.
+//!
+//! [`shell`] is the second, file-based contract: the static shell scan the
+//! CLI writes and the insights service ingests.
+
+pub mod shell;
 
 use chrono::{DateTime, Utc};
 use messaging::nats::StreamKind;
@@ -151,7 +163,82 @@ pub enum RunOutcome {
     Failed,
 }
 
+/// Which CI system a run happened on, and where to find that run there.
+///
+/// `provider` is an open set on purpose (`github_actions`, `tekton`,
+/// `gitlab_ci`, `buildkite`, `circleci`, `jenkins`, or whatever
+/// `TASKGRAPH_CI_PROVIDER` says): a reader groups by it, never matches it
+/// exhaustively.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CiContext {
+    pub provider: String,
+    /// The provider's id of the pipeline run (GitHub: `GITHUB_RUN_ID`).
+    pub run_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_attempt: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_url: Option<String>,
+    /// Workflow / pipeline name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pipeline: Option<String>,
+    /// Job / task-run name within the pipeline run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job: Option<String>,
+    /// `owner/name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_ref: Option<String>,
+    /// Commit the pipeline was triggered for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha: Option<String>,
+    /// Trigger (`push`, `pull_request`, `schedule`, …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event: Option<String>,
+    /// Account that triggered the pipeline run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InvokerKind {
+    /// Nothing marked the environment as automated.
+    Human,
+    /// An AI coding agent's shell (`tools/authorship/agents.json` markers),
+    /// including an agent running inside a CI job.
+    Agent,
+    /// CI automation with no agent marker.
+    Ci,
+}
+
+/// Who started go-task.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Invoker {
+    pub kind: InvokerKind,
+    /// Agent id from `tools/authorship/agents.json` when `kind` is `agent`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+}
+
+/// Where and by whom a run was started. Every field is optional so facts
+/// published before the origin existed still decode.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunOrigin {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci: Option<CiContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invoker: Option<Invoker>,
+    /// `git rev-parse HEAD` of the working directory at start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha: Option<String>,
+}
+
 /// The fact itself; the variant decides the subject.
+// RunStarted (origin) dwarfs the other variants, but there is one per run and
+// events are serialized and dropped, never held in bulk; boxing would add an
+// allocation and churn every constructor and pattern.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EventBody {
@@ -169,6 +256,8 @@ pub enum EventBody {
         cwd: String,
         /// Expected duration from history at start time, if any history existed.
         estimate_ms: Option<u64>,
+        #[serde(default)]
+        origin: RunOrigin,
     },
     TaskStarted {
         run_id: Uuid,
@@ -320,6 +409,21 @@ mod tests {
                 user: "u".into(),
                 cwd: "/repo".into(),
                 estimate_ms: Some(1200),
+                origin: RunOrigin {
+                    ci: Some(CiContext {
+                        provider: "github_actions".into(),
+                        run_id: "36338703831".into(),
+                        run_attempt: Some(2),
+                        job: Some("rust".into()),
+                        sha: Some("5f17449".into()),
+                        ..CiContext::default()
+                    }),
+                    invoker: Some(Invoker {
+                        kind: InvokerKind::Agent,
+                        agent: Some("claude-code".into()),
+                    }),
+                    sha: Some("5f17449".into()),
+                },
             },
             EventBody::TaskStarted {
                 run_id,
@@ -381,6 +485,31 @@ mod tests {
             assert_eq!(json["type"], event.body.kind());
             let back: TaskgraphEvent = serde_json::from_value(json).expect("deserialize");
             assert_eq!(back, event);
+        }
+    }
+
+    /// Facts recorded before `origin` existed must still decode, with an
+    /// empty origin — the stream and every CI artifact keep old payloads.
+    #[test]
+    fn run_started_without_origin_decodes_with_an_empty_origin() {
+        let json = serde_json::json!({
+            "event_id": Uuid::now_v7(),
+            "at": Utc::now(),
+            "trace": null,
+            "type": "run_started",
+            "run_id": Uuid::now_v7(),
+            "graph_id": "g",
+            "target": "check",
+            "args": [],
+            "host": "h",
+            "user": "u",
+            "cwd": "/repo",
+            "estimate_ms": null
+        });
+        let event: TaskgraphEvent = serde_json::from_value(json).expect("decode legacy fact");
+        match event.body {
+            EventBody::RunStarted { origin, .. } => assert_eq!(origin, RunOrigin::default()),
+            other => panic!("unexpected {other:?}"),
         }
     }
 }

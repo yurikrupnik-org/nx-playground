@@ -286,6 +286,18 @@ name = "mailhog"
 command = "kubectl port-forward -n dbs deployment/mailhog 8025:8025"
 probePort = 8025
 
+# Monitoring stack (`task observability-up`, scripts/tasks/observability.yml);
+# local ports are the ones `[ui.grafana]` / `[ui.prometheus]` above point at.
+[[tilt.portForward]]
+name = "grafana"
+command = "kubectl port-forward -n monitoring deployment/grafana 55558:3000"
+probePort = 55558
+
+[[tilt.portForward]]
+name = "prometheus"
+command = "kubectl port-forward -n monitoring deployment/prometheus-server 55798:9090"
+probePort = 55798
+
 # Cluster resources owned by no single app; apps reference them by name in their
 # own butler.toml `resourceDeps`.
 [[tilt.sharedResource]]
@@ -343,6 +355,9 @@ exclude = [
     "task:docker-*",
     "task:reset-db",
     "task:kube-*",
+    "task:observability-*",
+    # insights: `gh auth token` + port-forwards from the developer's host
+    "task:insights-*",
     "task:lol",
     "task:z",
     "task:zj",
@@ -366,3 +381,14 @@ task = "oven/bun:1.4.2"
 nu = "alpine/git:2.54.0"
 buildkit = "moby/buildkit:v0.33.0-rootless"
 kubectl = "alpine/k8s:1.35.9"
+
+# Every Taskfile target runs as `taskgraph shim <task>` (docs/ci-insights.md):
+# go-task still runs it, and taskgraph publishes each execution to the NATS
+# `TASKGRAPH` stream with the PipelineRun, TaskRun and cloned commit as its CI
+# origin — the in-cluster twin of .github/actions/taskgraph. `release` is the
+# rolling `taskgraph-cli-latest` release (.github/workflows/taskgraph-cli.yml),
+# fetched with its .sha256 when a TaskRun starts; a download, checksum or
+# probe failure runs the task on plain go-task instead of failing it.
+[tekton.taskgraph]
+release = "https://github.com/yurikrupnik-org/nx-playground/releases/download/taskgraph-cli-latest"
+natsUrl = "nats://nats.dbs.svc.cluster.local:4222"

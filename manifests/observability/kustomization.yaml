@@ -1,0 +1,36 @@
+# The non-Helm half of the monitoring stack, applied by `task observability-up`
+# (scripts/tasks/observability.yml) BEFORE the Helm releases: the namespace,
+# and one ConfigMap per Grafana dashboard. Grafana's dashboard sidecar watches
+# `monitoring` for ConfigMaps labelled `grafana_dashboard: "1"`
+# (manifests/observability/grafana.values.yaml) and loads every key as a
+# dashboard, so adding a dashboard = drop a JSON file in dashboards/ and list it
+# here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: monitoring
+
+resources:
+  - namespace.yaml
+
+generatorOptions:
+  # Stable names: the sidecar keys dashboards by ConfigMap, and a hash suffix
+  # would leave the previous ConfigMap (and its dashboard) behind on every edit.
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: observability
+
+configMapGenerator:
+  - name: dashboard-ci-overview
+    files:
+      - dashboards/ci-overview.json
+  - name: dashboard-task-runtime
+    files:
+      - dashboards/task-runtime.json
+  - name: dashboard-shell-static
+    files:
+      - dashboards/shell-static.json
+  - name: dashboard-team-scorecard
+    files:
+      - dashboards/team-scorecard.json

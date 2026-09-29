@@ -7,20 +7,22 @@
 //! attached to the terminal), forwards what the user would normally see, and
 //! feeds every line to a [`Tracker`]. Each fact becomes:
 //!
-//! - an event on the `TASKGRAPH` stream (published in order by one background
+//! - an event on the `TASKGRAPH` stream and/or a line in the
+//!   `$TASKGRAPH_EVENTS_OUT` JSONL file (published in order by one background
 //!   task, so a slow broker never stalls the forwarding of output);
 //! - a tracing span per execution, parented on the execution that pulled it in,
 //!   exported over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
 
 use std::collections::HashMap;
-use std::process::{ExitCode, Stdio};
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
 use contract_taskgraph::{EventBody, TaskOutcome, TaskgraphEvent, TraceRef};
 use domain_taskgraph::observe::{self, Tracker};
-use domain_taskgraph::{EventPublisher, GraphIndex, NatsPublisher, NoopPublisher};
+use domain_taskgraph::origin::detect_origin;
+use domain_taskgraph::{EventPublisher, FanOut, FilePublisher, GraphIndex, NatsPublisher};
 use eyre::{Result, WrapErr, bail, eyre};
 use opentelemetry::trace::TraceContextExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -30,7 +32,7 @@ use tracing::{Span, field, info, info_span, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use uuid::Uuid;
 
-use crate::context::{Ctx, history};
+use crate::context::{Ctx, EVENTS_OUT_ENV, history};
 use crate::render;
 
 /// Upper bound on draining queued events after go-task exits.
@@ -43,9 +45,12 @@ pub struct RunOptions {
     pub task_bin: String,
     pub commands: bool,
     pub trace_url: Option<String>,
+    /// Set on go-task's environment when running for `taskgraph shim`.
+    pub shim_depth: Option<u32>,
 }
 
-pub async fn run(ctx: &Ctx, opts: RunOptions) -> Result<ExitCode> {
+/// Runs `opts.target`; returns go-task's exit code (1 when it has none).
+pub async fn run(ctx: &Ctx, opts: RunOptions) -> Result<u8> {
     let graph = ctx.parse()?;
     let index = GraphIndex::new(&graph);
     if index.resolve(&opts.target).is_none() {
@@ -72,16 +77,7 @@ pub async fn run(ctx: &Ctx, opts: RunOptions) -> Result<ExitCode> {
     }
 
     let js = ctx.jetstream().await;
-    let publisher: Arc<dyn EventPublisher> = match &js {
-        Some(js) => match NatsPublisher::new(js.clone()).await {
-            Ok(p) => Arc::new(p),
-            Err(e) => {
-                warn!(error = %e, "cannot publish to TASKGRAPH; events disabled");
-                Arc::new(NoopPublisher)
-            }
-        },
-        None => Arc::new(NoopPublisher),
-    };
+    let publisher = sinks(ctx, js.as_ref()).await;
     let history = history(js.as_ref(), &graph).await;
     // An estimate with no history behind any of its tasks is a 0 that means
     // "unknown"; publishing it would read as "expected to be instant".
@@ -135,6 +131,7 @@ pub async fn run(ctx: &Ctx, opts: RunOptions) -> Result<ExitCode> {
             user: ctx.user.clone(),
             cwd: ctx.cwd.display().to_string(),
             estimate_ms: estimate.as_ref().map(|e| e.expected_ms),
+            origin: detect_origin(|name| std::env::var(name).ok(), &ctx.cwd),
         },
         &run_span,
     );
@@ -147,6 +144,13 @@ pub async fn run(ctx: &Ctx, opts: RunOptions) -> Result<ExitCode> {
     command.arg(&opts.target);
     if !opts.args.is_empty() {
         command.arg("--").args(&opts.args);
+    }
+    // Nested `task` calls inside this run append to the same file.
+    if let Some(path) = &ctx.events_out {
+        command.env(EVENTS_OUT_ENV, path);
+    }
+    if let Some(depth) = opts.shim_depth {
+        command.env(crate::shim::DEPTH_ENV, depth.to_string());
     }
     command
         .stdin(Stdio::inherit())
@@ -226,9 +230,29 @@ pub async fn run(ctx: &Ctx, opts: RunOptions) -> Result<ExitCode> {
     }
 
     Ok(match exit_code {
-        Some(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
-        None => ExitCode::FAILURE,
+        Some(code) => u8::try_from(code).unwrap_or(1),
+        None => 1,
     })
+}
+
+/// NATS when connected, the events file when configured, both when both —
+/// and a no-op when neither. A sink that cannot be opened is warned about:
+/// the run itself never fails over telemetry.
+async fn sinks(ctx: &Ctx, js: Option<&async_nats::jetstream::Context>) -> Arc<dyn EventPublisher> {
+    let mut sinks: Vec<Arc<dyn EventPublisher>> = Vec::new();
+    if let Some(js) = js {
+        match NatsPublisher::new(js.clone()).await {
+            Ok(p) => sinks.push(Arc::new(p)),
+            Err(e) => warn!(error = %e, "cannot publish to TASKGRAPH; NATS events disabled"),
+        }
+    }
+    if let Some(path) = &ctx.events_out {
+        match FilePublisher::open(path) {
+            Ok(f) => sinks.push(Arc::new(f)),
+            Err(e) => warn!(error = %e, "cannot open {EVENTS_OUT_ENV}; file events disabled"),
+        }
+    }
+    Arc::new(FanOut::new(sinks))
 }
 
 /// Publish queued events in order; returns how many failed. The first failure

@@ -205,6 +205,7 @@ Each domain (users, projects, tasks, cloud_resources) is a self-contained librar
 - [HPA Local Testing](docs/hpa-local-testing.md) - Horizontal Pod Autoscaler setup with Kind cluster
 - [Tasks API Improvements](docs/tasks-api-improvements.md) - Proposed optimizations: compression, caching, batch ops, streaming
 - [Development Tools](docs/DEVELOPMENT_TOOLS.md) - AI tools, security scanners, linters, and recommended toolchains
+- [CI & Developer Insights](docs/ci-insights.md) - CI/task/shell observability pulled into kind (Grafana, Prometheus, Tempo, Postgres), human-vs-agent attribution, outcome scorecard
 
 ## CI/CD
 

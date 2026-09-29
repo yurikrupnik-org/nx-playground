@@ -59,6 +59,13 @@ why = "`docs-lint` is red by construction — 36 of 60 discovered projects have 
 closes_when = "the README backlog closes and `docs-lint` joins `task verify`, or a document is committed and gated with `monodocs build --check` (what the tool's home repo does)"
 owner = "scope:infra"
 
+[[gap]]
+name = "observe-only"
+applies_to = ["shellcheck"]
+why = "It feeds the shell observation (CI job `shell-scan` → ShellScan artifact → insights → Grafana `shell-static`) and is deliberately NOT a gate: `taskgraph shell-scan` exits 0 whatever it finds, and the CI step is `continue-on-error`. Making findings fail a build is a separate decision (the repo carries hundreds of legacy findings), not a missing check."
+closes_when = "a finding budget exists (e.g. no new `error`-level findings per PR) and a PR job fails on it"
+owner = "scope:infra"
+
 ################################################################################
 # cluster / dev loop
 ################################################################################
@@ -340,11 +347,11 @@ category = "config"
 status = "adopted"
 cncf = "graduated"
 install = "none — host tool"
-usage = ["scripts/tasks/k8s.yml", "platform/dev-env/composition.yaml"]
+usage = ["scripts/tasks/k8s.yml", "platform/dev-env/composition.yaml", "scripts/tasks/observability.yml"]
 gate = "none"
 paid = false
 owner = "scope:infra"
-note = "Two uses only: installing the Atlas operator, and provider-helm Releases inside a Composition."
+note = "Three uses: installing the Atlas operator, provider-helm Releases inside a Composition, and the kind monitoring stack (`task observability-up`, charts pulled by `--repo` URL at pinned versions)."
 
 [[tool]]
 name = "buf"
@@ -382,7 +389,7 @@ status = "adopted"
 cncf = "not-cncf"
 install = "scripts/tasks/k8s.yml"
 key = "oci://ghcr.io/ariga/charts/atlas-operator"
-usage = ["manifests/db/zerg/k8s/base/atlas-schema.yaml", "manifests/db/terran/k8s/base/atlas-migration.yaml"]
+usage = ["manifests/db/zerg/k8s/base/atlas-schema.yaml", "manifests/db/terran/k8s/base/atlas-migration.yaml", "manifests/db/insights/k8s/base/atlas-migration.yaml"]
 gate = "none"
 paid = false
 owner = "scope:infra"
@@ -585,13 +592,15 @@ name = "prometheus"
 category = "observability"
 status = "trial"
 cncf = "graduated"
-install = "none — no server or operator in this repo"
-usage = ["libs/core/axum-helpers/src/metrics.rs", "libs/core/messaging/src/nats/metrics.rs", "manifests/k8s/dev/zerg-api.yaml"]
-gate = "task k8s-check (scrape annotations are generated); no scrape target is gated"
+install = "scripts/tasks/observability.yml (`task observability-up`, kind namespace monitoring)"
+key = "prometheus 29.34.0"
+usage = ["libs/core/axum-helpers/src/metrics.rs", "manifests/k8s/dev/taskgraph-api.yaml", "manifests/observability/prometheus.values.yaml"]
+gate = "none — kind-only install that no CI job applies; task k8s-check keeps the scrape annotations rendered and task tooling-check keeps this chart pin in sync"
 paid = false
 owner = "scope:shared"
 review = "2026-12-01"
-note = "Exposition side only: three apps serve /metrics and carry annotations; nothing scrapes them from this repo."
+decision = "docs/tooling/ci-observability.md"
+note = "Server since 2026-09-27: chart prometheus-community/prometheus, the chart's default `kubernetes-pods` job scrapes every pod butler renders with `prometheus = true` (prometheus.io/scrape|port|path). Alertmanager, pushgateway, node-exporter and kube-state-metrics are off (single dev node; cAdvisor gives per-pod CPU/memory). No persistence: history lives in Postgres `insights`."
 
 [[tool]]
 name = "opentelemetry"
@@ -604,19 +613,65 @@ gate = "task test-rust"
 paid = false
 owner = "scope:shared"
 review = "2026-12-01"
-note = "Exports to otel-collector.monitoring.svc; that collector is installed by nothing (see below)."
+note = "Exports to otel-collector.monitoring.svc, which `task observability-up` installs since 2026-09-27 (see opentelemetry-collector)."
 
 [[tool]]
 name = "opentelemetry-collector"
 category = "observability"
-status = "claimed"
+status = "trial"
 cncf = "graduated"
-install = "none"
-usage = ["apps/zerg/shared/k8s/kustomize/overlays/dev/kustomization.yaml", "apps/zerg/shared/k8s/kustomize/overlays/prod/kustomization.yaml"]
-gate = "none"
+install = "scripts/tasks/observability.yml (`task observability-up`, kind namespace monitoring)"
+key = "opentelemetry-collector 0.173.1"
+usage = ["apps/zerg/shared/k8s/kustomize/overlays/dev/kustomization.yaml", "manifests/observability/otel-collector.values.yaml", "apps/taskgraph/cli/src/run.rs"]
+gate = "none — kind-only install that no CI job applies; task tooling-check keeps this chart pin in sync"
 paid = false
 owner = "scope:infra"
-note = "The monitoring namespace is only a name in devkit.toml. Either install it or drop the endpoint."
+review = "2026-12-01"
+decision = "docs/tooling/ci-observability.md"
+note = "Was `claimed` (endpoint in the overlays, nothing installed); scored as a candidate in the decision doc and wired as a trial on 2026-09-27. Service `otel-collector` (4317 gRPC / 4318 HTTP), traces-only pipeline memory_limiter → batch → Tempo; image otel/opentelemetry-collector-k8s."
+
+[[tool]]
+name = "tempo"
+category = "observability"
+status = "trial"
+cncf = "not-cncf"
+install = "scripts/tasks/observability.yml (`task observability-up`, kind namespace monitoring)"
+key = "tempo 3.0.0"
+usage = ["manifests/observability/tempo.values.yaml", "manifests/observability/otel-collector.values.yaml", "manifests/observability/dashboards/ci-overview.json"]
+gate = "none — kind-only install that no CI job applies; task tooling-check keeps this chart pin in sync"
+paid = false
+owner = "scope:infra"
+review = "2026-12-01"
+decision = "docs/tooling/ci-observability.md"
+note = "Grafana Labs, AGPL-3.0, self-hosted single binary (chart grafana-community/tempo). Local-path PVC 2Gi; retention 92 days because the insights sync replays CI runs as spans with their original timestamps (a 60-day-old span was ingested and found by id on 2026-09-27)."
+
+[[tool]]
+name = "grafana"
+category = "observability"
+status = "trial"
+cncf = "not-cncf"
+install = "scripts/tasks/observability.yml (`task observability-up`, kind namespace monitoring)"
+key = "grafana 13.2.6"
+usage = ["manifests/observability/grafana.values.yaml", "manifests/observability/dashboards/*.json", "butler.toml"]
+gate = "none — kind-only install that no CI job applies; task tilt-check covers the port-forward, task tooling-check this chart pin"
+paid = false
+owner = "scope:infra"
+review = "2026-12-01"
+decision = "docs/tooling/ci-observability.md"
+note = "Grafana Labs, AGPL-3.0, OSS build only (no Grafana Cloud, no account, no plugin downloads). Chart moved to grafana-community on 2026-01-30. Stateless: datasources Prometheus/Tempo/insights from values, dashboards from ConfigMaps the sidecar watches. Dev creds admin/admin; ui.grafana in butler.toml → localhost:55558."
+
+[[tool]]
+name = "shellcheck"
+category = "observability"
+status = "adopted"
+cncf = "not-cncf"
+install = "none — preinstalled on GitHub ubuntu runners; host tool locally"
+usage = ["apps/taskgraph/cli/src/shell_scan.rs", "libs/domains/taskgraph/src/shell.rs", ".github/workflows/ci-optimized.yml"]
+gate = "none — observe-only"
+paid = false
+owner = "scope:infra"
+decision = "docs/tooling/ci-observability.md"
+note = "Static half of the shell observation: `taskgraph shell-scan` runs `shellcheck -f json1` over tracked scripts and every Taskfile cmds/status/precondition snippet; the CI job `shell-scan` uploads the ShellScan, charted by manifests/observability/dashboards/shell-static.json. The version is whatever the runner ships (logged per run, recorded as ShellScan.tool)."
 
 [[tool]]
 name = "mailhog"
@@ -1092,14 +1147,15 @@ note = "Documented explicitly as the path NOT taken; Gateway API is the adopted 
 [[tool]]
 name = "jaeger-tempo-grafana"
 category = "observability"
-status = "candidate"
+status = "rejected"
 cncf = "graduated"
 install = "none"
 usage = []
 gate = "none"
 paid = false
 owner = "scope:infra"
-note = "Aspirational TODO items in apps/zerg/api/TODO.md. OTLP export already exists, so a backend is the only missing piece."
+decision = "docs/tooling/ci-observability.md"
+note = "Resolved 2026-09-27: the backend question was scored in the decision doc. Jaeger lost to Tempo (Grafana's native trace datasource, one UI for metrics/traces/SQL); the Tempo + Grafana half lives on as the `tempo` / `grafana` / `opentelemetry-collector` trial rows. Originally aspirational TODO items in apps/zerg/api/TODO.md."
 
 [[tool]]
 name = "devtools-doc-backlog"

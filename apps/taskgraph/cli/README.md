@@ -11,6 +11,8 @@ flowchart LR
   GT -->|stderr lifecycle lines| CLI
   CLI -->|TASKGRAPH stream: taskgraph.*| NATS[(NATS JetStream)]
   CLI -->|OTLP spans| OTEL[collector / Jaeger]
+  CLI -->|$TASKGRAPH_EVENTS_OUT JSONL| FILE[(events.jsonl / CI artifact)]
+  FILE -->|taskgraph ingest| NATS
   NATS -->|ordered replay + live| API[taskgraph_api]
   NATS -->|replay| CLI
 ```
@@ -26,6 +28,9 @@ flowchart LR
 | `taskgraph estimate TASK [--json]` | expected / pessimistic duration and critical path | yes |
 | `taskgraph runs [RUN_ID_PREFIX] [--this] [--commands] [--json]` | recorded runs, or one run's execution tree | yes |
 | `taskgraph publish` | publish the parsed graph only | yes |
+| `taskgraph shim [ARGS…]` | drop-in for `task` (see [CI usage](#ci-usage-shim-events-file-ingest)) | optional |
+| `taskgraph shell-scan [--out FILE] [--shellcheck BIN]` | ShellCheck every tracked script + Taskfile shell, write a `ShellScan` JSON | no |
+| `taskgraph ingest FILE…` | publish recorded JSONL events to NATS (deduplicated by event id) | yes |
 
 Global: `-t/--taskfile` (default: the file go-task would find from the current
 directory), `--nats-url` (> `$NATS_URL` > `nats://localhost:4222`), `--offline`,
@@ -35,7 +40,85 @@ directory), `--nats-url` (> `$NATS_URL` > `nats://localhost:4222`), `--offline`,
 Environment: `TASKGRAPH_LOG` (log filter, default `warn`; `RUST_LOG` is ignored
 on purpose — the repo `.env` sets it for services), `TASKGRAPH_TASK_BIN`
 (go-task binary, default `task`), `OTEL_EXPORTER_OTLP_ENDPOINT` (enables span
-export).
+export), plus:
+
+| Env | Effect |
+|---|---|
+| `TASKGRAPH_OFFLINE` | truthy (set, not `""`/`0`/`false`) = `--offline`: never connect to NATS |
+| `TASKGRAPH_EVENTS_OUT` | `run`/`shim` append every event as one JSON line to this file (parent dirs created), with or without NATS. Made absolute and passed on to nested `task` calls |
+| `TASKGRAPH_CI_PROVIDER`, `_RUN_ID`, `_RUN_ATTEMPT`, `_RUN_URL`, `_PIPELINE`, `_JOB`, `_REPOSITORY`, `_REF`, `_SHA`, `_EVENT`, `_ACTOR` | override the detected CI context field by field; provider + run id alone mark a run as CI (Tekton) |
+| `TASKGRAPH_SHIM_DEPTH` | set by the shim on every go-task it starts; above 16 the shim refuses (loop guard) |
+
+## Run origin
+
+Every `RunStarted` carries `origin`:
+
+- `ci` — detected from GitHub Actions (`GITHUB_ACTIONS=true`: run id/attempt,
+  run URL, workflow, job, repository, ref, sha, event, actor), GitLab CI,
+  Buildkite, CircleCI and Jenkins; then the `TASKGRAPH_CI_*` overrides win
+  field by field. A pull-request job should pass the PR head as
+  `TASKGRAPH_CI_SHA` (`GITHUB_SHA` is the merge commit there).
+- `invoker` — `agent` (a marker from `libs/core/authorship/agents.json` is
+  set, e.g. `CLAUDECODE`; `agent` names it) > `ci` (a detected job, or a
+  truthy `CI`) > `human`.
+- `sha` — `git rev-parse HEAD` of the working directory, when it is a repo.
+
+## CI usage: shim, events file, ingest
+
+`taskgraph shim ARGS…` behaves like `task ARGS…`. One or more plain task names
+(optionally `-- args` after a single name) run observed, in order, stopping at
+the first non-zero exit and returning it. Anything else — a flag (`--list`,
+`-t x.yml`), a `VAR=value`, no arguments, several names with `--`, a name not
+in the parsed graph, no Taskfile — is `exec`'d to the real go-task with the
+arguments unchanged. When `shim` is the first argument nothing after it is
+parsed as a taskgraph flag (so `task --offline x` stays go-task's `--offline`);
+configure the shim through the environment.
+
+Install it as `task` early on `PATH` and point `TASKGRAPH_TASK_BIN` at the
+real binary — otherwise `task` resolves back to the shim (the depth guard then
+stops the loop with an error):
+
+```sh
+real_task=$(command -v task)
+mkdir -p "$RUNNER_TEMP/shim"
+printf '#!/bin/sh\nexec taskgraph shim "$@"\n' > "$RUNNER_TEMP/shim/task"
+chmod +x "$RUNNER_TEMP/shim/task"
+echo "$RUNNER_TEMP/shim" >> "$GITHUB_PATH"
+echo "TASKGRAPH_TASK_BIN=$real_task" >> "$GITHUB_ENV"
+echo "TASKGRAPH_OFFLINE=1" >> "$GITHUB_ENV"   # no NATS in GitHub-hosted CI: skip the 2 s connect per call
+echo "TASKGRAPH_EVENTS_OUT=$RUNNER_TEMP/taskgraph/events.jsonl" >> "$GITHUB_ENV"
+```
+
+Upload the JSONL as an artifact; later, `taskgraph ingest events.jsonl`
+publishes it to `TASKGRAPH` with `Nats-Msg-Id: <event_id>`, printing
+`published / duplicates / malformed` per file (malformed lines are reported
+with their line number and skipped; exit is non-zero only for unreadable files
+or failed publishes). The server only deduplicates within the stream's
+duplicate window (2 min default), so a re-ingest later must be prevented by
+the caller.
+
+## Shell scan
+
+`taskgraph shell-scan` writes a `contract_taskgraph::shell::ShellScan`:
+
+- sources: scripts `git ls-files` tracks under the root Taskfile's directory
+  (`*.sh`, `*.bash`, or no extension with a `sh`/`bash` shebang; symlinks
+  skipped) and every task's `cmds`/`status`/`preconditions` entry (a `defer:`
+  command without its prefix). Paths are relative to the root Taskfile's
+  directory; ids are `file:<path>` / `<kind>:<taskfile>:<task>:<index>`.
+- Taskfile snippets have go-task templates (`{{…}}`) replaced by `__TPL__` and
+  are linted as bash with SC2148 (no shebang), SC2154 (vars come from go-task
+  `env:`/dotenv) and SC1091 (relative `source` unfollowable from a temp file)
+  excluded. Finding positions refer to the neutralised snippet; a finding that
+  touches a `__TPL__` is dropped (it is about text go-task renders — `for x in
+  {{.LIST}}` "runs once" — not about the shell as written).
+- `lines` = non-blank, non-comment lines; `branches` = whole-word
+  `if`/`elif`/`case`/`for`/`while`/`until` plus `&&`/`||` (lexical: a keyword in
+  a string counts, `case` counts once). `digest` = SHA-256 of the text as
+  written.
+- `sha` = `git rev-parse HEAD`, `ci` = the detected CI context, `tool` =
+  `shellcheck <version>`. Findings never fail the command; a missing ShellCheck
+  does, with an install hint.
 
 ## How `run` observes go-task
 

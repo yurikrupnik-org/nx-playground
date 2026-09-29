@@ -21,6 +21,14 @@ permissions:
 # nx is used for change detection on a PR (`task check-rust-affected` -> the
 # inferred per-crate `lint`/`test` targets, Nx Cloud-cached), while a push to
 # main always gates the whole workspace.
+#
+# taskgraph telemetry (docs/ci-insights.md): every job that runs `task` puts
+# .github/actions/taskgraph right after setup-task, which routes each later
+# `task X` through `taskgraph shim` (RunStarted records this run, job and
+# commit), and uploads the recorded events as `taskgraph-events-<job>-<attempt>`
+# in its last step; the in-cluster insights sync pulls them from the run.
+# Telemetry never fails a job: an install that cannot download or verify the
+# binary warns and leaves plain go-task, and the upload tolerates no files.
 jobs:
   # cargo gates: `task fmt-check-rust audit` always, plus either the affected
   # (PR) or the whole workspace (main).
@@ -61,6 +69,9 @@ jobs:
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # taskgraph telemetry (see the header)
+      - uses: ./.github/actions/taskgraph
 
       # Binaries the tasks below invoke: nextest for tests, cargo-sort for the
       # dependency-table half of `fmt-check-rust`, audit + deny for `audit`,
@@ -140,6 +151,17 @@ jobs:
           rm -rf dist/target
           df -h
 
+      # taskgraph telemetry (see the header): always(), because a failed
+      # gate's events are the ones worth reading.
+      - name: Upload taskgraph events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskgraph-events-${{ github.job }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/taskgraph/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
   # web gates: read-only biome (app `lint` scripts are mutating, so they are not a
   # gate — see AGENTS.md) + nx build/test/typecheck via `task test-web`
   web:
@@ -163,6 +185,9 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # taskgraph telemetry (see the header)
+      - uses: ./.github/actions/taskgraph
+
       # Read-only lint: `biome ci` never writes, so a violation fails the job
       - run: bunx biome ci .
 
@@ -179,6 +204,16 @@ jobs:
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: bun nx fix-ci
         if: always()
+
+      # taskgraph telemetry (see the header)
+      - name: Upload taskgraph events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskgraph-events-${{ github.job }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/taskgraph/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
 
   # python gates: ruff + uv build + pytest for every project tagged `lang:python`.
   #
@@ -231,11 +266,24 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # taskgraph telemetry (see the header)
+      - uses: ./.github/actions/taskgraph
+
       - run: task fmt-check-py
 
       - run: task lint-py
 
       - run: task test-py
+
+      # taskgraph telemetry (see the header)
+      - name: Upload taskgraph events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskgraph-events-${{ github.job }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/taskgraph/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
 
 #      - run: bun nx fix-ci
 #        if: always()
@@ -257,7 +305,20 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # taskgraph telemetry (see the header)
+      - uses: ./.github/actions/taskgraph
+
       - run: task lint-nu
+
+      # taskgraph telemetry (see the header)
+      - name: Upload taskgraph events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskgraph-events-${{ github.job }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/taskgraph/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
 
   # supply-chain gates: `task scan` (OSV) + `task proto-lint` / `proto-breaking` (buf)
   supply-chain:
@@ -271,6 +332,9 @@ jobs:
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # taskgraph telemetry (see the header)
+      - uses: ./.github/actions/taskgraph
 
       - uses: taiki-e/install-action@v2
         with:
@@ -302,6 +366,98 @@ jobs:
       # against refs/remotes/origin/main, which checkout only populates fully here.
       - run: task proto-breaking
         if: github.event_name == 'pull_request'
+
+      # taskgraph telemetry (see the header)
+      - name: Upload taskgraph events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskgraph-events-${{ github.job }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/taskgraph/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Static half of the shell observation (docs/ci-insights.md): shellcheck over
+  # every git-tracked shell script and every Taskfile task's cmds/status/
+  # preconditions, written as one ShellScan JSON and uploaded as
+  # `taskgraph-shell-scan-<attempt>`; the insights sync charts size,
+  # complexity, findings and ownership of that shell per commit. Reporting,
+  # not a gate: findings never fail the scan, and a scan that cannot run
+  # (no binary, no shellcheck, a scanner bug) is a warning, not a red job.
+  shell-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # No `task` runs here; setup-task is what the taskgraph action requires
+      # before it, and that action is what installs the binary this job runs.
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/taskgraph
+
+      # ubuntu runners ship shellcheck; its version is logged because it
+      # decides which findings exist.
+      - name: Scan shell scripts and Taskfile shell
+        continue-on-error: true
+        run: |
+          shellcheck --version
+          if ! command -v taskgraph >/dev/null; then
+            echo "::warning title=taskgraph shell-scan::taskgraph is not installed (see the step above); no shell scan this run"
+            exit 0
+          fi
+          taskgraph shell-scan --out "$RUNNER_TEMP/taskgraph/shell-scan.json"
+
+      - name: Upload shell scan
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskgraph-shell-scan-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/taskgraph/shell-scan.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Attribution gate (docs/ci-insights.md): every non-merge commit the PR adds
+  # must carry valid `Assisted-by:` trailers (libs/core/authorship/agents.json,
+  # checked by tools/authorship). PR-only: a push to main carries commits that
+  # already passed here. fetch-depth 0 because the range is base..head, and no
+  # `bun install`: the checker imports node builtins and the registry JSON only.
+  authorship:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # taskgraph telemetry (see the header)
+      - uses: ./.github/actions/taskgraph
+
+      # The PR's own commits, not the synthetic merge commit checkout made.
+      - run: task authorship-check RANGE="$RANGE"
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
+      # taskgraph telemetry (see the header)
+      - name: Upload taskgraph events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: taskgraph-events-${{ github.job }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/taskgraph/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
 
   affected:
     if: github.event_name == 'pull_request'
@@ -395,11 +551,11 @@ jobs:
           mkdir -p sarif-results
           find . -name "trivy-*.sarif" -exec cp {} sarif-results/ \; 2>/dev/null || true
           if ls sarif-results/*.sarif 1>/dev/null 2>&1; then
-            echo "found=true" >> $GITHUB_OUTPUT
+            echo "found=true" >> "$GITHUB_OUTPUT"
             echo "SARIF files found:"
             ls -la sarif-results/
           else
-            echo "found=false" >> $GITHUB_OUTPUT
+            echo "found=false" >> "$GITHUB_OUTPUT"
             echo "No SARIF files found"
           fi
 

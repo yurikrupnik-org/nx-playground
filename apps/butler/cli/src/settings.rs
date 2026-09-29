@@ -307,6 +307,23 @@ pub struct Tekton {
     pub nu_version: Option<String>,
     #[serde(default)]
     pub images: TektonImages,
+    /// Run every Taskfile task through `taskgraph shim`. Unset = plain go-task.
+    pub taskgraph: Option<TektonTaskgraph>,
+}
+
+/// `[tekton.taskgraph]`: the Taskfile runner also downloads the `taskgraph`
+/// CLI and runs each task as `taskgraph shim <task>`, which publishes every
+/// execution to NATS with the PipelineRun, TaskRun and commit as its CI
+/// origin. Best-effort: a TaskRun that cannot get a working binary runs plain
+/// go-task.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TektonTaskgraph {
+    /// URL prefix holding `taskgraph-x86_64-unknown-linux-musl.tar.gz` and its
+    /// `.sha256`, both fetched when the TaskRun starts.
+    pub release: String,
+    /// `NATS_URL` of the run step: the JetStream the events are published to.
+    pub nats_url: String,
 }
 
 impl Default for Tekton {
@@ -321,6 +338,7 @@ impl Default for Tekton {
             just_version: None,
             nu_version: None,
             images: TektonImages::default(),
+            taskgraph: None,
         }
     }
 }

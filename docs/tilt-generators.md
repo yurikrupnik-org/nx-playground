@@ -398,7 +398,7 @@ kubectl apply -k manifests/tekton -n <ns>
 
 | file | content |
 |---|---|
-| `tasks.yaml` | the runner Tasks, only those in use: `butler-git-clone`, `butler-nx` (`bun install` + `bun nx run <project>:<target>`), `butler-task` / `butler-just` (download the pinned release, checksum-verified, then run it in the toolchain image), `butler-nu` (`nu --no-config-file <script>`), `butler-buildkit`, `butler-kubectl-apply` |
+| `tasks.yaml` | the runner Tasks, only those in use: `butler-git-clone` (its `commit` result is the checked-out commit), `butler-nx` (`bun install` + `bun nx run <project>:<target>`), `butler-task` / `butler-just` (download the pinned release, checksum-verified, then run it in the toolchain image; `butler-task` through `taskgraph shim` when `[tekton.taskgraph]` is set), `butler-nu` (`nu --no-config-file <script>`), `butler-buildkit`, `butler-kubectl-apply` |
 | `nx.yaml` | one Pipeline per nx `project:target` in butler's graph (`nx-<project>-<target>`) |
 | `task.yaml` | one per task `task --list-all` shows: the root Taskfile plus its local includes, namespaced unless `flatten`ed, minus `internal` tasks and an include's `excludes`; remote includes are skipped (generation never touches the network) |
 | `just.yaml` | one per public recipe of the root justfile (`just --dump`), modules as `mod::recipe`; absent here — `just` is rejected in this repo |
@@ -427,6 +427,28 @@ PipelineRun binds an optional `dockerconfig` workspace for the push and runs
 under a ServiceAccount that may apply into the apps' namespaces. The Tekton
 controller itself is a `devkit.toml` `[[deps]]` row, installed by `devkit up` /
 `devkit cluster deps`.
+
+`[tekton.taskgraph]` (optional) traces every Taskfile target the way CI traces
+its `task` calls (`.github/actions/taskgraph`, docs/ci-insights.md). The
+clone Task publishes the commit it checked out as its `commit` result, and
+`butler-task` gains a best-effort `fetch-taskgraph` step and two optional
+params, `pipeline-run` and `commit`, which every task Pipeline passes. Its
+`run` step then runs `taskgraph shim <task>` with the real go-task as
+`TASKGRAPH_TASK_BIN`, publishing each execution to NATS (`NATS_URL`) with the
+CI origin `TASKGRAPH_CI_PROVIDER=tekton`, run id = the PipelineRun (the TaskRun
+when it runs alone), job = the TaskRun, sha = the cloned commit.
+
+```toml
+[tekton.taskgraph]
+release = "https://github.com/<org>/<repo>/releases/download/taskgraph-cli-latest"  # holds the .tar.gz + .sha256
+natsUrl = "nats://nats.dbs.svc.cluster.local:4222"
+```
+
+Tracing never fails a target: when the download, the checksum or the probe
+(`taskgraph help shim`, which also rejects a release predating `shim`) fails,
+no binary is left behind and `run` executes plain go-task. The release carries
+only an x86_64 static build; on an arm64 node it runs only where the kernel
+emulates x86_64 (Docker Desktop's, so a kind cluster on a Mac does).
 
 ## Web UIs and used ports
 

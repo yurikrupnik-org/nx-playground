@@ -16,8 +16,9 @@
   header { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
   header h1 { font-size: 15px; margin: 0; }
   header select, input { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
-  nav a { margin-right: 12px; color: var(--dim); }
-  nav a.active { color: var(--text); border-bottom: 2px solid var(--accent); }
+  nav button { margin-right: 12px; padding: 0; border: 0; background: none; font: inherit; color: var(--dim); cursor: pointer; }
+  nav button:hover { text-decoration: underline; }
+  nav button.active { color: var(--text); border-bottom: 2px solid var(--accent); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fail); display: inline-block; }
   .dot.on { background: var(--ok); }
   main { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 47px - 120px); }
@@ -64,7 +65,7 @@
 <header>
   <h1>taskgraph</h1>
   <select id="graph"></select>
-  <nav><a id="tab-tasks">Tasks</a><a id="tab-runs">Runs</a></nav>
+  <nav><button type="button" id="tab-tasks">Tasks</button><button type="button" id="tab-runs">Runs</button></nav>
   <span class="dim" id="status"></span>
   <span style="margin-left:auto" class="dim">live <span id="live" class="dot"></span></span>
 </header>
@@ -81,6 +82,20 @@ const ms = (v) => v == null ? "—" : v < 1000 ? `${v}ms` : v < 60000 ? `${(v / 
 const outcome = (o) => o || "running";
 const badge = (o) => `<span class="badge ${outcome(o)}">${esc(outcome(o).replace(/_/g, " "))}</span>`;
 const api = async (path) => { const r = await fetch(path); if (!r.ok) throw new Error(`${r.status} ${path}`); return r.json(); };
+// Run origin: who invoked go-task, from which CI job, at which commit.
+const invoker = (o) => {
+  const i = o?.invoker;
+  if (!i) return "";
+  return `<span class="badge ${i.kind === "agent" ? "running" : i.kind === "ci" ? "up_to_date" : "ok"}">${esc(i.kind === "agent" ? `agent:${i.agent || "?"}` : i.kind)}</span>`;
+};
+const ciJob = (ci) => {
+  if (!ci) return "";
+  const what = `${esc(ci.provider)} ${esc([ci.pipeline, ci.job].filter(Boolean).join(" / "))} #${esc(ci.run_id)}${ci.run_attempt > 1 ? `.${ci.run_attempt}` : ""}`;
+  // Only http(s) links: the URL comes from event data.
+  return /^https?:\/\//.test(ci.run_url || "") ? `<a href="${esc(ci.run_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${what}</a>` : what;
+};
+const shortSha = (o) => { const s = o?.sha || o?.ci?.sha || ""; return s ? `<code>${esc(s.slice(0, 8))}</code>` : ""; };
+const originHtml = (o) => [invoker(o), ciJob(o?.ci), shortSha(o)].filter(Boolean).join(" ");
 
 const state = { config: {}, graphs: [], graph: null, view: null, route: {} };
 
@@ -124,7 +139,7 @@ function renderTaskList(filter = "") {
         <div style="text-align:right">${s ? `${badge(s.last_outcome)}<div class="desc">p50 ${ms(s.p50_ms)} · ${s.runs}×</div>` : ""}</div></div>`;
     }).join("");
   $("filter").oninput = (e) => { renderTaskList(e.target.value); $("filter").focus(); $("filter").setSelectionRange(e.target.value.length, e.target.value.length); };
-  $("side").querySelectorAll("[data-task]").forEach((el) => el.onclick = () => go("task", el.dataset.task));
+  $("side").querySelectorAll("[data-task]").forEach((el) => { el.onclick = () => go("task", el.dataset.task); });
 }
 
 function treeHtml(node, stats) {
@@ -179,15 +194,15 @@ async function renderTask(name) {
 }
 
 function wireTaskLinks(root) {
-  root.querySelectorAll("[data-task]").forEach((el) => el.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); go("task", el.dataset.task); });
-  root.querySelectorAll("[data-run]").forEach((el) => el.onclick = () => go("run", el.dataset.run));
+  root.querySelectorAll("[data-task]").forEach((el) => { el.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); go("task", el.dataset.task); }; });
+  root.querySelectorAll("[data-run]").forEach((el) => { el.onclick = () => go("run", el.dataset.run); });
 }
 
 async function renderRuns() {
   const runs = await api(`/api/runs?graph=${encodeURIComponent(state.graph.graph.id)}&limit=200`);
-  $("detail").innerHTML = runs.length ? `<table><tr><th>started</th><th>target</th><th>outcome</th><th>took</th><th>expected</th><th>failed/tasks</th><th>by</th><th>trace</th></tr>
+  $("detail").innerHTML = runs.length ? `<table><tr><th>started</th><th>target</th><th>outcome</th><th>took</th><th>expected</th><th>failed/tasks</th><th>by</th><th>origin</th><th>trace</th></tr>
     ${runs.map((r) => `<tr class="click" data-run="${r.run_id}"><td>${new Date(r.started_at).toLocaleString()}</td><td>${esc(r.target)}</td><td>${badge(r.outcome)}</td>
-      <td>${ms(r.duration_ms)}</td><td>${ms(r.estimate_ms)}</td><td>${r.failed}/${r.executions}</td><td class="dim">${esc(r.user)}@${esc(r.host)}</td><td class="dim">${r.trace_id ? esc(r.trace_id.slice(0, 8)) : ""}</td></tr>`).join("")}</table>`
+      <td>${ms(r.duration_ms)}</td><td>${ms(r.estimate_ms)}</td><td>${r.failed}/${r.executions}</td><td class="dim">${esc(r.user)}@${esc(r.host)}</td><td>${originHtml(r.origin)}</td><td class="dim">${r.trace_id ? esc(r.trace_id.slice(0, 8)) : ""}</td></tr>`).join("")}</table>`
     : `<p class="dim">No runs recorded for this Taskfile yet.</p>`;
   wireTaskLinks($("detail"));
 }
@@ -225,6 +240,7 @@ async function renderRun(id) {
     <div><a data-back>← runs</a></div>
     <h2>${esc(run.target)} ${badge(run.outcome)}</h2>
     <div class="dim">${esc(run.user)}@${esc(run.host)} in ${esc(run.cwd)} · ${new Date(run.started_at).toLocaleString()} · ${trace}</div>
+    ${originHtml(run.origin) ? `<div>origin ${originHtml(run.origin)}${run.origin.ci?.event ? ` <span class="dim">on ${esc(run.origin.ci.event)}${run.origin.ci.git_ref ? ` ${esc(run.origin.ci.git_ref)}` : ""}${run.origin.ci.actor ? ` by ${esc(run.origin.ci.actor)}` : ""}</span>` : ""}</div>` : ""}
     ${run.args.length ? `<div class="dim">args: ${esc(run.args.join(" "))}</div>` : ""}
     ${run.error ? `<pre class="failed">${esc(run.error)}</pre>` : ""}
     <div class="cards">

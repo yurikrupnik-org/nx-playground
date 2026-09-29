@@ -10,6 +10,7 @@ async-nats = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
 contract_taskgraph = { workspace = true }
+core_authorship = { workspace = true }
 futures = { workspace = true }
 messaging = { workspace = true, features = ["nats"] }
 serde = { workspace = true }

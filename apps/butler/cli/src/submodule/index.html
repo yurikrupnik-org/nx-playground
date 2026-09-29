@@ -97,14 +97,14 @@ async function api(method, path, body) {
 
 async function busy(label, work) {
   const buttons = document.querySelectorAll("button");
-  buttons.forEach((b) => (b.disabled = true));
+  buttons.forEach((b) => { b.disabled = true; });
   say(label + "…");
   try {
     await work();
   } catch (err) {
     say(err.message, true);
   } finally {
-    buttons.forEach((b) => (b.disabled = false));
+    buttons.forEach((b) => { b.disabled = false; });
   }
 }
 
@@ -179,7 +179,7 @@ async function preview() {
       el("td", {}, el("code", { textContent: f.path })),
       el("td", {}, el("span", { className: "state " + f.status, textContent: f.status })));
     row.onclick = () => {
-      body.querySelectorAll(".open").forEach((r) => r.classList.remove("open"));
+      body.querySelectorAll(".open").forEach((r) => { r.classList.remove("open"); });
       row.classList.add("open");
       content.textContent = f.content;
       content.hidden = false;

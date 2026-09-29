@@ -2381,6 +2381,354 @@ spec:
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
+  name: nx-core-authorship-build
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:core_authorship:build
+spec:
+  description: bun nx run core_authorship:build
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: core_authorship
+    - name: target
+      value: build
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-core-authorship-doc
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:core_authorship:doc
+spec:
+  description: bun nx run core_authorship:doc
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: core_authorship
+    - name: target
+      value: doc
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-core-authorship-doc-test
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:core_authorship:doc-test
+spec:
+  description: bun nx run core_authorship:doc-test
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: core_authorship
+    - name: target
+      value: doc-test
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-core-authorship-fmt
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:core_authorship:fmt
+spec:
+  description: bun nx run core_authorship:fmt
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: core_authorship
+    - name: target
+      value: fmt
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-core-authorship-lint
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:core_authorship:lint
+spec:
+  description: bun nx run core_authorship:lint
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: core_authorship
+    - name: target
+      value: lint
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-core-authorship-test
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:core_authorship:test
+spec:
+  description: bun nx run core_authorship:test
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: core_authorship
+    - name: target
+      value: test
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
   name: nx-core-config-build
   labels:
     app.kubernetes.io/managed-by: butler
@@ -4805,6 +5153,354 @@ spec:
     params:
     - name: project
       value: domain_cloud_resources
+    - name: target
+      value: test
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-domain-insights-build
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:domain_insights:build
+spec:
+  description: bun nx run domain_insights:build
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: domain_insights
+    - name: target
+      value: build
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-domain-insights-doc
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:domain_insights:doc
+spec:
+  description: bun nx run domain_insights:doc
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: domain_insights
+    - name: target
+      value: doc
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-domain-insights-doc-test
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:domain_insights:doc-test
+spec:
+  description: bun nx run domain_insights:doc-test
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: domain_insights
+    - name: target
+      value: doc-test
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-domain-insights-fmt
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:domain_insights:fmt
+spec:
+  description: bun nx run domain_insights:fmt
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: domain_insights
+    - name: target
+      value: fmt
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-domain-insights-lint
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:domain_insights:lint
+spec:
+  description: bun nx run domain_insights:lint
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: domain_insights
+    - name: target
+      value: lint
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-domain-insights-test
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:domain_insights:test
+spec:
+  description: bun nx run domain_insights:test
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: domain_insights
     - name: target
       value: test
     - name: args
@@ -15015,6 +15711,644 @@ spec:
       value: taskgraph_cli
     - name: target
       value: test
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-build
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:build
+spec:
+  description: bun nx run taskgraph_insights:build
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: build
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-container
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:container
+spec:
+  description: bun nx run taskgraph_insights:container
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: container
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-doc
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:doc
+spec:
+  description: bun nx run taskgraph_insights:doc
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: doc
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-fmt
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:fmt
+spec:
+  description: bun nx run taskgraph_insights:fmt
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: fmt
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-k8s-check
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:k8s-check
+spec:
+  description: bun nx run taskgraph_insights:k8s-check
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: k8s-check
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-k8s-gen
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:k8s-gen
+spec:
+  description: bun nx run taskgraph_insights:k8s-gen
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: k8s-gen
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-lint
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:lint
+spec:
+  description: bun nx run taskgraph_insights:lint
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: lint
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-scan
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:scan
+spec:
+  description: bun nx run taskgraph_insights:scan
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: scan
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-test
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:test
+spec:
+  description: bun nx run taskgraph_insights:test
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: test
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-tilt-check
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:tilt-check
+spec:
+  description: bun nx run taskgraph_insights:tilt-check
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: tilt-check
+    - name: args
+      value:
+      - $(params.args[*])
+    workspaces:
+    - name: source
+      workspace: source
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: nx-taskgraph-insights-tilt-gen
+  labels:
+    app.kubernetes.io/managed-by: butler
+    butler/runner: nx
+  annotations:
+    butler/target: nx:taskgraph_insights:tilt-gen
+spec:
+  description: bun nx run taskgraph_insights:tilt-gen
+  params:
+  - name: url
+    type: string
+    description: Git URL to clone.
+    default: https://github.com/yurikrupnik-org/nx-playground.git
+  - name: revision
+    type: string
+    description: Branch, tag or commit to run.
+    default: main
+  - name: args
+    type: array
+    description: Extra arguments after the target.
+    default: []
+  workspaces:
+  - name: source
+    description: Scratch space for the checkout.
+  tasks:
+  - name: clone
+    taskRef:
+      name: butler-git-clone
+      kind: Task
+    params:
+    - name: url
+      value: $(params.url)
+    - name: revision
+      value: $(params.revision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: run
+    runAfter:
+    - clone
+    taskRef:
+      name: butler-nx
+      kind: Task
+    params:
+    - name: project
+      value: taskgraph_insights
+    - name: target
+      value: tilt-gen
     - name: args
       value:
       - $(params.args[*])

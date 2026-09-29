@@ -7,7 +7,12 @@
 //! `taskgraph_api`) plus OTLP spans when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
 //!
 //! NATS resolution: `--nats-url` > `$NATS_URL` > `nats://localhost:4222`.
-//! Unreachable NATS degrades to an offline graph browser; `--offline` skips it.
+//! Unreachable NATS degrades to an offline graph browser; `--offline` (or a
+//! truthy `$TASKGRAPH_OFFLINE`) skips it. `$TASKGRAPH_EVENTS_OUT` makes `run`
+//! append every event to a JSONL file as well, with or without NATS.
+//!
+//! `taskgraph shim ARGS…` is a drop-in for `task`; when `shim` is the first
+//! argument everything after it is go-task's, never parsed as our flags.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -15,14 +20,18 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use contract_taskgraph::{EventBody, TaskgraphEvent};
+use core_authorship::is_truthy;
 use core_config::{app_info, env_or_default};
 use domain_taskgraph::{EventPublisher, GraphIndex, NatsPublisher};
 use eyre::{Result, WrapErr, bail, eyre};
 use uuid::Uuid;
 
 mod context;
+mod ingest;
 mod render;
 mod run;
+mod shell_scan;
+mod shim;
 
 use context::{Ctx, history};
 
@@ -42,6 +51,7 @@ struct Cli {
     nats_url: Option<String>,
 
     /// Never connect to NATS: no events published, no history shown
+    /// (also: a truthy $TASKGRAPH_OFFLINE)
     #[arg(long, global = true)]
     offline: bool,
 
@@ -124,6 +134,28 @@ enum Command {
     },
     /// Publish the parsed graph without running anything
     Publish,
+    /// Drop-in for `task`: plain task names run observed (in order, stopping
+    /// at the first failure); anything else is exec'd to the real go-task
+    /// ($TASKGRAPH_TASK_BIN, which must not be the shim itself)
+    #[command(disable_help_flag = true)]
+    Shim {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// ShellCheck every tracked script and every Taskfile cmd/status/precondition
+    ShellScan {
+        /// Write the ShellScan JSON here (default: stdout)
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// ShellCheck binary
+        #[arg(long, default_value = "shellcheck")]
+        shellcheck: String,
+    },
+    /// Publish recorded JSONL events ($TASKGRAPH_EVENTS_OUT files) to NATS
+    Ingest {
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -133,7 +165,7 @@ async fn main() -> ExitCode {
         env!("CARGO_CRATE_NAME"),
         "TASKGRAPH_LOG",
     );
-    match dispatch(Cli::parse()).await {
+    match dispatch(parse_cli()).await {
         Ok(code) => code,
         Err(e) => {
             eprintln!("taskgraph: {e:?}");
@@ -142,16 +174,60 @@ async fn main() -> ExitCode {
     }
 }
 
+/// `taskgraph shim …` hands every later argument to go-task verbatim, even
+/// ones that look like our global flags (`task --offline x` is go-task's
+/// `--offline`), so it bypasses clap when it comes first.
+fn parse_cli() -> Cli {
+    let mut argv: Vec<String> = std::env::args().collect();
+    if argv.get(1).map(String::as_str) != Some("shim") {
+        return Cli::parse();
+    }
+    Cli {
+        taskfile: None,
+        nats_url: None,
+        offline: false,
+        trace_url: None,
+        command: Command::Shim {
+            args: argv.split_off(2),
+        },
+    }
+}
+
 async fn dispatch(cli: Cli) -> Result<ExitCode> {
     let nats_url = cli
         .nats_url
         .unwrap_or_else(|| env_or_default("NATS_URL", "nats://localhost:4222"));
-    let ctx = Ctx::new(cli.taskfile, nats_url, cli.offline)?;
+    let offline = cli.offline || std::env::var("TASKGRAPH_OFFLINE").is_ok_and(|v| is_truthy(&v));
     let trace_url = cli
         .trace_url
         .or_else(|| std::env::var("TASKGRAPH_TRACE_URL").ok());
+    let default_task_bin = || env_or_default("TASKGRAPH_TASK_BIN", "task");
 
-    match cli.command {
+    // These two work without a Taskfile.
+    let command = match cli.command {
+        Command::Ingest { files } => {
+            if offline {
+                bail!("ingest publishes to NATS; drop --offline / unset TASKGRAPH_OFFLINE");
+            }
+            return ingest::ingest(&nats_url, &files).await;
+        }
+        Command::Shim { args } => {
+            let ctx = Ctx::new(cli.taskfile, nats_url, offline).ok();
+            return shim::shim(
+                ctx.as_ref(),
+                shim::ShimOptions {
+                    args,
+                    task_bin: default_task_bin(),
+                    trace_url,
+                },
+            )
+            .await;
+        }
+        command => command,
+    };
+    let ctx = Ctx::new(cli.taskfile, nats_url, offline)?;
+
+    match command {
         Command::List { all } => {
             let graph = ctx.parse()?;
             let js = ctx.jetstream().await;
@@ -281,19 +357,20 @@ async fn dispatch(cli: Cli) -> Result<ExitCode> {
             task_bin,
             args,
         } => {
-            return run::run(
+            let code = run::run(
                 &ctx,
                 run::RunOptions {
                     target: task,
                     args,
                     verbose,
-                    task_bin: task_bin
-                        .unwrap_or_else(|| env_or_default("TASKGRAPH_TASK_BIN", "task")),
+                    task_bin: task_bin.unwrap_or_else(default_task_bin),
                     commands,
                     trace_url,
+                    shim_depth: None,
                 },
             )
-            .await;
+            .await?;
+            return Ok(ExitCode::from(code));
         }
         Command::Runs {
             run,
@@ -365,6 +442,10 @@ async fn dispatch(cli: Cli) -> Result<ExitCode> {
             );
             print_warnings(&graph.warnings);
         }
+        Command::ShellScan { out, shellcheck } => {
+            shell_scan::shell_scan(&ctx, &shell_scan::ScanOptions { out, shellcheck })?;
+        }
+        Command::Shim { .. } | Command::Ingest { .. } => unreachable!("dispatched above"),
     }
     Ok(ExitCode::SUCCESS)
 }
