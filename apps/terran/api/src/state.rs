@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use domain_cloud_resources::observed::K8sInventory;
 use oidc_auth::{KeycloakProvider, LoginFlowStore, OidcVerifier, RedisSessionStore};
 use redis::aio::ConnectionManager;
 
@@ -18,4 +19,8 @@ pub struct AppState {
     pub sessions: Arc<RedisSessionStore>,
     pub provider: Arc<KeycloakProvider>,
     pub verifier: Arc<OidcVerifier>,
+    /// Read-only cloud inventory observed from the cluster (Crossplane
+    /// `CloudInventory`). `None` when the API has no cluster access — the
+    /// inventory endpoints then answer 503 and the rest of the API is unaffected.
+    pub inventory: Option<Arc<K8sInventory>>,
 }

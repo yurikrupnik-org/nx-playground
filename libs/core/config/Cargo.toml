@@ -1,10 +1,10 @@
 [package]
 name = "core_config"
+description = "Application configuration helpers: typed env parsing, app info, and tracing/OpenTelemetry initialization"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
-
-[lints]
-workspace = true
 
 [dependencies]
 color-eyre = { workspace = true }
@@ -19,4 +19,7 @@ tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [dev-dependencies]
-temp-env = "0.3"
+temp-env = { workspace = true }
+
+[lints]
+workspace = true

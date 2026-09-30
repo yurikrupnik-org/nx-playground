@@ -1,3 +1,14 @@
+# Holds the HTTPRoutes in base/gateway. Identical to
+# gitops-v1 infrastructure/platform/networking-config/base/namespace.yaml, so
+# Flux reconciling the platform later is a no-op instead of a conflict.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gateway
+  labels:
+    app.kubernetes.io/part-of: gateway
+    istio-injection: enabled
+---
 apiVersion: v1
 kind: Namespace
 metadata:

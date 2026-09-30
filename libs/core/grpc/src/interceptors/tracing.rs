@@ -29,7 +29,7 @@ pub type TracedChannel = InterceptedService<Channel, TracingInterceptor>;
 /// # Example
 /// ```ignore
 /// use grpc_client::interceptors::TracingInterceptor;
-/// use rpc::tasks::tasks_service_client::TasksServiceClient;
+/// use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 ///
 /// let channel = create_channel("http://[::1]:50051").await?;
 /// let client = TasksServiceClient::with_interceptor(channel, TracingInterceptor::new());

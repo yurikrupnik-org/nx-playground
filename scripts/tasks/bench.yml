@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# wrk benchmarks against tasks API — included by the root Taskfile.yml.
+version: '3'
+
+vars:
+  WRK_DIR: scripts/wrk
+  API_URL_LOCAL: http://localhost:8080/api
+  API_URL_CLUSTER: http://localhost:5221/api
+  BENCH_DIR: scripts/bench
+  API_ORIGIN_LOCAL: '{{trimSuffix "/api" .API_URL_LOCAL}}'
+
+tasks:
+  bench-tasks-grpc:
+    desc: Benchmark GET /api/tasks (gRPC endpoint) - Local
+    cmds:
+      - cmd: echo "=== Benchmarking gRPC Tasks Endpoint (GET) - Local ==="
+        silent: true
+      - wrk -t4 -c50 -d30s --latency -s {{.WRK_DIR}}/report.lua {{.API_URL_LOCAL}}/tasks
+
+  bench-tasks-grpc-post:
+    desc: Benchmark POST /api/tasks (gRPC endpoint) - Local
+    cmds:
+      - cmd: echo "=== Benchmarking gRPC Tasks Endpoint (POST) - Local ==="
+        silent: true
+      - wrk -t4 -c50 -d30s --latency -s {{.WRK_DIR}}/post-task.lua {{.API_URL_LOCAL}}/tasks
+
+  bench-tasks-all:
+    desc: Run all local tasks benchmarks (GET + POST)
+    cmds:
+      - cmd: echo "======================================"
+        silent: true
+      - cmd: echo "  Tasks API Benchmarks (Local)"
+        silent: true
+      - cmd: echo "======================================"
+        silent: true
+      - cmd: echo ""
+        silent: true
+      - task: bench-tasks-grpc
+      - cmd: echo ""
+        silent: true
+      - task: bench-tasks-grpc-post
+
+  bench-cluster-tasks-grpc:
+    desc: Benchmark GET /api/tasks (gRPC endpoint) - Cluster
+    cmds:
+      - cmd: echo "=== Benchmarking gRPC Tasks Endpoint (GET) - Cluster ==="
+        silent: true
+      - wrk -t4 -c50 -d30s --latency -s {{.WRK_DIR}}/report.lua {{.API_URL_CLUSTER}}/tasks
+
+  bench-cluster-tasks-grpc-post:
+    desc: Benchmark POST /api/tasks (gRPC endpoint) - Cluster
+    cmds:
+      - cmd: echo "=== Benchmarking gRPC Tasks Endpoint (POST) - Cluster ==="
+        silent: true
+      - wrk -t4 -c50 -d30s --latency -s {{.WRK_DIR}}/post-task.lua {{.API_URL_CLUSTER}}/tasks
+
+  bench-cluster-all:
+    desc: Run all cluster tasks benchmarks (GET + POST)
+    cmds:
+      - cmd: echo "======================================"
+        silent: true
+      - cmd: echo "  Tasks API Benchmarks (Cluster)"
+        silent: true
+      - cmd: echo "======================================"
+        silent: true
+      - cmd: echo ""
+        silent: true
+      - task: bench-cluster-tasks-grpc
+      - cmd: echo ""
+        silent: true
+      - task: bench-cluster-tasks-grpc-post
+
+  bench-cluster-quick:
+    desc: Quick cluster benchmark (10s duration, lighter load)
+    cmds:
+      - cmd: 'echo "=== Quick Benchmark: gRPC GET (Cluster) ==="'
+        silent: true
+      - wrk -t2 -c10 -d10s --latency {{.API_URL_CLUSTER}}/tasks
+      - cmd: echo ""
+        silent: true
+      - cmd: echo "Benchmark complete!"
+        silent: true
+
+  bench-tasks-quick:
+    desc: Quick benchmark (10s duration, lighter load) - Local
+    cmds:
+      - cmd: 'echo "=== Quick Benchmark: gRPC GET (Local) ==="'
+        silent: true
+      - wrk -t2 -c10 -d10s --latency {{.API_URL_LOCAL}}/tasks
+
+  # ============================================================================
+  # Static web server comparison (nginx vs caddy vs static-web-server)
+  # Images built from manifests/dockers/Dockerfile targets, same SPA dist.
+  # ============================================================================
+
+  # Usage: task test-web-servers [DIST=apps/todo/web/dist]
+  test-web-servers:
+    desc: 'Behavior-parity tests: health, SPA fallback, content-type, cache headers, gzip'
+    vars:
+      DIST: '{{.DIST | default "apps/todo/web/dist"}}'
+    cmds:
+      - bash {{.WRK_DIR}}/web-servers.sh test {{.DIST}}
+
+  # Usage: task bench-web-compare [DIST=apps/todo/web/dist] [DURATION=10s] [CONNS=64] [THREADS=4]
+  bench-web-compare:
+    desc: Benchmark all three servers with wrk; prints req/s + p50/p75/p90/p99 table
+    vars:
+      DIST: '{{.DIST | default "apps/todo/web/dist"}}'
+      DURATION: '{{.DURATION | default "10s"}}'
+      CONNS: '{{.CONNS | default "64"}}'
+      THREADS: '{{.THREADS | default "4"}}'
+    cmds:
+      - bash {{.WRK_DIR}}/web-servers.sh bench {{.DIST}} {{.DURATION}} {{.CONNS}} {{.THREADS}}
+
+  # ============================================================================
+  # Shipped bytes — the repo's ONE byte basis (scripts/bench/).
+  # Every kB quoted in docs/ or in the stack_profiles table used to be measured
+  # by hand on a different basis (raw transfer here, gzipped transitive closure
+  # there), so the numbers could not be compared. These two tasks are that
+  # basis: assets.sh = what a client downloads, ops.sh = what one operation
+  # moves.
+  #
+  # `task bench-assets` with no argument measures the standard arm set —
+  # apps/todo/web/dist (Solid SPA), apps/todo/web-leptos/dist (Leptos WASM,
+  # trunk), dist/target/release/x (CLI+TUI) and dist/target/release/todo_web_htmx
+  # (.cargo/config.toml puts release binaries in dist/target). An arm that is not
+  # built is reported as `not built` with the command that builds it, never
+  # silently skipped and never fatal. Arguments after `--` override the arm set
+  # with any dist directory or compiled binary: `task bench-assets -- apps/todo/web/dist`.
+  # ============================================================================
+
+  bench-assets:
+    desc: First-render bytes (raw/gzip -9/brotli -q 11) + binary size, cold start, peak RSS
+    cmds:
+      - bash {{.BENCH_DIR}}/assets.sh {{.CLI_ARGS}}
+
+  # Usage: task bench-ops [BASE=http://localhost:8080] [RUNS=5]
+  bench-ops:
+    desc: Bytes on the wire per operation (GET+POST+DELETE /api/todos); needs todo-api running
+    vars:
+      BASE: '{{.BASE | default .API_ORIGIN_LOCAL}}'
+      RUNS: '{{.RUNS | default "5"}}'
+    cmds:
+      - bash {{.BENCH_DIR}}/ops.sh --base {{.BASE}} --runs {{.RUNS}}

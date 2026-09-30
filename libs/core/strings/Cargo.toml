@@ -1,0 +1,10 @@
+[package]
+name = "core_strings"
+description = "Zero-dependency string helpers shared across workspace crates"
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true

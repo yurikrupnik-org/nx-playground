@@ -1,0 +1,32 @@
+# Demo CloudInventory claim: observes resources that always exist on a kind
+# cluster with Crossplane installed. Nothing here is created or modified —
+# the composition only reads them (managementPolicies: ["Observe"]).
+apiVersion: platform.playground.io/v1alpha1
+kind: CloudInventory
+metadata:
+  name: demo
+  namespace: default
+spec:
+  parameters:
+    targets:
+      - name: coredns
+        resourceType: compute
+        cluster:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: coredns
+          namespace: kube-system
+      - name: kube-dns
+        resourceType: network
+        cluster:
+          apiVersion: v1
+          kind: Service
+          name: kube-dns
+          namespace: kube-system
+      - name: crossplane
+        resourceType: compute
+        cluster:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: crossplane
+          namespace: crossplane-system

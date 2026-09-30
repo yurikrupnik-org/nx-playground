@@ -1,0 +1,62 @@
+# Zerg web group — kind + Crossplane DevEnvironment workflow
+# Usage: task web-kind [NAME=web] (installs the platform, creates the claim,
+# seeds the zerg schema, then runs this file with DEVENV_NAME=<NAME>).
+#
+# Backing services come from the DevEnvironment claim (namespace devenv-<NAME>):
+# CNPG cluster <NAME>-pg (db/owner `app`), redis:6379, nats:4222. They are
+# port-forwarded to ports that do NOT collide with the compose stack (5432/6379/4222):
+#   postgres -> localhost:5434   redis -> localhost:6380   nats -> localhost:4223
+# The postgres password is read from secret <NAME>-pg-app at proc start and only
+# ever lives in the zerg-api process env — never written to disk.
+# zerg-tasks is not part of this group: the claim provisions one database (`app`)
+# and zerg-api's tasks gRPC client is lazy. Compose variant: task web.
+
+procs:
+  # Port-forwards restart on their own (a pod restart drops the tunnel).
+  pf-postgres:
+    shell: |
+      ns="devenv-${DEVENV_NAME:-web}"
+      while true; do
+        kubectl port-forward -n "$ns" "svc/${DEVENV_NAME:-web}-pg-rw" 5434:5432
+        echo "port-forward exited; retrying in 2s"; sleep 2
+      done
+    stop: "SIGTERM"
+
+  pf-redis:
+    shell: |
+      ns="devenv-${DEVENV_NAME:-web}"
+      while true; do
+        kubectl port-forward -n "$ns" svc/redis 6380:6379
+        echo "port-forward exited; retrying in 2s"; sleep 2
+      done
+    stop: "SIGTERM"
+
+  pf-nats:
+    shell: |
+      ns="devenv-${DEVENV_NAME:-web}"
+      while true; do
+        kubectl port-forward -n "$ns" svc/nats 4223:4222
+        echo "port-forward exited; retrying in 2s"; sleep 2
+      done
+    stop: "SIGTERM"
+
+  # Rust API on :8080 against the forwarded services. The secret's `uri` is
+  # rewritten from the in-cluster rw service to the local forward.
+  zerg-api:
+    shell: |
+      set -eu
+      name="${DEVENV_NAME:-web}"
+      for p in 5434 6380 4223; do
+        until nc -z localhost "$p" 2>/dev/null; do echo "waiting for port-forward :$p"; sleep 1; done
+      done
+      uri=$(kubectl get secret -n "devenv-$name" "$name-pg-app" -o jsonpath='{.data.uri}' | base64 -d)
+      export DATABASE_URL=$(printf '%s' "$uri" | sed -E 's#@[^@/]*/([^/]*)$#@localhost:5434/\1#')
+      export REDIS_HOST='redis://localhost:6380'
+      export NATS_URL='nats://localhost:4223'
+      exec bacon zerg-api
+    stop: "SIGTERM"
+
+  # Frontend (vite HMR on :3000, proxies /api -> http://localhost:8080).
+  zerg-web:
+    shell: "bun nx dev zerg-web"
+    stop: "SIGTERM"

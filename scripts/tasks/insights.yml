@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# CI / developer insights (apps/taskgraph/insights, docs/ci-insights.md) —
+# included (flattened) by the root Taskfile.yml.
+#
+# TARGET picks the Postgres + NATS the tasks talk to:
+#   compose (default while the compose Postgres runs) — localhost:5432 / :4222
+#   kind    — the dev cluster: Postgres svc/postgres and NATS svc/nats in `dbs`,
+#             port-forwarded to localhost:5433 / :4223 for the duration of a task
+#             by scripts/kind/with-port-forwards.sh (go-task's shell cannot stop
+#             a backgrounded process; see that script's header)
+# Every kubectl call uses the current kube context, like scripts/tasks/db.yml.
+version: '3'
+
+vars:
+  BACKFILL_DAYS: '{{.BACKFILL_DAYS | default "90"}}'
+  # Shell snippets spliced into scripts and evaluated at run time (never at
+  # Taskfile load). RESOLVE_TARGET expects `target` to hold TARGET (maybe
+  # empty) and leaves compose|kind in it.
+  RESOLVE_TARGET: |
+    if [ -z "$target" ]; then
+      if docker exec dockers-postgres-1 true 2>/dev/null; then target=compose; else target=kind; fi
+    fi
+    case "$target" in compose|kind) ;; *) echo "TARGET must be compose or kind, got: $target" >&2; exit 1 ;; esac
+
+tasks:
+  insights-db:
+    desc: "Create the insights database if missing and apply its migrations (TARGET=compose|kind)"
+    cmds:
+      - |
+        set -euo pipefail
+        target="{{.TARGET}}"
+        {{.RESOLVE_TARGET}}
+        if [ "$target" = compose ]; then
+          PG="docker exec -i dockers-postgres-1 psql -U myuser"
+        else
+          PG="kubectl exec -i -n dbs deployment/postgres -- psql -U myuser"
+        fi
+        if $PG -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'insights'" | grep -q 1; then
+          echo "database insights exists ($target)"
+        else
+          $PG -d postgres -c "CREATE DATABASE insights;"
+        fi
+        if [ "$target" = compose ]; then
+          task migrate DB=insights
+        else
+          bash scripts/kind/with-port-forwards.sh dbs/postgres:5433:5432 -- task migrate-cluster DB=insights
+        fi
+
+  # The Secret the in-cluster service reads (DATABASE_URL + GITHUB_TOKEN). Never
+  # committed: the token comes from `gh auth token` at run time and only ever
+  # travels through a 0600 temp file, never through argv.
+  insights-secret:
+    desc: Create/refresh Secret taskgraph/taskgraph-insights-secrets from `gh auth token` and the dev Postgres URL
+    preconditions:
+      - sh: gh auth token >/dev/null 2>&1
+        msg: "gh is not logged in: run `gh auth login`"
+    cmds:
+      - |
+        set -euo pipefail
+        # mktemp creates the file 0600 (BSD and GNU); go-task's shell has no `umask`.
+        env_file=$(mktemp)
+        trap 'rm -f "$env_file"' EXIT
+        {
+          printf 'DATABASE_URL=%s\n' "postgres://myuser:mypassword@postgres.dbs.svc.cluster.local:5432/insights"
+          printf 'GITHUB_TOKEN=%s\n' "$(gh auth token)"
+        } > "$env_file"
+        kubectl create namespace taskgraph --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+        kubectl -n taskgraph create secret generic taskgraph-insights-secrets \
+          --from-env-file="$env_file" --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n taskgraph rollout restart deployment/taskgraph-insights 2>/dev/null || true
+
+  insights-sync:
+    desc: "One insights sync cycle from this host (TARGET=compose|kind, BACKFILL_DAYS=90); run `task insights-db` first"
+    preconditions:
+      - sh: gh auth token >/dev/null 2>&1
+        msg: "gh is not logged in: run `gh auth login`"
+    cmds:
+      - |
+        set -euo pipefail
+        target="{{.TARGET}}"
+        {{.RESOLVE_TARGET}}
+        GITHUB_TOKEN="$(gh auth token)"
+        export GITHUB_TOKEN
+        export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-yurikrupnik-org/nx-playground}"
+        export INSIGHTS_BACKFILL_DAYS="{{.BACKFILL_DAYS}}"
+        export RUST_LOG="${INSIGHTS_LOG:-info,sqlx=warn}"
+        if [ "$target" = compose ]; then
+          DATABASE_URL="postgres://myuser:mypassword@localhost:5432/insights" \
+            NATS_URL="nats://localhost:4222" \
+            cargo run -q -p taskgraph_insights -- --once
+        else
+          DATABASE_URL="postgres://myuser:mypassword@localhost:5433/insights" \
+            NATS_URL="nats://localhost:4223" \
+            bash scripts/kind/with-port-forwards.sh dbs/postgres:5433:5432 dbs/nats:4223:4222 -- \
+            cargo run -q -p taskgraph_insights -- --once
+        fi
+
+  # Static shell scan of this checkout (ShellScan JSON, contract_taskgraph::shell).
+  shell-scan:
+    desc: Lint every script and Taskfile shell snippet with shellcheck → dist/shell-scan.json
+    cmds:
+      - cargo run -q -p taskgraph_cli -- shell-scan --out dist/shell-scan.json

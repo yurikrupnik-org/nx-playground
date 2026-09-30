@@ -1,88 +1,35 @@
 ---
-description: Full pre-commit workflow (check, review, commit message)
-allowed-tools: []
+description: Two-pass pre-commit review (author pass + independent pass) then commit
+allowed-tools: Bash(task:*), Bash(git diff:*), Bash(git status:*), Bash(coderabbit:*), Bash(codex:*), Bash(gemini:*)
 ---
 
-# Pre-Commit Workflow
+# Pre-Commit Review
 
-Complete pre-commit workflow with quality checks, optional AI review, and commit message generation.
+Run the protocol in `.claude/skills/precommit-review/SKILL.md` — read it first;
+it is the single source of truth for the steps, the reconciliation rules and
+the report format. Do not re-invent a review flow here.
 
-## Step 1: Quality Checks ⚙️
+Short form:
 
-Run `/git:check` to verify code quality:
-- Lint checks
-- Build verification
-- Test suite
+1. `task review-bundle` — freezes the STAGED diff into `dist/review/bundle.md`
+   (file table, class per file, the gates that diff implies). Exit 1 = hard
+   stop (secret-shaped path); exit 2 = nothing staged.
+2. Run the gates the bundle listed, plus any proof gate for generated output.
+   Red gate → fix and re-bundle before any model reads the diff.
+3. **Pass 1 (author)** — this model, against the final staged state, using the
+   six-point checklist in the skill.
+4. **Pass 2 (independent, concurrent, blind to pass 1)** — `reviewer` and
+   `security-reviewer` subagents plus the external CLIs that are actually
+   authenticated (`coderabbit review --uncommitted --agent -c AGENTS.md`,
+   `codex exec review --uncommitted`). Minimum two components, one a subagent,
+   or the review is reported as degraded.
+5. **Reconcile** — a claim raised by ≥2 components is blocker-eligible; single
+   sources are judged on evidence; the skill's known-false-positive list is
+   rejected with a reason, never "fixed".
+6. Fix blockers, re-stage, re-run the bundle + gates, author pass over the
+   delta only. Max two rounds.
+7. Commit with a Conventional Commits message whose body names what the review
+   changed. Never on `main`, never `--no-verify`.
 
-**Critical**: Stop if any checks fail. Fix issues before proceeding.
-
-## Step 2: AI Code Review (Optional) 🤖
-
-Ask user if they want AI review:
-- Skip for minor changes (typos, formatting)
-- Recommended for logic changes, refactoring, new features
-
-If user wants AI review:
-
-**IMPORTANT**: Run both reviews in parallel for faster execution:
-- `/git:gemini-review` for Gemini analysis
-- `/git:coderabbit-review` for CodeRabbit analysis
-
-Use SlashCommand tool twice in a single message to run them concurrently.
-
-**Note**: Parallel execution saves time (~30-40 seconds vs 60+ seconds sequential).
-
-## Step 3: Review Analysis 🔍
-
-If AI reviews were run:
-
-### Critical Issues Found:
-- 🔴 **STOP** - Do not generate commit message
-- List all critical issues by category
-- Provide specific fix suggestions
-- User should fix issues and run `/precommit` again
-
-### Only Warnings/Suggestions:
-- 🟡 Show warnings for user awareness
-- Proceed to commit message generation
-- User can address in follow-up commit
-
-### All Clear:
-- 🟢 Proceed to commit message generation
-
-If no AI reviews:
-- Proceed to commit message generation
-
-## Step 4: Generate Commit Message 📝
-
-Run `/git:commit-msg` to generate conventional commit message.
-
-The message will:
-- Follow conventional commits format
-- Include detailed description
-- Be ready to copy/paste
-
-## Step 5: Final Instructions ✅
-
-Remind user:
-
-**To commit:**
-```bash
-git commit -m "..."  # Use the generated message
-```
-
-**Or ask me to:**
-- Revise the commit message
-- Make additional changes
-- Fix any remaining issues
-
----
-
-**Workflow Summary:**
-1. ⚙️  Quality checks (required)
-2. 🤖 AI review (optional, ask user)
-3. 🔍 Analyze results
-4. 📝 Generate commit message
-5. ✅ Ready to commit
-
-**Pro tip**: For quick commits, skip AI review. For important changes, always review.
+For a docs-only or config-only diff (the bundle says so), `/precommit-quick`
+skips pass 2.

@@ -1,0 +1,23 @@
+apiVersion: db.atlasgo.io/v1alpha1
+kind: AtlasSchema
+metadata:
+  name: tasks-schema
+spec:
+  urlFrom:
+    secretKeyRef:
+      name: tasks-shared-secrets
+      key: DATABASE_URL
+  schema:
+    configMapKeyRef:
+      name: tasks-schema
+      key: schema.sql
+  # Guard rails: the operator reconciles the desired schema but never drops a
+  # table or schema on its own. Removing one is a deliberate, manual operation.
+  policy:
+    diff:
+      skip:
+        drop_schema: true
+        drop_table: true
+    lint:
+      destructive:
+        error: true

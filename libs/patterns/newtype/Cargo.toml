@@ -1,0 +1,11 @@
+[package]
+name = "newtype"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+validator.workspace = true
+
+[lints]
+workspace = true

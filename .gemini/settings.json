@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/packages/cli/src/config/settingsSchema.json",
+  "context": {
+    "fileName": ["AGENTS.md", "GEMINI.md"]
+  }
+}

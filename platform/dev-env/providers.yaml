@@ -1,0 +1,30 @@
+# Providers + configs the DevEnvironment composition needs on a kind cluster.
+# provider-helm is already installed by the cluster bootstrap; declared here
+# anyway so this file is self-sufficient on a fresh cluster.
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-kubernetes
+spec:
+  package: ghcr.io/crossplane-contrib/provider-kubernetes:v1.1.0
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-helm
+spec:
+  package: ghcr.io/crossplane-contrib/provider-helm:v1.3.0
+---
+# DEV-ONLY (kind): let the provider service accounts manage anything in-cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crossplane-providers-admin-dev
+subjects:
+  - kind: Group
+    name: system:serviceaccounts:crossplane-system
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io

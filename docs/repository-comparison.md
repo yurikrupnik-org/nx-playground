@@ -81,7 +81,7 @@ impl<T, E> BasePgRepository<T, E> {
 
 ### Your Pattern: Extension Trait
 
-```
+```text
 ┌─────────────────────────────────────┐
 │      Domain Entity (Project)        │
 │                                      │
@@ -117,6 +117,7 @@ impl<T, E> BasePgRepository<T, E> {
 ```
 
 **Usage:**
+
 ```rust
 // Call trait methods directly on the type
 let project = Project::get_by_id(&pool, &id).await?;
@@ -125,7 +126,7 @@ let created = Project::create_item(&pool, &create_dto).await?;
 
 ### Suggested Pattern: Composition
 
-```
+```text
 ┌─────────────────────────────────────┐
 │    Domain Repository Impl           │
 │                                      │
@@ -155,6 +156,7 @@ let created = Project::create_item(&pool, &create_dto).await?;
 ```
 
 **Usage:**
+
 ```rust
 // Call through repository instance
 let repo = PgProjectRepository::new(pool);
@@ -180,11 +182,13 @@ fn create_item(pool: &PgPool, body: &Self::CreateType) -> ... {
 ```
 
 **Pros:**
+
 - ✅ Automatic - add fields to struct, no query changes needed
 - ✅ Handles optional fields gracefully
 - ✅ DRY - single implementation for all entities
 
 **Cons:**
+
 - ❌ Runtime overhead (JSON serialization)
 - ❌ Less DB optimization (dynamic SQL harder to prepare)
 - ❌ Harder to debug (query built at runtime)
@@ -209,6 +213,7 @@ async fn create(&self, input: CreateProject) -> ... {
 ```
 
 **Pros:**
+
 - ✅ Compile-time checked (with `sqlx::query!` macro)
 - ✅ Better DB performance (prepared statements)
 - ✅ Easy to debug (see exact SQL)
@@ -216,6 +221,7 @@ async fn create(&self, input: CreateProject) -> ... {
 - ✅ Full control over SQL
 
 **Cons:**
+
 - ❌ More boilerplate (repeat for each entity)
 - ❌ Field changes require query updates
 - ❌ More code to maintain
@@ -243,6 +249,7 @@ async fn fetch_by_values<T>(query: &str, values: Vec<&Value>, ...) {
 **Type checking happens at runtime** when serializing to JSON and binding values.
 
 **Risk:**
+
 ```rust
 #[derive(Serialize)]
 struct CreateProject {
@@ -269,6 +276,7 @@ async fn create(&self, input: CreateProject) -> ... {
 **Type checking happens at compile time.**
 
 **Safety:**
+
 ```rust
 struct CreateProject {
     name: String,
@@ -299,6 +307,7 @@ struct CreateProject {
 ```
 
 **Trade-off:** You lose control over:
+
 - SQL optimization (indexes, joins)
 - Custom type conversions (enums, JSONB)
 - Complex queries (WHERE clauses, JOINs)
@@ -324,6 +333,7 @@ async fn create(&self, input: CreateProject) -> ... {
 ```
 
 **Trade-off:** More work for changes, but full control over:
+
 - Custom SQL for each operation
 - Performance optimization
 - Database-specific features
@@ -353,6 +363,7 @@ impl ProjectService {
 ```
 
 **Characteristics:**
+
 - No repository struct needed
 - Pool passed directly to methods
 - Entity type knows how to persist itself
@@ -379,6 +390,7 @@ impl<R: ProjectRepository> ProjectService<R> {
 ```
 
 **Characteristics:**
+
 - Requires repository trait + impl
 - Service doesn't know about database
 - Easy to swap implementations (in-memory for tests)
@@ -387,40 +399,48 @@ impl<R: ProjectRepository> ProjectService<R> {
 
 ## Which Is Better?
 
-### Your `SqlMethods` is Better When:
+### Your `SqlMethods` is Better When
 
 ✅ **You have many similar entities** (10+ domains)
+
 - Auto-generation saves massive time
 - Consistency across all entities
 
 ✅ **Schema changes frequently**
+
 - Add/remove fields without touching queries
 - Rapid prototyping
 
 ✅ **All entities follow same pattern**
+
 - Standard CRUD with few custom queries
 - No complex SQL needed
 
 ✅ **You trust the abstractions**
+
 - Confident in `prepare_*_query` safety
 - Willing to debug dynamic SQL
 
-### Suggested `BasePgRepository` is Better When:
+### Suggested `BasePgRepository` is Better When
 
 ✅ **You need performance optimization**
+
 - Static SQL for prepared statements
 - Database-specific features (enums, JSONB)
 
 ✅ **Type safety is critical**
+
 - Compile-time checking
 - No runtime surprises
 
 ✅ **Custom queries are common**
+
 - Complex WHERE clauses
 - JOINs, aggregations
 - Database-specific features
 
 ✅ **You want explicit control**
+
 - See exactly what SQL runs
 - Easier debugging
 
@@ -478,7 +498,7 @@ impl ProjectRepository for PgProjectRepository {
 
 **Decision Tree:**
 
-```
+```text
 Is the entity simple (basic CRUD, no custom logic)?
 │
 ├─ Yes → Use SqlMethods ✨
@@ -492,21 +512,21 @@ Is the entity simple (basic CRUD, no custom logic)?
 
 ## Recommendations
 
-### Keep Your `SqlMethods` For:
+### Keep Your `SqlMethods` For
 
 1. **Simple entities**: Users, tags, categories
 2. **Rapid development**: MVPs, prototypes
 3. **Internal tools**: Admin panels, dashboards
 4. **Testing**: Mock data generation
 
-### Switch to Custom Repositories For:
+### Switch to Custom Repositories For
 
 1. **Complex domains**: Projects (with enums, JSONB)
 2. **Performance-critical**: High-traffic endpoints
 3. **Custom SQL**: Joins, aggregations, subqueries
 4. **Production services**: Where type safety matters
 
-### Enhance Your `SqlMethods` With:
+### Enhance Your `SqlMethods` With
 
 ```rust
 // Add support for custom types

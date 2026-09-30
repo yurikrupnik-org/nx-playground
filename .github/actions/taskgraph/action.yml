@@ -1,0 +1,18 @@
+name: taskgraph telemetry
+description: >-
+  Route every later `task …` in the job through `taskgraph shim` (events to
+  $RUNNER_TEMP/taskgraph/events-<job>.jsonl, never NATS). Use AFTER
+  go-task/setup-task; upload $RUNNER_TEMP/taskgraph/*.jsonl as
+  `taskgraph-events-<job>-<attempt>` at the end of the job. Any failure is a
+  warning that leaves plain go-task in place: telemetry never fails CI.
+runs:
+  using: composite
+  steps:
+    # The logic lives in install.sh so it can be run (and its failure path
+    # checked) outside Actions with a fake RUNNER_TEMP/GITHUB_PATH/GITHUB_ENV.
+    - name: Install taskgraph and the task shim
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: bash "$GITHUB_ACTION_PATH/install.sh"

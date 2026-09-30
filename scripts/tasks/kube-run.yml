@@ -1,0 +1,166 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# Run CLIs, TUIs and one-off bash/nu commands INSIDE the local kind cluster, as
+# throwaway pods (`kubectl run --rm`): in-cluster DNS, real Services, no port-
+# forwards. Deployed apps keep going through butler.toml -> Tilt/k8s-gen; these
+# tasks are for things that run once and exit.
+#
+#   task kube-run CRATE=todo_cli NS=todo ENV='NATS_URL=nats://nats:4222' -- list
+#   task kube-run CRATE=x_cli ENV='X_TODO_URL=http://todo-api.todo:8080' -- ui
+#   task kube-sh NS=todo                                  # bash in a nu+bash toolbox
+#   task kube-sh NS=todo -- nu -c 'http get http://todo-api:8080/health'
+#   task kube-nu SCRIPT=scripts/<area>/<name>.nu NS=todo -- <args>
+#
+# - kube-run builds any workspace binary with manifests/dockers/rust.Dockerfile
+#   (the crate's single bin is found through `cargo metadata`; BIN=<name> picks
+#   one when there are several), side-loads it with `kind load`, and runs it.
+# - A TTY is attached only when your stdin is a terminal, so TUIs (`x ui`) work
+#   interactively and the same task still pipes (`... -- list | jq`).
+# - kube-nu ships the script's DIRECTORY as a ConfigMap, so `use ./lib.nu`
+#   siblings resolve, and runs it with `nu --no-config-file` (scripts/tasks/nu.yml).
+# - ENV is space-separated KEY=VALUE pairs (no spaces inside a value). NS
+#   defaults to `default`; in-cluster names are <svc>.<ns>:<port>, e.g.
+#   todo-api.todo:8080, nats.todo:4222, postgres.dbs:5432.
+#
+# Cluster: KIND_CLUSTER, else the current context when it is kind-*, else the
+# only kind cluster. Every kubectl call names `--context kind-<cluster>`, so a
+# current context pointing at a real cluster is never used by accident.
+# ============================================================================
+version: '3'
+
+vars:
+  KUBE_RUN_TOOLBOX: ghcr.io/nushell/nushell:0.115.1-bookworm
+  # Sets $cluster and $ctx, and $tty to `--tty` when stdin is a terminal.
+  # A var, not an internal task: the result is needed inside the caller's shell.
+  KIND_CTX_SH: |
+    cluster="{{.KIND_CLUSTER}}"
+    if [ -z "$cluster" ]; then
+      current=$(kubectl config current-context 2>/dev/null || true)
+      case "$current" in
+        kind-*) cluster=${current#kind-} ;;
+        *)
+          clusters=$(kind get clusters 2>/dev/null)
+          if [ "$(printf '%s\n' "$clusters" | grep -c .)" = 1 ]; then
+            cluster=$clusters
+          else
+            echo "current context '${current:-<none>}' is not kind; pass KIND_CLUSTER=<one of: $(printf '%s ' $clusters)>" >&2
+            exit 1
+          fi
+          ;;
+      esac
+    fi
+    ctx="kind-$cluster"
+    tty=
+    if [ -t 0 ]; then tty=--tty; fi
+
+tasks:
+  kube-image:
+    desc: 'Build a workspace binary into yurikrupnik/<crate>:dev and kind-load it (CRATE=<package> [BIN=<bin>])'
+    silent: true
+    requires:
+      vars: [CRATE]
+    vars:
+      IMAGE: 'yurikrupnik/{{.CRATE | replace "_" "-"}}:dev'
+    cmds:
+      - |
+        set -euo pipefail
+        {{.KIND_CTX_SH}}
+        bin="{{.BIN}}"
+        if [ -z "$bin" ]; then
+          bins=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r --arg p "{{.CRATE}}" '.packages[] | select(.name == $p) | .targets[] | select(.kind | index("bin")) | .name')
+          case "$(printf '%s\n' "$bins" | grep -c .)" in
+            0) echo "{{.CRATE}}: no such workspace package, or it has no binary" >&2; exit 1 ;;
+            1) bin=$bins ;;
+            *) echo "{{.CRATE}} has several binaries; pass BIN=<one of: $(printf '%s ' $bins)>" >&2; exit 1 ;;
+          esac
+        fi
+        # The openapi context is always passed: it is what apps/x/cli compiles in,
+        # and it lands after the dependency layer, so no other crate pays for it.
+        docker build -f manifests/dockers/rust.Dockerfile --target rust \
+          --build-arg APP_NAME={{.CRATE}} --build-arg BIN_NAME="$bin" \
+          --build-context openapi=docs/openapi \
+          -t {{.IMAGE}} .
+        kind load docker-image --name "$cluster" {{.IMAGE}}
+
+  kube-run:
+    desc: 'Run a workspace CLI/TUI as a throwaway pod in kind (CRATE=<package> [BIN=] [NS=] [ENV=K=V ...] -- <args>)'
+    silent: true
+    interactive: true
+    requires:
+      vars: [CRATE]
+    vars:
+      NS: '{{.NS | default "default"}}'
+      NAME: '{{.CRATE | replace "_" "-"}}'
+    cmds:
+      - task: kube-image
+        vars: { CRATE: '{{.CRATE}}', BIN: '{{.BIN}}', KIND_CLUSTER: '{{.KIND_CLUSTER}}' }
+      - |
+        set -euo pipefail
+        {{.KIND_CTX_SH}}
+        envs=()
+        for kv in {{.ENV}}; do envs+=("--env=$kv"); done
+        kubectl --context "$ctx" run "{{.NAME}}-$(openssl rand -hex 3)" -n {{.NS}} \
+          --image=yurikrupnik/{{.NAME}}:dev --image-pull-policy=Never \
+          --restart=Never --rm --quiet --stdin $tty "${envs[@]}" -- {{.CLI_ARGS}}
+
+  kube-sh:
+    desc: 'Toolbox pod (bash + nu + curl) in kind; runs bash, or the command after -- ([NS=] [IMAGE=] [ENV=])'
+    silent: true
+    interactive: true
+    vars:
+      NS: '{{.NS | default "default"}}'
+      IMAGE: '{{.IMAGE | default .KUBE_RUN_TOOLBOX}}'
+      CMD: '{{.CLI_ARGS | default "bash"}}'
+    cmds:
+      - |
+        set -euo pipefail
+        {{.KIND_CTX_SH}}
+        envs=()
+        for kv in {{.ENV}}; do envs+=("--env=$kv"); done
+        kubectl --context "$ctx" run "sh-$(openssl rand -hex 3)" -n {{.NS}} \
+          --image={{.IMAGE}} --restart=Never --rm --quiet --stdin $tty "${envs[@]}" \
+          --command -- {{.CMD}}
+
+  kube-nu:
+    desc: 'Run a repo .nu script inside kind (SCRIPT=<path.nu> [NS=] [ENV=] -- <args>)'
+    silent: true
+    interactive: true
+    requires:
+      vars: [SCRIPT]
+    vars:
+      NS: '{{.NS | default "default"}}'
+    cmds:
+      - |
+        set -euo pipefail
+        {{.KIND_CTX_SH}}
+        [ -f "{{.SCRIPT}}" ] || { echo "{{.SCRIPT}}: no such file" >&2; exit 1; }
+        name="nu-$(openssl rand -hex 3)"
+        kubectl --context "$ctx" -n {{.NS}} create configmap "$name" \
+          --from-file="$(dirname "{{.SCRIPT}}")" > /dev/null
+        trap 'kubectl --context "$ctx" -n {{.NS}} delete configmap "$name" --wait=false > /dev/null' EXIT
+        env_json=$(for kv in {{.ENV}}; do printf '%s\n' "$kv"; done \
+          | jq -Rsc 'split("\n") | map(select(. != "") | capture("^(?<name>[^=]+)=(?<value>.*)$"))')
+        set -- {{.CLI_ARGS}}
+        # NUL-separated so an argument may contain anything; `jq --args` would
+        # parse a script flag like `--shout` as its own option.
+        args_json='[]'
+        if [ $# -gt 0 ]; then
+          args_json=$(printf '%s\0' "$@" | jq -Rsc 'split("\u0000")[:-1]')
+        fi
+        overrides=$(jq -nc \
+          --arg name "$name" --arg image "{{.KUBE_RUN_TOOLBOX}}" \
+          --arg script "/scripts/$(basename "{{.SCRIPT}}")" \
+          --argjson tty "$([ -n "$tty" ] && echo true || echo false)" \
+          --argjson env "$env_json" --argjson args "$args_json" \
+          '{spec: {
+             volumes: [{name: "scripts", configMap: {name: $name}}],
+             containers: [{
+               name: $name, image: $image,
+               command: (["nu", "--no-config-file", $script] + $args),
+               env: $env, stdin: true, stdinOnce: true, tty: $tty,
+               volumeMounts: [{name: "scripts", mountPath: "/scripts"}]
+             }]
+           }}')
+        kubectl --context "$ctx" run "$name" -n {{.NS}} --image={{.KUBE_RUN_TOOLBOX}} \
+          --restart=Never --rm --quiet --stdin $tty --overrides="$overrides"

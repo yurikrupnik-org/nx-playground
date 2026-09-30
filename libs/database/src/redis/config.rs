@@ -155,7 +155,7 @@ impl FromEnv for RedisConfig {
         let database = if let Ok(db_str) = std::env::var("REDIS_DATABASE") {
             Some(db_str.parse().map_err(|e| ConfigError::ParseError {
                 key: "REDIS_DATABASE".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?)
         } else {
             None

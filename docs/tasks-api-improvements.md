@@ -1,6 +1,7 @@
 # Tasks API - Potential Improvements
 
 ## Current Performance
+
 - **GET**: 12,786 req/sec @ 3.78ms avg latency
 - **POST**: 9,997 req/sec @ 3.89ms avg latency
 - **Gap to Direct DB**: Within 2-8% (excellent)
@@ -12,6 +13,7 @@
 **Current State:** Compression code exists but is commented out
 
 **Implementation:**
+
 ```toml
 # Cargo.toml
 [dependencies]
@@ -28,6 +30,7 @@ let client = TasksServiceClient::new(channel)
 ```
 
 **Expected Impact:**
+
 - List operations (50+ items): 60-80% bandwidth reduction
 - Single operations: Minimal benefit (might add CPU overhead)
 - Use selectively: Enable only for large responses
@@ -41,6 +44,7 @@ let client = TasksServiceClient::new(channel)
 **Current State:** Single client per request (cloned)
 
 **Implementation:**
+
 ```rust
 // apps/zerg/api/src/state.rs
 pub struct AppState {
@@ -58,6 +62,7 @@ let mut client = state.tasks_client_pool[client_idx].clone();
 ```
 
 **Expected Impact:**
+
 - Better load distribution across connections
 - Reduced connection setup overhead
 - 5-10% throughput improvement at high concurrency
@@ -69,6 +74,7 @@ let mut client = state.tasks_client_pool[client_idx].clone();
 ### 3. Redis Caching Layer (Scalability)
 
 **Implementation:**
+
 ```rust
 // Add caching for list operations
 pub async fn list_tasks(State(state): State<AppState>) -> impl IntoResponse {
@@ -92,11 +98,13 @@ pub async fn list_tasks(State(state): State<AppState>) -> impl IntoResponse {
 ```
 
 **Expected Impact:**
+
 - Massive improvement for read-heavy workloads (10-100x for cached responses)
 - Reduces database load
 - Sub-millisecond latency for cached data
 
 **Trade-offs:**
+
 - Added complexity (cache invalidation)
 - Stale data risk (need TTL strategy)
 - Infrastructure dependency
@@ -108,6 +116,7 @@ pub async fn list_tasks(State(state): State<AppState>) -> impl IntoResponse {
 ### 4. Batch Operations (Efficiency)
 
 **Add new endpoints:**
+
 ```protobuf
 // tasks.proto
 message BatchCreateRequest {
@@ -127,6 +136,7 @@ service TasksService {
 ```
 
 **Expected Impact:**
+
 - 50-200% improvement for bulk operations
 - Reduced round-trip overhead
 - Better database transaction efficiency
@@ -138,6 +148,7 @@ service TasksService {
 ### 5. Database Optimizations
 
 #### A. Add Missing Indexes
+
 ```sql
 -- Check current indexes
 \d tasks
@@ -149,6 +160,7 @@ CREATE INDEX idx_tasks_due_date ON tasks(due_date) WHERE due_date IS NOT NULL;
 ```
 
 #### B. Optimize List Query
+
 ```rust
 // Use SELECT only needed columns instead of SELECT *
 // Current: Fetches all columns
@@ -172,6 +184,7 @@ let tasks = Task::find()
 ```
 
 #### C. Connection Pool Tuning
+
 ```rust
 // config/database.rs
 let pool_options = DatabaseOptions {
@@ -184,6 +197,7 @@ let pool_options = DatabaseOptions {
 ```
 
 **Expected Impact:**
+
 - Indexes: 20-50% improvement for filtered queries
 - Column selection: 10-20% bandwidth reduction
 - Pool tuning: 5-15% improvement under load
@@ -197,6 +211,7 @@ let pool_options = DatabaseOptions {
 **Current:** Offset-based (inefficient for large offsets)
 
 **Improved:**
+
 ```protobuf
 message ListRequest {
   optional string cursor = 1;  // Base64-encoded cursor
@@ -238,6 +253,7 @@ pub async fn list_tasks_cursor(cursor: Option<String>, limit: usize) -> Result<(
 ```
 
 **Expected Impact:**
+
 - Constant-time pagination regardless of offset
 - 10-100x faster for deep pagination (offset > 10000)
 
@@ -274,6 +290,7 @@ fn validate_future_date(date: &str) -> Result<(), ValidationError> {
 ```
 
 **Expected Impact:**
+
 - Better error messages
 - Prevent invalid data from reaching database
 - Security: Prevent injection attacks
@@ -312,6 +329,7 @@ pub async fn list_tasks(State(state): State<AppState>) -> impl IntoResponse {
 ```
 
 **Expected Impact:**
+
 - Better visibility into performance
 - Easier debugging of issues
 - Proactive monitoring
@@ -325,6 +343,7 @@ pub async fn list_tasks(State(state): State<AppState>) -> impl IntoResponse {
 **Current:** ListStream loads all data, then streams
 
 **Improved:**
+
 ```rust
 pub async fn list_stream(&self, request: Request<ListStreamRequest>)
     -> Result<Response<Self::ListStreamStream>, Status> {
@@ -349,6 +368,7 @@ pub async fn list_stream(&self, request: Request<ListStreamRequest>)
 ```
 
 **Expected Impact:**
+
 - Constant memory usage regardless of dataset size
 - Start streaming immediately (don't wait for full query)
 - Better for large datasets
@@ -378,6 +398,7 @@ let app = Router::new()
 ```
 
 **Expected Impact:**
+
 - Protect against abuse
 - Prevent resource exhaustion
 - Fairer resource allocation
@@ -389,21 +410,25 @@ let app = Router::new()
 ## Priority Implementation Order
 
 ### Phase 1: Essential (Do Now)
+
 1. ✅ **Database Indexes** - Immediate query performance boost
 2. ✅ **Request Validation** - Security and data quality
 3. ✅ **Observability/Metrics** - Visibility into production
 
 ### Phase 2: High Impact (Do Soon)
+
 4. ⭐⭐⭐⭐ **Batch Operations** - Support bulk use cases
 5. ⭐⭐⭐⭐ **Cursor Pagination** - Scale to large datasets
 6. ⭐⭐⭐⭐ **Redis Caching** - Massive read performance gains
 
 ### Phase 3: Optimization (Do Later)
+
 7. ⭐⭐⭐ **gRPC Compression** - Bandwidth savings
 8. ⭐⭐⭐ **Streaming Optimizations** - Memory efficiency
 9. ⭐⭐⭐ **Rate Limiting** - API protection
 
 ### Phase 4: Advanced (Nice to Have)
+
 10. ⭐⭐ **Connection Pooling** - Minor concurrency boost
 
 ---

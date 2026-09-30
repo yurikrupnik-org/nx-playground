@@ -4,11 +4,11 @@
 //! against each [`TodoEvent`]. Mirrors the email worker: pull consumer with
 //! ack/nak/DLQ, Prometheus metrics, k8s health probes, graceful shutdown.
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use config::AppConfig;
-use core_config::{app_info, FromEnv};
+use core_config::{FromEnv, app_info};
 use domain_todo::{TodoEvent, TodoNatsStream};
 use eyre::{Result, WrapErr};
 use messaging::nats::{HealthServer, NatsWorker, WorkerConfig};
@@ -85,7 +85,8 @@ pub async fn run() -> Result<()> {
     let worker_config = WorkerConfig::from_stream::<TodoNatsStream>().with_health_port(health_port);
     info!(
         stream = %worker_config.stream_name,
-        durable = %worker_config.durable_name,
+        consumer_group = %worker_config.consumer_name,
+        kind = ?worker_config.kind,
         "todo worker configuration loaded"
     );
 

@@ -1,0 +1,109 @@
+# Grafana for the kind dev loop — installed by `task observability-up`
+# (scripts/tasks/observability.yml), chart grafana-community/grafana at the
+# version pinned there (the chart left grafana/helm-charts on 2026-01-30).
+# Release `grafana` → Deployment/Service `grafana`, port-forwarded to
+# localhost:55558 by the root Tiltfile (`[ui.grafana]` in butler.toml).
+#
+# DEV ONLY. Credentials here are the well-known local-dev ones and nothing else:
+#   - Grafana login admin / admin (the chart stores it in Secret `grafana`);
+#   - the `insights` datasource uses the dev Postgres user myuser / mypassword,
+#     the same pair manifests/dockers/compose.yaml and the dev overlays use.
+# Never point this file at a shared or production database.
+#
+# Stateless on purpose: datasources come from `datasources:` below, dashboards
+# from ConfigMaps labelled `grafana_dashboard: "1"` that
+# manifests/observability/kustomization.yaml generates from dashboards/*.json.
+# Edit the JSON in the repo, not in the UI (UI edits are refused and lost).
+replicas: 1
+
+adminUser: admin
+adminPassword: admin
+
+rbac:
+  # The dashboard sidecar only reads ConfigMaps in `monitoring`: a Role, not a
+  # ClusterRole.
+  namespaced: true
+
+testFramework:
+  enabled: false
+
+persistence:
+  enabled: false
+
+# Measured on kind: ~325 MiB working set idle; 512Mi was OOMKilled while a
+# browser rendered the four dashboards (docs/tooling/ci-observability.md).
+resources:
+  requests:
+    cpu: 50m
+    memory: 384Mi
+  limits:
+    memory: 1Gi
+
+grafana.ini:
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+    check_for_plugin_updates: false
+    feedback_links_enabled: false
+  news:
+    news_feed_enabled: false
+  plugins:
+    preinstall_disabled: true
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server.monitoring.svc.cluster.local
+        isDefault: true
+        editable: false
+        jsonData:
+          timeInterval: 30s
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.monitoring.svc.cluster.local:3200
+        editable: false
+        jsonData:
+          nodeGraph:
+            enabled: true
+          search:
+            hide: false
+      - name: insights
+        uid: insights
+        type: grafana-postgresql-datasource
+        access: proxy
+        url: postgres.dbs.svc.cluster.local:5432
+        user: myuser
+        editable: false
+        jsonData:
+          database: insights
+          sslmode: disable
+          postgresVersion: 1800
+          timescaledb: false
+          maxOpenConns: 5
+        secureJsonData:
+          password: mypassword
+
+sidecar:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 80Mi
+    limits:
+      memory: 192Mi
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    resource: configmap
+    provider:
+      folder: CI insights
+      # Provisioned from the repo: the JSON files are the source of truth.
+      allowUiUpdates: false
+      disableDelete: true

@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Tekton generation — included by the root Taskfile.yml.
+#
+# `butler tekton gen` writes a runner Task per tool and one Pipeline per
+# runnable target into butler.toml `[tekton] outDir` (manifests/tekton): every
+# nx project:target, every task this Taskfile tree exposes, every nu script with
+# a `main`, and a build-and-deploy Pipeline per app with a `[workload]`. The
+# target set is derived from the graph and these files, so adding a target, a
+# task or an app makes `tekton-check` fail until `tekton-gen` is rerun.
+version: '3'
+
+tasks:
+  tekton-gen:
+    desc: Regenerate the Tekton Tasks and Pipelines (manifests/tekton) from butler.toml + every runner
+    cmds:
+      - cargo run --quiet -p butler -- tekton gen
+
+  tekton-check:
+    desc: Fail if manifests/tekton has drifted from the targets it covers (part of `task verify`)
+    cmds:
+      - cargo run --quiet -p butler -- tekton gen --check

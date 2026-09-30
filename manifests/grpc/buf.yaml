@@ -17,9 +17,6 @@ lint:
     - RPC_REQUEST_RESPONSE_UNIQUE
     # Allow enum values without a type prefix (LOW vs. PRIORITY_LOW)
     - ENUM_VALUE_PREFIX
-  ignore:
-    - grpc/proto/google/type/datetime.proto
-    - grpc/proto/commons.proto
 breaking:
   use:
     - FILE

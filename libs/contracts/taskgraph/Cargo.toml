@@ -1,0 +1,18 @@
+[package]
+name = "contract_taskgraph"
+publish = false
+version.workspace = true
+edition.workspace = true
+description = "Wire contract for Taskfile graph and execution events on the TASKGRAPH JetStream stream"
+
+[dependencies]
+chrono = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+serde = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

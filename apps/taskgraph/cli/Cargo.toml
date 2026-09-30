@@ -1,0 +1,30 @@
+[package]
+name = "taskgraph_cli"
+publish = false
+version.workspace = true
+edition.workspace = true
+description = "taskgraph: drill into a go-task Taskfile (deps, estimates, runs) and run tasks through go-task while publishing execution events and OTLP traces"
+
+[[bin]]
+name = "taskgraph"
+path = "src/main.rs"
+
+[dependencies]
+async-nats = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+contract_taskgraph = { workspace = true }
+core_authorship = { workspace = true }
+core_config = { workspace = true }
+domain_taskgraph = { workspace = true }
+eyre = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+opentelemetry = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

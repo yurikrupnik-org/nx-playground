@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# App manifest generation — included by the root Taskfile.yml.
+#
+# Same split as the Tiltfile track: the project graph owns the app LIST (a
+# `k8s-gen` / `k8s-check` target on every app that declares a `[workload]`,
+# inferred by tools/nx/k8s-targets.ts for nx and by its Rust port for butler —
+# `task graph-check` proves the two graphs agree), butler owns the LOGIC — it
+# merges `[workloadDefaults.<kind>] < <app> [workload] < [env.<env>.workload]`,
+# injects the facts an app must never hand-type (image reference, name,
+# namespace, partOf), writes `<app>/k8s/values.yaml`, and renders it through the
+# pinned KCL package from the root butler.toml `[k8s]` section.
+#
+# Run through `butler run-many`, not `bun nx run-many`: these are local-only
+# gates (CI does not run them), so Nx Cloud buys nothing here and butler skips
+# nx's ~1.7 s graph boot.
+#
+# Outputs, all generated and drift-gated. The directory is the root butler.toml
+# `[k8s] outDir` (default manifests/k8s/apps, `{env}` expands to the deployment
+# environment), so pointing a GitOps repo layout at it is one line of config:
+#   <app>/k8s/values.yaml             the merged payload the KCL package validates
+#   <outDir>/<app>.yaml               that app rendered
+#   <outDir>/kustomization.yaml       the aggregate, one entry per app
+# Git submodules deploy from their own directory, `[submodules] outDir`
+# (`butler submodule gen`): a Flux GitRepository per .gitmodules entry, plus a
+# Kustomization or a KCL-rendered workload where butler.toml asks for one.
+version: '3'
+
+vars:
+  # Shell snippet spliced into k8s-gen / k8s-check (after `set -euo pipefail`):
+  # sets $k8s_apps to the comma-separated project roots of every project with a
+  # `k8s-gen` target. One graph read, so the list cannot disagree with what
+  # `run-many` executed. A snippet rather than a helper task because go-task
+  # `internal` tasks cannot be called from a nested `$(task ...)`.
+  K8S_APPS_SH: |
+    k8s_apps=$(cargo run --quiet -p butler -- graph --json | jq -r '[.graph.nodes[] | select(.data.targets["k8s-gen"]) | .data.root] | sort | join(",")')
+
+tasks:
+  # Regenerate every app's values + rendered manifests, then the aggregate
+  # kustomization from exactly the app set the graph reported.
+  k8s-gen:
+    desc: Regenerate every app's values + rendered manifests, then the aggregate kustomization
+    cmds:
+      - |
+        set -euo pipefail
+        cargo run --quiet -p butler -- run-many -t k8s-gen
+        {{.K8S_APPS_SH}}
+        cargo run --quiet -p butler -- k8s gen --root --apps "$k8s_apps"
+        cargo run --quiet -p butler -- submodule gen
+
+  k8s-gen-app:
+    desc: 'Regenerate one app (butler, cached): task k8s-gen-app APP=<project>'
+    requires:
+      vars: [APP]
+    cmds:
+      - cargo run --quiet -p butler -- run-many -t k8s-gen -p {{.APP}}
+
+  # Fail if any values file, rendered manifest or the aggregate has drifted from
+  # butler.toml. Part of `task verify`.
+  k8s-check:
+    desc: Fail if any app values file, rendered manifest or the aggregate has drifted from butler.toml
+    cmds:
+      - |
+        set -euo pipefail
+        cargo run --quiet -p butler -- run-many -t k8s-check
+        {{.K8S_APPS_SH}}
+        cargo run --quiet -p butler -- k8s gen --root --check --apps "$k8s_apps"
+        cargo run --quiet -p butler -- submodule gen --check

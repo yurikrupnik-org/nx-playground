@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use database::BaseRepository;
 use sea_orm::ActiveValue::Set;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
@@ -11,7 +12,7 @@ use uuid::Uuid;
 use crate::{
     entity,
     error::{TaskError, TaskResult},
-    models::{CreateTask, Task, TaskFilter, UpdateTask},
+    models::{CreateTask, Task, TaskFilter, TaskScope, UpdateTask},
     repository::TaskRepository,
 };
 
@@ -29,22 +30,31 @@ impl PgTaskRepository {
 
 #[async_trait]
 impl TaskRepository for PgTaskRepository {
-    async fn create(&self, input: CreateTask) -> TaskResult<Task> {
-        let active_model: entity::ActiveModel = input.into();
+    async fn create(&self, scope: TaskScope, input: CreateTask) -> TaskResult<Task> {
+        let active_model: entity::ActiveModel = (scope, input).into();
         let model = self.base.insert(active_model).await?;
-        tracing::info!(task_id = %model.id, "Created task");
+        tracing::info!(task_id = %model.id, org_ref = %model.org_ref, "Created task");
         Ok(model.into())
     }
 
-    async fn get_by_id(&self, id: Uuid) -> TaskResult<Option<Task>> {
-        let model = self.base.find_by_id(id).await?;
+    async fn get_by_id(&self, org_ref: &str, id: Uuid) -> TaskResult<Option<Task>> {
+        let model = entity::Entity::find_by_id(id)
+            .filter(entity::Column::OrgRef.eq(org_ref))
+            .one(self.base.db())
+            .await?;
         Ok(model.map(|m| m.into()))
     }
 
-    async fn list(&self, filter: TaskFilter) -> TaskResult<Vec<Task>> {
-        let mut query = entity::Entity::find();
+    async fn list(&self, scope: &TaskScope, filter: TaskFilter) -> TaskResult<Vec<Task>> {
+        let mut query =
+            entity::Entity::find().filter(entity::Column::OrgRef.eq(scope.org_ref.as_str()));
 
-        // Apply filters
+        // Apply filters. `mine` narrows to the caller within the already-enforced org;
+        // the caller cannot name a different user.
+        if filter.mine {
+            query = query.filter(entity::Column::UserRef.eq(scope.user_ref.as_str()));
+        }
+
         if let Some(project_id) = filter.project_id {
             query = query.filter(entity::Column::ProjectId.eq(project_id));
         }
@@ -72,10 +82,10 @@ impl TaskRepository for PgTaskRepository {
         Ok(models.into_iter().map(|m| m.into()).collect())
     }
 
-    async fn update(&self, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
-        let model = self
-            .base
-            .find_by_id(id)
+    async fn update(&self, org_ref: &str, id: Uuid, input: UpdateTask) -> TaskResult<Task> {
+        let model = entity::Entity::find_by_id(id)
+            .filter(entity::Column::OrgRef.eq(org_ref))
+            .one(self.base.db())
             .await?
             .ok_or(TaskError::NotFound(id))?;
 
@@ -111,10 +121,14 @@ impl TaskRepository for PgTaskRepository {
         Ok(updated_model.into())
     }
 
-    async fn delete(&self, id: Uuid) -> TaskResult<bool> {
-        let rows_affected = self.base.delete_by_id(id).await?;
+    async fn delete(&self, org_ref: &str, id: Uuid) -> TaskResult<bool> {
+        let result = entity::Entity::delete_many()
+            .filter(entity::Column::Id.eq(id))
+            .filter(entity::Column::OrgRef.eq(org_ref))
+            .exec(self.base.db())
+            .await?;
 
-        if rows_affected > 0 {
+        if result.rows_affected > 0 {
             tracing::info!(task_id = %id, "Deleted task");
             Ok(true)
         } else {
@@ -122,16 +136,48 @@ impl TaskRepository for PgTaskRepository {
         }
     }
 
-    async fn count(&self) -> TaskResult<usize> {
-        let count = entity::Entity::find().count(self.base.db()).await?;
+    async fn count(&self, org_ref: &str) -> TaskResult<usize> {
+        let count = entity::Entity::find()
+            .filter(entity::Column::OrgRef.eq(org_ref))
+            .count(self.base.db())
+            .await?;
         Ok(count as usize)
     }
 
-    async fn count_by_project(&self, project_id: Uuid) -> TaskResult<usize> {
+    async fn count_by_project(&self, org_ref: &str, project_id: Uuid) -> TaskResult<usize> {
         let count = entity::Entity::find()
+            .filter(entity::Column::OrgRef.eq(org_ref))
             .filter(entity::Column::ProjectId.eq(project_id))
             .count(self.base.db())
             .await?;
         Ok(count as usize)
+    }
+
+    async fn clear_project_refs(&self, project_id: Uuid) -> TaskResult<u64> {
+        // One statement, not read-then-write: the rows to fix are exactly those
+        // matching the filter, and a deleted project id is never reassigned, so
+        // there is nothing to race with.
+        //
+        // `updated_at` moves with the write. The row's content really did
+        // change, and callers/caches that key freshness on this column would
+        // otherwise serve a stale `project_id` they believe is current.
+        let result = entity::Entity::update_many()
+            .col_expr(entity::Column::ProjectId, Expr::value(Option::<Uuid>::None))
+            .col_expr(
+                entity::Column::UpdatedAt,
+                Expr::value(chrono::DateTime::<chrono::FixedOffset>::from(Utc::now())),
+            )
+            .filter(entity::Column::ProjectId.eq(project_id))
+            .exec(self.base.db())
+            .await?;
+
+        if result.rows_affected > 0 {
+            tracing::info!(
+                %project_id,
+                rows = result.rows_affected,
+                "cleared task references to deleted project"
+            );
+        }
+        Ok(result.rows_affected)
     }
 }

@@ -5,7 +5,7 @@ import {
 } from '@tanstack/solid-query';
 import { createSignal, For, Show } from 'solid-js';
 import * as assetsApi from '../lib/assets-api';
-import { useAuth } from '../lib/auth-context';
+import { useAuth } from '../lib/auth';
 
 export function AssetsPage() {
   const auth = useAuth();

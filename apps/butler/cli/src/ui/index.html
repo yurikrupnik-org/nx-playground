@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>butler · UIs</title>
+<style>
+  :root { color-scheme: light dark; --muted: #888; --line: #8884; --ok: #2a7; --warn: #c80; --bad: #d33; --side: 15rem; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { font: 14px/1.45 system-ui, sans-serif; margin: 0; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 1.2rem; padding: .55rem 1rem; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 1.05rem; margin: 0; }
+  nav a { color: inherit; text-decoration: none; padding: .25rem .6rem; border-radius: 4px; }
+  nav a.on { background: #8883; }
+  main { flex: 1; min-height: 0; }
+  main > section { height: 100%; overflow: auto; }
+  main > section.page { padding: 1rem 1.5rem; max-width: 1200px; }
+  h2 { font-size: 1.05rem; margin: 1.4rem 0 .6rem; }
+  h2:first-child { margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-weight: 600; color: var(--muted); font-size: .8rem; text-transform: uppercase; }
+  code, input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  input { padding: .3rem .4rem; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; }
+  input.url { width: 100%; }
+  input.port { width: 6.5rem; }
+  button, a.button { padding: .3rem .7rem; border: 1px solid var(--line); border-radius: 4px; background: #8881; color: inherit; cursor: pointer; font: inherit; text-decoration: none; }
+  button:hover, a.button:hover { background: #8883; }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .5; cursor: progress; }
+  .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  .muted { color: var(--muted); }
+  .state { font-size: .78rem; padding: .05rem .4rem; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
+  .up { color: var(--ok); }
+  .noembed, .unknown { color: var(--warn); }
+  .down { color: var(--bad); }
+  .dot { width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; flex: none; }
+  #status { margin-left: auto; font-size: .85rem; white-space: pre-wrap; }
+  #status.error { color: var(--bad); }
+
+  #view-dashboard { display: flex; }
+  #side { width: var(--side); flex: none; border-right: 1px solid var(--line); overflow: auto; padding: .5rem; }
+  #side a { display: flex; align-items: center; gap: .5rem; padding: .45rem .6rem; border-radius: 4px; color: inherit; text-decoration: none; }
+  #side a.on { background: #8883; }
+  #side a small { margin-left: auto; color: var(--muted); font-family: ui-monospace, monospace; }
+  #stage { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #bar { display: flex; align-items: center; gap: .6rem; padding: .4rem .8rem; border-bottom: 1px solid var(--line); }
+  #bar:empty { display: none; }
+  #bar .url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #frames { flex: 1; position: relative; }
+  #frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  .panel { padding: 1.5rem; max-width: 46rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .8rem; padding: 1rem; }
+  .card { border: 1px solid var(--line); border-radius: 6px; padding: .8rem; display: flex; flex-direction: column; gap: .5rem; }
+  .card h3 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: .5rem; }
+  tr.mine td { background: #2a71; }
+</style>
+</head>
+<body>
+<header>
+  <h1>butler · UIs</h1>
+  <nav>
+    <a href="#dashboard" data-view="dashboard">dashboard</a>
+    <a href="#manage" data-view="manage">manage</a>
+    <a href="#ports" data-view="ports">used ports</a>
+  </nav>
+  <div id="status"></div>
+</header>
+<main>
+  <section id="view-dashboard" hidden>
+    <aside id="side"></aside>
+    <div id="stage">
+      <div id="bar"></div>
+      <div id="frames"></div>
+    </div>
+  </section>
+
+  <section id="view-manage" class="page" hidden>
+    <h2>Registered UIs <span class="muted">butler.toml [ui.&lt;name&gt;]</span></h2>
+    <table>
+      <thead><tr><th>name</th><th style="width:50%">url</th><th>port</th><th>state</th><th></th></tr></thead>
+      <tbody id="uis"></tbody>
+    </table>
+    <h2>Add UI</h2>
+    <form id="add" class="row">
+      <input name="name" placeholder="name" required size="14">
+      <input name="url" placeholder="http://localhost:3000/login" required size="44">
+      <button type="submit">add</button>
+    </form>
+  </section>
+
+  <section id="view-ports" class="page" hidden>
+    <h2>UI ports</h2>
+    <table>
+      <thead><tr><th>ui</th><th>port</th><th>listener</th><th>response</th></tr></thead>
+      <tbody id="ui-ports"></tbody>
+    </table>
+    <h2 class="row">Listening TCP ports <span class="muted" id="port-count"></span>
+      <input id="filter" placeholder="filter: port, process, ui" size="26" style="margin-left:auto">
+      <button data-action="refresh">refresh</button>
+    </h2>
+    <table>
+      <thead><tr><th>port</th><th>process</th><th>pid</th><th>user</th><th>addresses</th><th>ui</th></tr></thead>
+      <tbody id="ports"></tbody>
+    </table>
+    <p class="muted">From <code>lsof</code>: only your own user's processes are visible.</p>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = (sel) => document.querySelector(sel);
+const el = (tag, props = {}, ...children) => {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const child of children) node.append(child);
+  return node;
+};
+
+const state = { uis: [], ports: [], probes: {}, frames: {} };
+
+function say(text, isError = false) {
+  const box = $("#status");
+  box.textContent = text;
+  box.className = isError ? "error" : "";
+}
+
+async function api(method, path, body) {
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.headers["content-type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, init);
+  const data = await res.json().catch(() => ({ error: res.statusText }));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function busy(label, work) {
+  const buttons = document.querySelectorAll("button");
+  buttons.forEach((b) => { b.disabled = true; });
+  say(label + "…");
+  try {
+    await work();
+    say("");
+  } catch (err) {
+    say(err.message, true);
+  } finally {
+    buttons.forEach((b) => { b.disabled = false; });
+  }
+}
+
+// --- state -----------------------------------------------------------------
+
+/** up | noembed | down | unknown, plus a human line. */
+function health(ui) {
+  const p = state.probes[ui.name];
+  if (!p) return { cls: "unknown", text: "checking", detail: "" };
+  if (!p.reachable) return { cls: "down", text: "down", detail: p.detail || "" };
+  if (p.embeddable === false) return { cls: "noembed", text: "no embed", detail: p.detail || "" };
+  return { cls: "up", text: p.status ? "up · " + p.status : "up", detail: p.detail || "" };
+}
+
+function listener(ui) {
+  if (!ui.local) return "remote host";
+  const p = state.ports.find((p) => p.uis.includes(ui.name));
+  return p ? p.command + " (pid " + p.pid + ")" : "nothing listening";
+}
+
+async function loadUis(uis) {
+  const before = new Map(state.uis.map((u) => [u.name, u.url]));
+  state.uis = uis ?? await api("GET", "/api/uis");
+  // A UI whose url changed or that is gone loses its frame.
+  for (const name of Object.keys(state.frames)) {
+    const ui = state.uis.find((u) => u.name === name);
+    if (!ui || before.get(name) !== ui.url) {
+      state.frames[name].remove();
+      delete state.frames[name];
+      delete state.probes[name];
+    }
+  }
+}
+
+async function refresh() {
+  const [ports] = await Promise.all([
+    api("GET", "/api/ports").catch((err) => { say(err.message, true); return state.ports; }),
+    ...state.uis.map((ui) =>
+      api("GET", "/api/uis/" + encodeURIComponent(ui.name) + "/probe")
+        .then((p) => (state.probes[ui.name] = p))
+        .catch((err) => (state.probes[ui.name] = { reachable: false, detail: err.message }))),
+  ]);
+  state.ports = ports;
+  render();
+}
+
+// --- routing ---------------------------------------------------------------
+
+function route() {
+  const [view = "dashboard", name = ""] = location.hash.slice(1).split("/");
+  return { view: ["dashboard", "manage", "ports"].includes(view) ? view : "dashboard", name: decodeURIComponent(name) };
+}
+
+function render() {
+  const { view, name } = route();
+  for (const v of ["dashboard", "manage", "ports"]) $("#view-" + v).hidden = v !== view;
+  document.querySelectorAll("nav a").forEach((a) => { a.classList.toggle("on", a.dataset.view === view); });
+  renderSide(name);
+  if (view === "dashboard") renderStage(state.uis.find((u) => u.name === name));
+  if (view === "manage") renderManage();
+  if (view === "ports") renderPorts();
+}
+
+// --- dashboard -------------------------------------------------------------
+
+function badge(ui) {
+  const h = health(ui);
+  return el("span", { className: "state " + h.cls, textContent: h.text, title: h.detail });
+}
+
+function renderSide(selected) {
+  const side = $("#side");
+  side.replaceChildren(el("a", { href: "#dashboard", className: selected ? "" : "on", textContent: "overview" }));
+  for (const ui of state.uis) {
+    side.append(el("a", { href: "#dashboard/" + encodeURIComponent(ui.name), className: ui.name === selected ? "on" : "", title: ui.url },
+      el("span", { className: "dot " + health(ui).cls }),
+      ui.name,
+      el("small", { textContent: ":" + ui.port })));
+  }
+}
+
+function openButton(ui) {
+  return el("a", { className: "button", href: ui.url, target: "_blank", rel: "noopener", textContent: "open ↗" });
+}
+
+function renderStage(ui) {
+  const bar = $("#bar");
+  const frames = $("#frames");
+  Object.values(state.frames).forEach((f) => { f.hidden = true; });
+  frames.querySelectorAll(":scope > :not(iframe)").forEach((n) => { n.remove(); });
+  bar.replaceChildren();
+
+  if (!ui) {
+    if (!state.uis.length) {
+      frames.append(el("div", { className: "panel" },
+        el("p", { textContent: "No UIs registered." }),
+        el("p", { className: "muted", innerHTML: 'Add one under <a href="#manage">manage</a>, or <code>butler ui add &lt;name&gt; &lt;url&gt;</code>.' })));
+      return;
+    }
+    const cards = el("div", { className: "cards" });
+    for (const u of state.uis) {
+      const h = health(u);
+      cards.append(el("div", { className: "card" },
+        el("h3", {}, el("span", { className: "dot " + h.cls }), u.name, badge(u)),
+        el("code", { className: "muted", textContent: u.url }),
+        el("div", { className: "muted", textContent: listener(u) + (h.detail ? " — " + h.detail : "") }),
+        el("div", { className: "row" },
+          el("a", { className: "button", href: "#dashboard/" + encodeURIComponent(u.name), textContent: "show" }),
+          openButton(u))));
+    }
+    frames.append(cards);
+    return;
+  }
+
+  const reload = el("button", { textContent: "reload", title: "reload the frame and re-probe" });
+  reload.onclick = () => {
+    state.frames[ui.name]?.remove();
+    delete state.frames[ui.name];
+    busy("probing " + ui.name, refresh);
+  };
+  bar.append(el("strong", { textContent: ui.name }), badge(ui),
+    el("code", { className: "url muted", textContent: ui.url }),
+    el("span", { style: "margin-left:auto" }), reload, openButton(ui));
+
+  const probe = state.probes[ui.name];
+  const h = health(ui);
+  if (h.cls === "down") {
+    frames.append(el("div", { className: "panel" },
+      el("p", {}, "Nothing answers at ", el("code", { textContent: ui.host + ":" + ui.port }), "."),
+      el("p", { className: "muted", textContent: (probe?.detail ?? "") + (ui.local ? " — " + listener(ui) + "." : "") }),
+      el("p", { className: "muted", innerHTML: 'Start its port-forward, or point it at the port it runs on under <a href="#manage">manage</a>.' })));
+    return;
+  }
+  if (h.cls === "noembed") {
+    frames.append(el("div", { className: "panel" },
+      el("p", {}, ui.name + " refuses to be framed by another page (", el("code", { textContent: probe.detail }), ")."),
+      el("p", { className: "muted", textContent: "Open it in its own tab; to embed it, allow framing in its config (Grafana: security.allow_embedding = true)." }),
+      openButton(ui)));
+    return;
+  }
+  if (h.cls === "unknown") return;
+  let frame = state.frames[ui.name];
+  if (!frame) {
+    frame = el("iframe", { src: ui.url, title: ui.name });
+    state.frames[ui.name] = frame;
+    frames.append(frame);
+  }
+  frame.hidden = false;
+}
+
+// --- manage ----------------------------------------------------------------
+
+function renderManage() {
+  const body = $("#uis");
+  if (body.contains(document.activeElement)) return; // don't clobber an edit in progress
+  body.replaceChildren();
+  if (!state.uis.length) {
+    body.append(el("tr", {}, el("td", { colSpan: 5, className: "muted", textContent: "no [ui.<name>] tables in butler.toml" })));
+    return;
+  }
+  for (const ui of state.uis) {
+    const url = el("input", { className: "url", value: ui.url });
+    const port = el("input", { className: "port", type: "number", min: 1, max: 65535, value: ui.port });
+    const save = el("button", { textContent: "save" });
+    save.onclick = () => busy("saving " + ui.name, async () => {
+      const change = {};
+      if (url.value.trim() !== ui.url) change.url = url.value.trim();
+      if (Number(port.value) !== ui.port) change.port = Number(port.value);
+      if (!Object.keys(change).length) return;
+      await loadUis(await api("PATCH", "/api/uis/" + encodeURIComponent(ui.name), change));
+      document.activeElement.blur();
+      await refresh();
+    });
+    const remove = el("button", { textContent: "remove", className: "danger" });
+    remove.onclick = () => {
+      if (!confirm("Remove " + ui.name + " from butler.toml?")) return;
+      busy("removing " + ui.name, async () => {
+        await loadUis(await api("DELETE", "/api/uis/" + encodeURIComponent(ui.name)));
+        await refresh();
+      });
+    };
+    body.append(el("tr", {},
+      el("td", {}, el("code", { textContent: ui.name })),
+      el("td", {}, url),
+      el("td", {}, port),
+      el("td", {}, badge(ui)),
+      el("td", {}, el("div", { className: "row" }, save, remove))));
+  }
+}
+
+$("#add").onsubmit = (ev) => {
+  ev.preventDefault();
+  const form = new FormData(ev.target);
+  const req = { name: String(form.get("name")).trim(), url: String(form.get("url")).trim() };
+  busy("adding " + req.name, async () => {
+    await loadUis(await api("POST", "/api/uis", req));
+    ev.target.reset();
+    await refresh();
+  });
+};
+
+// --- ports -----------------------------------------------------------------
+
+function renderPorts() {
+  const uiBody = $("#ui-ports");
+  uiBody.replaceChildren();
+  for (const ui of state.uis) {
+    const h = health(ui);
+    uiBody.append(el("tr", {},
+      el("td", {}, el("a", { href: "#dashboard/" + encodeURIComponent(ui.name), textContent: ui.name })),
+      el("td", {}, el("code", { textContent: ui.port })),
+      el("td", { className: ui.local && !state.ports.some((p) => p.uis.includes(ui.name)) ? "down" : "" , textContent: listener(ui) }),
+      el("td", {}, badge(ui), " ", el("span", { className: "muted", textContent: h.detail }))));
+  }
+
+  const needle = $("#filter").value.trim().toLowerCase();
+  const rows = state.ports.filter((p) => !needle ||
+    [p.port, p.command, p.pid, p.user, ...p.addresses, ...p.uis].join(" ").toLowerCase().includes(needle));
+  $("#port-count").textContent = rows.length + " of " + state.ports.length;
+  const body = $("#ports");
+  body.replaceChildren();
+  for (const p of rows) {
+    body.append(el("tr", { className: p.uis.length ? "mine" : "" },
+      el("td", {}, el("code", { textContent: p.port })),
+      el("td", { textContent: p.command }),
+      el("td", {}, el("code", { textContent: p.pid })),
+      el("td", { className: "muted", textContent: p.user }),
+      el("td", {}, el("code", { textContent: p.addresses.join(" ") })),
+      el("td", {}, ...p.uis.map((n) => el("a", { href: "#dashboard/" + encodeURIComponent(n), textContent: n + " " })))));
+  }
+}
+
+$("#filter").oninput = renderPorts;
+
+document.addEventListener("click", (ev) => {
+  if (ev.target.dataset?.action === "refresh") busy("scanning ports", refresh);
+});
+
+window.onhashchange = render;
+
+busy("loading", async () => {
+  await loadUis();
+  render();
+  await refresh();
+});
+// Keep the states fresh while the page is visible.
+setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 10000);
+</script>
+</body>
+</html>

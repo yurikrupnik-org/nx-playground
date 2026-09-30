@@ -6,8 +6,4 @@ import type { TodoEventKind } from "./TodoEventKind";
  * A todo lifecycle event. `todo` carries a snapshot for all kinds except
  * `Deleted` (where only the id is known).
  */
-export type TodoEvent = { event_id: string, kind: TodoEventKind, todo_id: string, todo: Todo | null, occurred_at: string, 
-/**
- * Payload-level retry counter (JetStream also tracks delivery_count).
- */
-retry_count: number, };
+export type TodoEvent = { event_id: string, kind: TodoEventKind, todo_id: string, todo: Todo | null, occurred_at: string, };

@@ -6,6 +6,9 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - gateway
+
+
+
 #  - cluster.yaml
 #  - scheduled-backup.yaml
 

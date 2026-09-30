@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Proto/gRPC workflow (buf) — included by the root Taskfile.yml.
+version: '3'
+
+vars:
+  PROTO_DIR: manifests/grpc
+
+tasks:
+  proto-fmt:
+    desc: Format proto files
+    cmds:
+      - cd {{.PROTO_DIR}} && buf format -w
+
+  proto-fmt-check:
+    desc: Fail when that formatting would change a file (aggregated by `task fmt-check`)
+    cmds:
+      - cd {{.PROTO_DIR}} && buf format -d --exit-code
+
+  proto-lint:
+    desc: Lint proto files
+    cmds:
+      - cd {{.PROTO_DIR}} && buf lint
+
+  # NOT `cd {{.PROTO_DIR}} && buf breaking --against '.git#...'`: the `.git` input is
+  # resolved relative to the cwd, so from inside manifests/grpc it looks for
+  # manifests/grpc/.git and dies with "does not appear to be a git repository".
+  # Run from the repo root instead — the module dir is the input, and `subdir` points
+  # the historical side at the same buf.yaml.
+  #
+  # buf resolves a `.git` input by re-fetching from it, so `branch=main` needs a real
+  # refs/heads/main *in this clone*. actions/checkout fetches refs/heads/* into
+  # refs/remotes/origin/* and checks out a detached head — no local main — which is
+  # why CI died with "fatal: couldn't find remote ref main" while the same task
+  # passed on a dev machine. Resolve whichever ref this clone actually has.
+  proto-breaking:
+    desc: Check for breaking changes (against the main branch).
+    cmds:
+      - |
+        set -euo pipefail
+        if git show-ref --verify --quiet refs/heads/main; then
+            against='branch=main'
+        else
+            if ! git show-ref --verify --quiet refs/remotes/origin/main; then
+                git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+            fi
+            against='ref=refs/remotes/origin/main'
+        fi
+        buf breaking {{.PROTO_DIR}} --against ".git#${against},subdir={{.PROTO_DIR}}"
+
+  proto-build:
+    desc: Build/validate proto files
+    cmds:
+      - cd {{.PROTO_DIR}} && buf build
+
+  proto-gen:
+    desc: Generate Rust code from proto files
+    cmds:
+      - cd {{.PROTO_DIR}} && buf generate
+
+  proto-check:
+    desc: Verify generated Rust code compiles
+    cmds:
+      - cargo check -p rpc
+
+  proto:
+    desc: "Full proto workflow: format, lint, build, generate, verify"
+    cmds:
+      - task: proto-fmt
+      - task: proto-lint
+      - task: proto-build
+      - task: proto-gen
+      - task: proto-check
+      - cmd: echo "Proto workflow complete"
+        silent: true

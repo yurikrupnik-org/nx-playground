@@ -1,0 +1,723 @@
+{
+  "components": {
+    "schemas": {
+      "CloudAsset": {
+        "description": "A discovered cloud asset (the Phase 3 sample tenant-scoped resource).",
+        "properties": {
+          "asset_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "monthly_cost": {
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "org_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "org_id",
+          "provider",
+          "external_id",
+          "name",
+          "asset_type",
+          "region",
+          "status",
+          "monthly_cost",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "CreateAsset": {
+        "properties": {
+          "asset_type": {
+            "type": "string"
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "metadata": {},
+          "monthly_cost": {
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "external_id",
+          "name",
+          "asset_type"
+        ],
+        "type": "object"
+      },
+      "ObservedCloudResource": {
+        "description": "One observed cloud resource. Field names mirror [`crate::models::CloudResource`]\nwhere they overlap, so a UI can render both with the same code.",
+        "properties": {
+          "api_version": {
+            "type": "string"
+          },
+          "claim": {
+            "description": "Owning `CloudInventory` claim.",
+            "type": "string"
+          },
+          "configuration": {
+            "description": "The live manifest (`status.atProvider.manifest`) with `managedFields`\nstripped, or `null` before the first successful observation."
+          },
+          "id": {
+            "description": "`metadata.uid` of the observing `Object` — stable for the lifetime of\nthe inventory entry.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "region": {
+            "type": "string"
+          },
+          "resource_type": {
+            "$ref": "#/components/schemas/ResourceType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResourceStatus"
+          },
+          "tags": {
+            "description": "Labels of the observed resource, sorted by key.",
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "claim",
+          "name",
+          "api_version",
+          "kind",
+          "resource_type",
+          "status",
+          "region",
+          "configuration",
+          "tags"
+        ],
+        "type": "object"
+      },
+      "PasswordLogin": {
+        "description": "Native email+password login form payload.",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "ResourceStatus": {
+        "description": "Resource status",
+        "enum": [
+          "creating",
+          "active",
+          "updating",
+          "deleting",
+          "deleted",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "ResourceType": {
+        "description": "Cloud resource type",
+        "enum": [
+          "compute",
+          "storage",
+          "database",
+          "network",
+          "serverless",
+          "analytics",
+          "other"
+        ],
+        "type": "string"
+      },
+      "Tag": {
+        "description": "Key-value tag for resource organization",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "session_cookie": {
+        "in": "cookie",
+        "name": "terran_session",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "description": "B2B multi-tenant observability platform API",
+    "license": {
+      "name": ""
+    },
+    "title": "Terran API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/assets": {
+      "get": {
+        "operationId": "list_assets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CloudAsset"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Assets for the caller's organization"
+          },
+          "401": {
+            "description": "Missing or invalid session"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "`GET /api/assets` — list the caller's organization's assets.",
+        "tags": [
+          "assets"
+        ]
+      },
+      "post": {
+        "operationId": "create_asset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAsset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudAsset"
+                }
+              }
+            },
+            "description": "Asset created"
+          },
+          "400": {
+            "description": "Invalid provider, status, or monthly_cost"
+          },
+          "401": {
+            "description": "Missing or invalid session"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "`POST /api/assets` — create an asset in the caller's organization.",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/assets/by-user/{user_id}": {
+      "get": {
+        "operationId": "list_assets_by_user",
+        "parameters": [
+          {
+            "description": "Internal user id (users.id) that discovered the assets",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CloudAsset"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Assets discovered by the user within the caller's organization"
+          },
+          "401": {
+            "description": "Missing or invalid session"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "`GET /api/assets/by-user/{user_id}` — list the caller's organization's assets\ndiscovered by a specific user. The organization is always the caller's resolved\ntenant (never a client-supplied value), so `user_id` can only narrow *within* that\norg and never surface another tenant's data; an unknown/foreign user id yields `[]`.",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/assets/{id}": {
+      "get": {
+        "operationId": "get_asset",
+        "parameters": [
+          {
+            "description": "Asset id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudAsset"
+                }
+              }
+            },
+            "description": "The requested asset"
+          },
+          "401": {
+            "description": "Missing or invalid session"
+          },
+          "404": {
+            "description": "Asset not found in the caller's organization"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "`GET /api/assets/{id}` — fetch one asset within the caller's organization.",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/auth/callback": {
+      "get": {
+        "operationId": "callback",
+        "parameters": [
+          {
+            "description": "Authorization code from the IdP",
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "CSRF state echoed by the IdP",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Error code if the IdP rejected the request",
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Session established; redirect to the frontend (sets session + CSRF cookies)"
+          },
+          "400": {
+            "description": "Missing/expired flow, missing code/state, or state mismatch"
+          }
+        },
+        "summary": "`GET /api/auth/callback` → exchange code, provision tenant, mint a server-side session.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "get": {
+        "operationId": "login",
+        "parameters": [
+          {
+            "description": "Brokered IdP hint (e.g. google, github) → Keycloak kc_idp_hint",
+            "in": "query",
+            "name": "idp",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the IdP authorize endpoint (sets the login-flow cookie)"
+          }
+        },
+        "summary": "`GET /api/auth/login` → redirect to the IdP authorize endpoint (PKCE + CSRF state).",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login/password": {
+      "post": {
+        "description": "Public and CSRF-exempt: it runs before any session/CSRF cookie exists. The `Json`\nbody forces `content-type: application/json`, so a cross-site `<form>` POST is\nrejected and a cross-origin `fetch` is blocked by the CORS preflight — login CSRF\ncannot mint a session in the victim's browser.",
+        "operationId": "password_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Session established (sets session + CSRF cookies)"
+          },
+          "400": {
+            "description": "Missing email or password"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        },
+        "summary": "`POST /api/auth/login/password` → native email+password sign-in via Keycloak's\nDirect Access Grant. Establishes the same server-side session as the redirect flow\nand returns `204` with the session + CSRF cookies; the SPA then loads `/me`.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session revoked; returns the IdP end-session URL as { \"logout_url\": ... } (clears cookies)"
+          }
+        },
+        "summary": "`POST /api/auth/logout` → revoke the server session and return the IdP end-session\nURL as JSON. RP-initiated logout is a *top-level* browser navigation (the SPA can't\n`fetch()`-follow a cross-origin redirect to Keycloak), so we hand back the URL rather\nthan 30x-redirecting; the session/CSRF cookies are still cleared on this 200.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Current principal and resolved tenant"
+          },
+          "401": {
+            "description": "Missing or invalid session"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "`GET /api/auth/me` → current principal + resolved tenant (guarded route).",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/cloud-resources": {
+      "get": {
+        "operationId": "list_cloud_resources",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "resource_type",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ResourceType"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ResourceStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Kubernetes kind, case-insensitive (e.g. `Deployment`).",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Restrict to a single `CloudInventory` claim (pushed down to a label\nselector).",
+            "in": "query",
+            "name": "claim",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ObservedCloudResource"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Observed cloud resources"
+          },
+          "401": {
+            "description": "Missing or invalid session"
+          },
+          "502": {
+            "description": "Cluster query failed"
+          },
+          "503": {
+            "description": "Inventory disabled (no cluster access)"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "`GET /api/cloud-resources` — list observed cloud resources.",
+        "tags": [
+          "cloud-resources"
+        ]
+      }
+    },
+    "/cloud-resources/{id}": {
+      "get": {
+        "operationId": "get_cloud_resource",
+        "parameters": [
+          {
+            "description": "Inventory entry id (uid of the observing Object)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservedCloudResource"
+                }
+              }
+            },
+            "description": "The requested cloud resource"
+          },
+          "401": {
+            "description": "Missing or invalid session"
+          },
+          "404": {
+            "description": "No such observed cloud resource"
+          },
+          "502": {
+            "description": "Cluster query failed"
+          },
+          "503": {
+            "description": "Inventory disabled (no cluster access)"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "`GET /api/cloud-resources/{id}` — fetch one observed cloud resource.",
+        "tags": [
+          "cloud-resources"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "API base path",
+      "url": "/api"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Authentication / BFF session endpoints",
+      "name": "auth"
+    },
+    {
+      "description": "Tenant-scoped cloud inventory",
+      "name": "assets"
+    },
+    {
+      "description": "Read-only cluster-observed cloud inventory",
+      "name": "cloud-resources"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+apiVersion: db.atlasgo.io/v1alpha1
+kind: AtlasMigration
+metadata:
+  name: insights-migration
+spec:
+  # Created by `task insights-secret` (namespace taskgraph); apply this CR in
+  # the same namespace.
+  urlFrom:
+    secretKeyRef:
+      name: taskgraph-insights-secrets
+      key: DATABASE_URL
+  dir:
+    configMapRef:
+      name: insights-migrations

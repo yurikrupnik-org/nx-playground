@@ -3,6 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "apps/todo/web/src",
+  "tags": [],
   "targets": {
     "dev": {
       "executor": "nx:run-commands",
@@ -26,14 +27,6 @@
         "command": "bun run test",
         "cwd": "{workspaceRoot}/apps/todo/web"
       }
-    },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "bun run lint",
-        "cwd": "{workspaceRoot}/apps/todo/web"
-      }
     }
-  },
-  "tags": []
+  }
 }

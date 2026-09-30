@@ -1,0 +1,56 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+hostPort = 5253
+resourceDeps = ["todo-api"]
+# htmx is a frontend served by a rust binary; the service kind would default to
+# "backend", which would file it under the wrong Tilt group.
+labels = ["frontend"]
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.service]` shape
+# already states is omitted, and `image`/`name`/`namespace`/`partOf` are injected
+# by butler from the image facts and this app's path.
+[workload]
+# A rust binary, so it inherits the *service* kind, but it is a frontend: it
+# renders HTML fragments over todo-api rather than serving an API.
+component = "frontend"
+# Serving templates, nothing to drain beyond the current response.
+terminationGracePeriodSeconds = 10
+
+# A template renderer with no connection pool: far below the service envelope.
+[workload.resources]
+requests = { memory = "32Mi", cpu = "50m" }
+limits = { memory = "128Mi", cpu = "500m" }
+
+# /healthz, matching todo-api's convention rather than terran's /health — the
+# two todo services are probed the same way.
+# 12 * 5s = up to 60s of startup grace before liveness can restart it.
+[workload.startupProbe]
+path = "/healthz"
+port = "http"
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 12
+
+[workload.livenessProbe]
+path = "/healthz"
+port = "http"
+
+[workload.readinessProbe]
+path = "/healthz"
+port = "http"
+periodSeconds = 5
+
+# `TODO_WEB_HTMX_PORT`, not `PORT`: see src/config.rs — `PORT` is todo-api's and
+# would make this app fetch itself. Must agree with `[workload] port` (the kind
+# default 8080).
+[[workload.env]]
+name = "TODO_WEB_HTMX_PORT"
+value = "8080"
+
+[[workload.env]]
+name = "TODO_API_URL"
+value = "http://todo-api:8080"

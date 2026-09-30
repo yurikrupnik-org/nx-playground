@@ -12,6 +12,7 @@ Review staged changes using Gemini AI:
 ## Summary
 
 Summarize Gemini's feedback:
+
 - Critical issues (must fix before commit)
 - Suggestions (nice to have improvements)
 - Positive feedback (what's done well)

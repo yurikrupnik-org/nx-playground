@@ -7,11 +7,11 @@ the review. Related infra: CI is generated from `manifests/ci/ci-config.yaml` vi
 
 ## 1. Correctness / safety (do first)
 
-- [ ] **Duplicate CI running**: `generated-ci.yaml` and `ci-optimized.yml` both
-  trigger on push+PR and both run lint/test/build → double compute on every PR.
-  Until the generated workflow reaches parity (no container/scan job yet), either
-  gate `generated-ci.yaml` behind `workflow_dispatch` or fold the container job
-  into the KCL generator and delete `ci-optimized.yml`.
+- [x] **Duplicate CI running** — resolved: `generated-ci.yaml` no longer exists in
+  `.github/workflows/` (only `ci-optimized.yml`, `release.yml`, `publish-crates.yml`
+  and the claude workflows remain, verified 2026-08-31). The follow-up — folding the
+  container job into the KCL generator so the generated workflow can replace
+  `ci-optimized.yml` — moves to §4.
 - [ ] **Release race** (`release.yml:13-15,165`): concurrency group is
   `release-${{ github.sha }}` — per-SHA, so two quick merges run two releases
   concurrently; both `git push origin main --follow-tags` → tag/push collisions.
@@ -32,8 +32,8 @@ the review. Related infra: CI is generated from `manifests/ci/ci-config.yaml` vi
 - [ ] **Unpinned `curl | bash` installers**: KCL CLI (3x) and Trivy (from `main`
   branch, 2x, with sudo). Use `kcl-lang/setup-kcl@v1` and
   `aquasecurity/trivy-action`, or pin versions/checksums.
-- [ ] **`rustup toolchain install stable`** is a moving target — add
-  `rust-toolchain.toml` so repo + CI pin the same toolchain.
+- [x] **`rustup toolchain install stable`** moving target — `rust-toolchain.toml`
+  exists at the repo root (verified 2026-08-31); repo + CI pin the same toolchain.
 - [ ] **SA key vs WIF split-brain**: lint/test/build use
   `credentials_json: GCP_SA_KEY` (long-lived secret) while container jobs use
   keyless WIF. Move sccache auth to WIF, delete the key.

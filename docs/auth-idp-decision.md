@@ -68,7 +68,7 @@ Verified facts informing the decision:
 
 ## Architecture seam (summary)
 
-```
+```text
                  ┌──────────────────────────────────────────────┐
    request ───►  │  jwt_auth_middleware (MANDATORY)              │
                  │    └─ OidcVerifier: JWKS cache + RS256 verify  │  ← SHARED across providers
@@ -89,12 +89,14 @@ Verified facts informing the decision:
 ## Consequences
 
 **We gain**
+
 - One self-hostable identity stack that works for SaaS and air-gapped clients.
 - Deletion of the homegrown OAuth/JWT/session subsystem in the new stack; email verification,
   password reset, MFA, refresh, and social brokering come from Keycloak instead of being built.
 - A provider-agnostic seam: WorkOS (or any OIDC IdP) is a later adapter, not a rewrite.
 
 **We own**
+
 - **Keycloak operations:** HA, Postgres backing store, backups, and disciplined version upgrades
   (Keycloak upgrades are non-trivial).
 - **Enterprise-SSO onboarding UX:** with Keycloak we configure each customer's SSO connection

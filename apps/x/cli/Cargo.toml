@@ -1,0 +1,40 @@
+[package]
+name = "x_cli"
+publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
+version = "0.1.0"
+edition.workspace = true
+description = "x: one CLI/TUI over every HTTP API in this workspace, driven by the committed OpenAPI documents"
+
+[lib]
+name = "x_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "x"
+path = "src/main.rs"
+
+# Kept deliberately small: this binary's size and cold-start time are measured
+# quantities in docs/delivery-surface-assets.md, so every dependency here is a
+# number in that table. No tracing, no color-eyre (backtrace machinery), no uuid
+# or chrono (ids and timestamps are opaque strings to a generic client — the
+# server validates them).
+[dependencies]
+# `string`: the command tree is built from owned Strings read out of JSON at
+# run time, and without it clap's builder only accepts &'static str.
+clap = { workspace = true, features = ['string'] }
+eyre = { workspace = true }
+# crossterm is used through `ratatui::crossterm`, never as a direct dependency:
+# a second version in the tree would make the event enums incompatible.
+ratatui = { workspace = true }
+# `query`: the workspace pin is `default-features = false`, which leaves
+# `RequestBuilder::query` (and its percent-encoding) out.
+reqwest = { workspace = true, features = ['query'] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

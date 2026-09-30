@@ -18,7 +18,8 @@ cargo run
 ```
 
 You should see:
-```
+
+```text
 INFO Starting zerg API with production-ready shutdown (30s timeout)
 INFO Server starting on 0.0.0.0:3000
 ```
@@ -26,11 +27,13 @@ INFO Server starting on 0.0.0.0:3000
 ### 2. Send a Test Request
 
 In another terminal:
+
 ```bash
 curl http://localhost:3000/health
 ```
 
 Should return:
+
 ```json
 {
   "status": "ok",
@@ -42,6 +45,7 @@ Should return:
 ### 3. Test Graceful Shutdown
 
 Send SIGTERM:
+
 ```bash
 # Find the process
 pgrep zerg_api
@@ -54,7 +58,7 @@ kill -TERM $(pgrep zerg_api)
 
 You should see logs in this order:
 
-```
+```text
 ✅ INFO Received SIGTERM, initiating graceful shutdown
 ✅ INFO Starting cleanup tasks (timeout: 30s)
 ✅ INFO Shutting down: closing database connections
@@ -67,23 +71,27 @@ You should see logs in this order:
 ## Testing with In-Flight Requests
 
 ### Terminal 1: Start API
+
 ```bash
 cargo run
 ```
 
 ### Terminal 2: Send Long Request
+
 ```bash
 # Send request that might take time
 curl http://localhost:3000/projects?limit=1000
 ```
 
 ### Terminal 3: Trigger Shutdown While Request Running
+
 ```bash
 # While the request above is processing
 kill -TERM $(pgrep zerg_api)
 ```
 
 **Expected behavior:**
+
 - Request completes normally (or times out after 30s)
 - Shutdown waits for request to finish
 - Then runs cleanup
@@ -91,6 +99,7 @@ kill -TERM $(pgrep zerg_api)
 ## Testing Timeout Behavior
 
 To test the 30s timeout, you'd need to create a long-running handler. For now, the timeout protects against:
+
 - Hung database queries
 - Slow cleanup operations
 - Network issues
@@ -127,7 +136,7 @@ redis-cli CLIENT LIST
 
 ### Scenario 1: Normal Shutdown (No Active Requests)
 
-```
+```text
 1. SIGTERM received
 2. Server stops accepting connections
 3. No requests in flight, moves to cleanup
@@ -139,7 +148,7 @@ Total: ~1-2s
 
 ### Scenario 2: Shutdown with Active Requests
 
-```
+```text
 1. SIGTERM received
 2. Server stops accepting new connections
 3. Wait for 2 active requests to complete (5s each)
@@ -152,7 +161,7 @@ Total: ~11s
 
 ### Scenario 3: Hung Request Timeout
 
-```
+```text
 1. SIGTERM received
 2. Server stops accepting new connections
 3. 1 request stuck in database query
@@ -166,6 +175,7 @@ Total: ~30s (timeout)
 ## Testing in Kubernetes
 
 ### Deploy to K8s
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -186,6 +196,7 @@ spec:
 ```
 
 ### Test Rolling Update
+
 ```bash
 # Start rolling update
 kubectl rollout restart deployment/zerg-api
@@ -201,6 +212,7 @@ kubectl logs -f deployment/zerg-api --previous
 ```
 
 ### Monitor During Shutdown
+
 ```bash
 # Watch pod status
 kubectl get pods -w
@@ -217,6 +229,7 @@ kubectl get pods -w
 ### 1. Database Connection Already Closed
 
 Manually close DB before shutdown:
+
 ```sql
 -- In psql
 SELECT pg_terminate_backend(pid)
@@ -229,6 +242,7 @@ Then trigger shutdown - should see error log but not crash.
 ### 2. Redis Connection Lost
 
 Stop Redis:
+
 ```bash
 # Stop Redis
 redis-cli SHUTDOWN
@@ -264,11 +278,13 @@ During shutdown, watch:
 ### Issue: "Cleanup exceeded timeout"
 
 **Logs:**
-```
+
+```text
 WARN Cleanup exceeded timeout of 30s, forcing shutdown
 ```
 
 **Investigate:**
+
 ```sql
 -- Check for long queries
 SELECT pid, now() - query_start as duration, query
@@ -280,6 +296,7 @@ ORDER BY duration DESC;
 ### Issue: Connections not closing
 
 **Verify SeaORM pool settings:**
+
 ```rust
 // Check in connection code
 ConnectOptions::new(url)
@@ -291,6 +308,7 @@ ConnectOptions::new(url)
 ### Issue: 502 errors during K8s rollout
 
 **Check:**
+
 1. `terminationGracePeriodSeconds` > shutdown timeout
 2. `preStop` hook has 5-10s delay
 3. Readiness probe fails quickly when shutting down

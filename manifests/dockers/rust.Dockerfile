@@ -10,6 +10,12 @@ FROM messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7c
 RUN cargo install cargo-chef --locked
 WORKDIR /app
 
+# Empty by default. A crate that `include_str!`s the generated OpenAPI documents
+# (apps/x/cli) is built with `--build-context openapi=docs/openapi`, which
+# replaces this stage; every other build copies nothing, so neither Tilt's
+# `only=` context (no docs/) nor the service images' cache depends on docs/.
+FROM scratch AS openapi
+
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY apps/ apps/
@@ -19,21 +25,30 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 ARG APP_NAME
 ARG RUST_TARGET
+# The binary to ship when it is not named after the package (x_cli → `x`).
+ARG BIN_NAME=${APP_NAME}
 
-# Compile dependencies first; this layer is reused until the manifests/lockfile change.
+# Compile dependencies first; this layer is reused until the manifests/lockfile
+# change. `-p ${APP_NAME}` is not an optimisation: an unscoped cook builds every
+# workspace member, and `libs/native/field-selector` is an N-API cdylib, which
+# the musl target cannot produce ("cannot produce cdylib ... as the target
+# x86_64-unknown-linux-musl does not support these crate types") — that failed
+# the image build of every service the moment that crate joined the workspace.
 COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target,id=rust-target,sharing=locked \
-    cargo chef cook --release --locked --recipe-path recipe.json --target ${RUST_TARGET}
+    cargo chef cook --release --locked --recipe-path recipe.json \
+    --target ${RUST_TARGET} -p ${APP_NAME}
 
 COPY Cargo.toml Cargo.lock ./
 COPY apps/ apps/
 COPY libs/ libs/
+COPY --from=openapi / docs/openapi/
 
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target,id=rust-target,sharing=locked \
     cargo build --release --locked -p ${APP_NAME} --target ${RUST_TARGET} \
-    && cp target/${RUST_TARGET}/release/${APP_NAME} /app-bin
+    && cp target/${RUST_TARGET}/release/${BIN_NAME} /app-bin
 
 FROM scratch AS rust
 ARG APP_NAME
@@ -43,7 +58,7 @@ COPY --from=builder /app-bin /app
 
 # scratch has no /etc/passwd, so use a numeric UID:GID. This makes the image
 # genuinely non-root and satisfies Kubernetes runAsNonRoot / restricted PSS.
-USER 65534:65534
+USER 65532:65532
 
 ENV PORT=8080 \
     RUST_BACKTRACE=1

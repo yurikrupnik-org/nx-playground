@@ -19,7 +19,7 @@
 //! ### Basic Usage
 //! ```ignore
 //! use grpc_client::create_channel;
-//! use rpc::tasks::tasks_service_client::TasksServiceClient;
+//! use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 //! use tonic::codec::CompressionEncoding;
 //!
 //! let channel = create_channel("http://[::1]:50051").await?;
@@ -33,7 +33,7 @@
 //! ### With Interceptors
 //! ```ignore
 //! use grpc_client::{create_channel, interceptors::*};
-//! use rpc::tasks::tasks_service_client::TasksServiceClient;
+//! use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 //!
 //! let channel = create_channel("http://[::1]:50051").await?;
 //! let auth = AuthInterceptor::bearer("my-token");

@@ -1,69 +1,6 @@
-//! SeaOrmResource derive macro for automatic REST API resource trait implementation.
-//!
-//! This crate provides the [`SeaOrmResource`](macro@SeaOrmResource) derive macro that automatically
-//! implements resource metadata traits for sea-orm entities by extracting the table name.
-//!
-//! # Examples
-//!
-//! Basic usage - extracts table_name from sea_orm attribute:
-//!
-//! ```ignore
-//! use sea_orm::entity::prelude::*;
-//! use core_proc_macros::SeaOrmResource;
-//!
-//! #[derive(Clone, Debug, DeriveEntityModel, SeaOrmResource)]
-//! #[sea_orm(table_name = "projects")]
-//! pub struct Model {
-//!     #[sea_orm(primary_key)]
-//!     pub id: Uuid,
-//!     pub title: String,
-//! }
-//!
-//! // Auto-generated constants (using table_name):
-//! // - Underscores in table names are converted to hyphens in URLs
-//! // - Snake_case is converted to Title Case for tags
-//! assert_eq!(Model::COLLECTION, "projects");
-//! assert_eq!(Model::URL, "/projects");
-//! assert_eq!(Model::TAG, "Projects");
-//! ```
-//!
-//! With underscores in table name:
-//!
-//! ```ignore
-//! #[derive(Clone, Debug, DeriveEntityModel, SeaOrmResource)]
-//! #[sea_orm(table_name = "cloud_resources")]
-//! pub struct Model {
-//!     #[sea_orm(primary_key)]
-//!     pub id: Uuid,
-//! }
-//!
-//! assert_eq!(Model::COLLECTION, "cloud_resources");
-//! assert_eq!(Model::URL, "/cloud-resources");  // Hyphen for URL
-//! assert_eq!(Model::TAG, "Cloud Resources");  // Title Case
-//! ```
-//!
-//! Customizing resource configuration:
-//!
-//! ```ignore
-//! use sea_orm::entity::prelude::*;
-//! use core_proc_macros::SeaOrmResource;
-//!
-//! #[derive(Clone, Debug, DeriveEntityModel, SeaOrmResource)]
-//! #[sea_orm(table_name = "projects")]
-//! #[sea_orm_resource(
-//!     url = "/v1/projects",
-//!     tag = "Project Management"
-//! )]
-//! pub struct Model {
-//!     #[sea_orm(primary_key)]
-//!     pub id: Uuid,
-//! }
-//!
-//! assert_eq!(Model::COLLECTION, "projects");
-//! assert_eq!(Model::URL, "/v1/projects");
-//! assert_eq!(Model::TAG, "Project Management");
-//! ```
+#![doc = include_str!("../README.md")]
 
+use core_strings::capitalize_first_letter;
 use darling::FromDeriveInput;
 use proc_macro::TokenStream;
 use quote::quote;
@@ -130,14 +67,6 @@ pub fn sea_orm_resource_derive(input: TokenStream) -> TokenStream {
     match impl_sea_orm_resource(receiver) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
-    }
-}
-
-fn capitalize_first_letter(input: &str) -> String {
-    let mut chars = input.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect(),
-        None => String::new(),
     }
 }
 
@@ -363,14 +292,6 @@ mod tests {
         let result = impl_sea_orm_resource(receiver);
 
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_capitalize_first_letter() {
-        assert_eq!(capitalize_first_letter(""), "");
-        assert_eq!(capitalize_first_letter("a"), "A");
-        assert_eq!(capitalize_first_letter("projects"), "Projects");
-        assert_eq!(capitalize_first_letter("users"), "Users");
     }
 
     #[test]

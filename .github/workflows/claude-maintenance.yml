@@ -1,0 +1,156 @@
+name: Claude Maintenance
+
+# Hub workflow: one scheduled Claude session per managed repository, following
+# the playbook in .claude/skills/repo-maintenance/SKILL.md. Every fix lands as a
+# PR on a `maintenance/<task>` branch — the run never pushes to main and never
+# merges (guarded twice: --allowedTools below and .claude/hooks/guard-git.js).
+#
+# Why this repo is the hub: the skill, the hooks and AGENTS.md live here, and
+# Claude Code loads them from the working directory. The target repo is checked
+# out UNDER the hub (`repos/<name>`), so the same playbook applies to all three.
+# The dotconfig checkout also supplies `upkg.nu`, which is how a dependency
+# refresh in nx-playground stays on the mandated path (`task upkg`) without the
+# runner having ~/dotconfig.
+#
+# Task runners differ per repo: nx-playground runs go-task (`task`, Taskfile.yml
+# + scripts/tasks/*.yml); kcl-packages and dotconfig still use `just`. The job
+# installs both, and --allowedTools permits both.
+#
+# Secrets:
+#   CLAUDE_CODE_OAUTH_TOKEN  — already used by claude.yml
+#   REPO_MAINTENANCE_TOKEN   — fine-grained PAT, Contents + Pull requests: write,
+#                              Issues: write, on all three repositories. A PAT
+#                              (not GITHUB_TOKEN) so the PRs it opens trigger CI.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: Repository to maintain
+        type: choice
+        default: all
+        options: [all, nx-playground, kcl-packages, dotconfig]
+      task:
+        description: Maintenance task (see the repo-maintenance skill)
+        type: choice
+        default: all
+        options: [all, drift, pins, deps, triage]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # `jobs.<id>.if` cannot see the matrix context, so the repo filter is applied
+  # here and the matrix is emitted as JSON: a manual run for one repo skips the
+  # others; a scheduled run does all three.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          REPO: ${{ github.event_name == 'schedule' && 'all' || inputs.repo }}
+        run: |
+          all='[
+            {"repo":"nx-playground","slug":"yurikrupnik-org/nx-playground"},
+            {"repo":"kcl-packages","slug":"slavalslutkovsky/kcl-packages"},
+            {"repo":"dotconfig","slug":"yurikrupnik/dotconfig"}
+          ]'
+          echo "matrix=$(jq -c --arg r "$REPO" '[.[] | select($r == "all" or .repo == $r)]' <<<"$all")" >> "$GITHUB_OUTPUT"
+
+  maintain:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    concurrency:
+      group: claude-maintenance-${{ matrix.repo }}
+      cancel-in-progress: false
+    env:
+      TASK: ${{ github.event_name == 'schedule' && 'all' || inputs.task }}
+      TARGET: repos/${{ matrix.repo }}
+      DOTCONFIG: repos/dotconfig
+      GH_TOKEN: ${{ secrets.REPO_MAINTENANCE_TOKEN }}
+    steps:
+      - name: Checkout hub (skills, hooks, AGENTS.md)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Checkout target repository
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ matrix.slug }}
+          token: ${{ secrets.REPO_MAINTENANCE_TOKEN }}
+          path: ${{ env.TARGET }}
+          fetch-depth: 0
+
+      # upkg lives in dotconfig; every target needs it for the `deps` task.
+      - name: Checkout dotconfig (upkg)
+        if: matrix.repo != 'dotconfig'
+        uses: actions/checkout@v7
+        with:
+          repository: yurikrupnik/dotconfig
+          token: ${{ secrets.REPO_MAINTENANCE_TOKEN }}
+          path: ${{ env.DOTCONFIG }}
+          fetch-depth: 1
+
+      # Toolchain: the union of what the three repos' gates invoke — `task` for
+      # nx-playground, `just` for kcl-packages and dotconfig.
+      - uses: extractions/setup-just@v3
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: hustcer/setup-nu@v3
+        with:
+          version: "*"
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt
+      # protoc: build dependency of the Temporal SDK crates (`prost-wkt-types`
+      # build script), so any cargo gate over the whole workspace needs it.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-sort,cargo-audit,cargo-deny,cargo-outdated,cargo-edit,osv-scanner,protoc
+      - name: Install KCL CLI
+        run: curl -fsSL https://kcl-lang.io/script/install-cli.sh | bash
+      - name: Install npm-check-updates
+        run: bun add -g npm-check-updates
+      - name: Install upkg from dotconfig
+        run: |
+          src="${{ matrix.repo == 'dotconfig' && env.TARGET || env.DOTCONFIG }}/config/scripts/upkg.nu"
+          install -m 0755 "$src" /usr/local/bin/upkg
+          upkg --help >/dev/null
+
+      - name: Prepare git identity in target
+        working-directory: ${{ env.TARGET }}
+        run: |
+          git config user.name "claude-maintenance[bot]"
+          git config user.email "claude-maintenance[bot]@users.noreply.github.com"
+
+      - name: Run Claude maintenance
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Run the `repo-maintenance` skill (read `.claude/skills/repo-maintenance/SKILL.md`
+            first) for repository `${{ matrix.slug }}` checked out at `${{ env.TARGET }}`.
+            Task: `${{ env.TASK }}`. Get today's date with `date -u +%F`.
+
+            Work ONLY inside `${{ env.TARGET }}`; the hub checkout at the root is
+            read-only context (skills, hooks, AGENTS.md). `upkg` is on PATH.
+            Deliver every change as a pull request on a `maintenance/<task>` branch
+            exactly as the skill prescribes, and finish with the report it specifies.
+          claude_args: |
+            --max-turns 120
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(just:*),Bash(task:*),Bash(cargo:*),Bash(bun:*),Bash(bunx:*),Bash(npm view:*),Bash(ncu:*),Bash(upkg:*),Bash(nu:*),Bash(kcl:*),Bash(osv-scanner:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git checkout:*),Bash(git switch:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git fetch:*),Bash(git branch:*),Bash(git stash:*),Bash(gh pr:*),Bash(gh issue:*),Bash(gh api repos/*),Bash(gh search:*),Bash(jq:*),Bash(diff:*),Bash(curl -s:*)"

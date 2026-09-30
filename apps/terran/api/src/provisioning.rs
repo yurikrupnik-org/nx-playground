@@ -77,14 +77,19 @@ pub async fn provision_tenant(db: &Db, identity: &AuthIdentity) -> sqlx::Result<
 /// Derive the tenant's external org id, display name, and default role from the token.
 /// Until Keycloak Organizations are configured the token carries no org, so each user
 /// maps to their own personal workspace (`personal:{subject}`), of which they are admin.
+///
+/// The ref comes from [`AuthIdentity::tenant_ref`]; every service that scopes by tenant
+/// derives it through that one function so the refs cannot drift apart.
 fn derive_org(identity: &AuthIdentity) -> (String, String, &'static str) {
-    match &identity.org_id {
-        Some(org) => (org.clone(), org.clone(), "member"),
-        None => (
-            format!("personal:{}", identity.subject),
+    let tenant = identity.tenant_ref();
+    if identity.is_personal_tenant() {
+        (
+            tenant,
             format!("{}'s workspace", display_name(identity)),
             "org_admin",
-        ),
+        )
+    } else {
+        (tenant.clone(), tenant, "member")
     }
 }
 

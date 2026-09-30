@@ -8,6 +8,8 @@
 
 #![allow(clippy::unwrap_used)]
 
+use std::sync::Arc;
+
 use domain_projects::*;
 use test_utils::{TestDataBuilder, TestDatabase, assertions::*};
 use uuid::Uuid;
@@ -332,7 +334,7 @@ async fn test_list_projects_with_filters() {
 async fn test_service_validation() {
     let db = TestDatabase::new().await;
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let builder = TestDataBuilder::from_test_name("service_validation");
 
     let user_id = db.create_test_user(builder.user_id()).await;
@@ -414,7 +416,7 @@ async fn test_service_validation() {
 async fn test_service_authorization() {
     let db = TestDatabase::new().await;
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let builder = TestDataBuilder::from_test_name("authorization");
 
     let owner = db.create_test_user(Uuid::now_v7()).await;
@@ -530,7 +532,7 @@ async fn test_concurrent_creates() {
 async fn test_free_tier_can_create_3_projects() {
     let db = TestDatabase::new().await;
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let builder = TestDataBuilder::from_test_name("free_tier_3_projects");
 
     let user_id = db.create_test_user(builder.user_id()).await;
@@ -557,7 +559,7 @@ async fn test_free_tier_can_create_3_projects() {
 async fn test_free_tier_cannot_create_4th_project() {
     let db = TestDatabase::new().await;
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let builder = TestDataBuilder::from_test_name("free_tier_4th_project");
 
     let user_id = db.create_test_user(builder.user_id()).await;
@@ -608,7 +610,7 @@ async fn test_free_tier_cannot_create_4th_project() {
 async fn test_free_tier_limit_per_user() {
     let db = TestDatabase::new().await;
     let repo = PgProjectRepository::new(db.connection());
-    let service = ProjectService::new(repo);
+    let service = ProjectService::new(repo, Arc::new(NoopProjectPublisher));
     let builder = TestDataBuilder::from_test_name("free_tier_per_user");
 
     let user1 = db.create_test_user(Uuid::now_v7()).await;

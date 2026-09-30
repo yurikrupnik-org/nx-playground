@@ -1,0 +1,8 @@
+# Dev-only fixtures the generated app manifests reference through the root
+# butler.toml `[k8s] extraResources`. A directory, not a bare file: kustomize
+# refuses to accumulate a file outside the kustomization root, but accepts a
+# sibling directory that carries its own kustomization.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - app-secrets.yaml

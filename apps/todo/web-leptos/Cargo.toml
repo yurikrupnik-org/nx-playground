@@ -1,0 +1,70 @@
+# Leptos CSR arm of the delivery-surface comparison (see README.md).
+#
+# This crate is `[workspace] exclude`d by the root Cargo.toml and is therefore
+# its OWN one-crate workspace, with its own Cargo.lock. Two reasons it cannot be
+# a member:
+#   * it only ever builds for `wasm32-unknown-unknown`, while every host gate
+#     (`task lint-rust`, `task test-rust`) is a `--workspace` host-target run;
+#   * `leptos`/`gloo-net`/`web-sys` would join the workspace dependency graph and
+#     be re-resolved for 45 host crates that never use them.
+# The price is that `{ workspace = true }` is unavailable here — an excluded
+# crate cannot resolve workspace dependencies — so every version is spelled out.
+[package]
+name = "todo_web_leptos"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+description = "Leptos/WASM CSR todo SPA — feature-equivalent to the `/` route of apps/todo/web."
+license = "MIT"
+publish = false
+
+[workspace]
+
+[dependencies]
+leptos = { version = "0.8.20", features = ["csr"] }
+gloo-net = { version = "0.7.0", features = ["http"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# No `v4`/`js`: nothing in the browser mints a UUID. Ids arrive on the wire and
+# the anonymous identity is `crypto.getRandomValues`-derived, exactly as in the
+# Solid app — so the getrandom wasm backend never has to be configured.
+uuid = { version = "1.26", features = ["serde"] }
+# `default-features = false` drops chrono's `clock`/`wasmbind`: timestamps are
+# parsed off the wire, and the event feed's wall clock is `js_sys::Date` so it
+# formats identically to the Solid app's `toLocaleTimeString()`.
+chrono = { version = "0.4", default-features = false, features = ["serde", "std"] }
+console_error_panic_hook = "0.1.7"
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+
+# EventSource/WebSocket/localStorage/crypto are reached through web-sys directly
+# rather than gloo's stream wrappers: the Solid app drives the same four browser
+# APIs through plain callbacks, and a futures-based bridge would be extra bytes
+# on both sides of a byte comparison.
+[dependencies.web-sys]
+version = "0.3"
+features = [
+    "Crypto",
+    "Document",
+    "Element",
+    "Event",
+    "EventSource",
+    "EventTarget",
+    "HtmlElement",
+    "Location",
+    "MessageEvent",
+    "Navigator",
+    "Storage",
+    "SubmitEvent",
+    "WebSocket",
+    "Window",
+]
+
+# Mirrors the root workspace's size-tuned release profile so the byte numbers in
+# README.md are release-vs-release against the Solid app's `vite build`.
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true

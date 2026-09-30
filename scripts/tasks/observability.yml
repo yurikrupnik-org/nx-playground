@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Monitoring stack on the local kind cluster — included (flattened) by the root
+# Taskfile.yml. Decision + measurements: docs/tooling/ci-observability.md.
+#
+# Namespace `monitoring` (devkit.toml `[namespaces]`), four Helm releases plus
+# one kustomization, all values in manifests/observability/:
+#   otel-collector  Service otel-collector:4317/4318 (the endpoint the apps and
+#                   the insights sync already export to) → tempo
+#   tempo           Service tempo:3200 (API) + OTLP, single binary
+#   prometheus      Service prometheus-server, scrapes `prometheus.io/*` pods
+#   grafana         Service grafana; datasources Prometheus/Tempo/insights,
+#                   dashboards from manifests/observability/dashboards/*.json
+# The root Tiltfile port-forwards grafana → localhost:55558 and prometheus →
+# localhost:55798 (root butler.toml `[[tilt.portForward]]`).
+#
+# Charts come straight from their repo URL (`--repo`), so nothing is added to
+# the developer's `helm repo list` and a pinned version is all that decides
+# what gets installed.
+#
+# Every command names its kube context explicitly — `$OBS_CONTEXT`, else the
+# context current when the task starts — and refuses anything that is not a
+# `kind-*` context, so a current context on a real cluster never gets this stack.
+version: '3'
+
+vars:
+  OBS_NS: monitoring
+  OBS_DIR: manifests/observability
+  # Chart pins — bump here only (docs/tooling/registry.toml `key`s grep for
+  # these lines, so a bump without the registry row fails `task tooling-check`).
+  # grafana + tempo live in grafana-community since the 2026-01-30 split from
+  # grafana/helm-charts; the old repo no longer gets releases.
+  OBS_PROMETHEUS_REPO: https://prometheus-community.github.io/helm-charts
+  OBS_PROMETHEUS_CHART: prometheus 29.34.0
+  OBS_GRAFANA_REPO: https://grafana-community.github.io/helm-charts
+  OBS_GRAFANA_CHART: grafana 13.2.6
+  OBS_TEMPO_CHART: tempo 3.0.0
+  OBS_OTEL_REPO: https://open-telemetry.github.io/opentelemetry-helm-charts
+  OBS_OTEL_CHART: opentelemetry-collector 0.173.1
+  # Spliced first into every task: resolve + validate the context, then `k`
+  # and `h` are kubectl/helm pinned to it.
+  OBS_KIND_ONLY: |
+    ctx="${OBS_CONTEXT:-$(kubectl config current-context 2>/dev/null || true)}"
+    case "$ctx" in
+      kind-*) ;;
+      *) echo "observability: kube context '$ctx' is not a kind cluster; this stack is dev-only (choose one: OBS_CONTEXT=kind-<name> task …)" >&2; exit 1 ;;
+    esac
+    kubectl config get-contexts "$ctx" >/dev/null 2>&1 || { echo "observability: no kube context '$ctx'" >&2; exit 1; }
+    k() { kubectl --context "$ctx" "$@"; }
+    h() { helm --kube-context "$ctx" "$@"; }
+
+tasks:
+  observability-up:
+    desc: Install/upgrade the monitoring stack (otel-collector, tempo, prometheus, grafana) on kind and wait for Ready
+    cmds:
+      - task: observability-dashboards
+      - |
+        set -euo pipefail
+        {{.OBS_KIND_ONLY}}
+        # release  "chart version"  repo  values — installed without --wait so
+        # the four image pulls overlap; the rollout waits below gate readiness.
+        install() {
+          local release=$1 chart=$2 version=$3 repo=$4
+          h upgrade --install "$release" "$chart" --repo "$repo" --version "$version" \
+            --namespace {{.OBS_NS}} --values "{{.OBS_DIR}}/$release.values.yaml"
+        }
+        install tempo          {{.OBS_TEMPO_CHART}}      {{.OBS_GRAFANA_REPO}}
+        install otel-collector {{.OBS_OTEL_CHART}}       {{.OBS_OTEL_REPO}}
+        install prometheus     {{.OBS_PROMETHEUS_CHART}} {{.OBS_PROMETHEUS_REPO}}
+        install grafana        {{.OBS_GRAFANA_CHART}}    {{.OBS_GRAFANA_REPO}}
+        for w in statefulset/tempo deployment/otel-collector deployment/prometheus-server deployment/grafana; do
+          k -n {{.OBS_NS}} rollout status "$w" --timeout=300s
+        done
+        echo "monitoring stack ready on $ctx. Port-forwards come from the root Tiltfile (tilt up), or by hand:"
+        echo "  kubectl --context $ctx -n {{.OBS_NS}} port-forward deployment/grafana 55558:3000            # http://localhost:55558 (admin/admin, dev only)"
+        echo "  kubectl --context $ctx -n {{.OBS_NS}} port-forward deployment/prometheus-server 55798:9090  # http://localhost:55798"
+        echo "  kubectl --context $ctx -n {{.OBS_NS}} port-forward deployment/otel-collector 4317:4317      # OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317"
+
+  observability-dashboards:
+    desc: Apply the monitoring namespace + Grafana dashboard ConfigMaps (manifests/observability); the sidecar reloads them live
+    cmds:
+      - |
+        set -euo pipefail
+        {{.OBS_KIND_ONLY}}
+        k apply --server-side --force-conflicts -k {{.OBS_DIR}}
+
+  observability-down:
+    desc: Uninstall the monitoring stack and delete the monitoring namespace (traces, PVC and dashboards go with it)
+    cmds:
+      - |
+        set -euo pipefail
+        {{.OBS_KIND_ONLY}}
+        for release in grafana prometheus otel-collector tempo; do
+          h uninstall "$release" --namespace {{.OBS_NS}} --ignore-not-found --wait
+        done
+        k delete -k {{.OBS_DIR}} --ignore-not-found --wait=true
+
+  observability-status:
+    desc: Show the monitoring releases, pods, services and claims
+    cmds:
+      - |
+        set -euo pipefail
+        {{.OBS_KIND_ONLY}}
+        h list --namespace {{.OBS_NS}}
+        k -n {{.OBS_NS}} get pods,svc,pvc

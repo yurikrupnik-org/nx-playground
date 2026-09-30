@@ -5,8 +5,8 @@
 //! `async_nats::connect` + backoff loops at each call site.
 
 use crate::nats::error::NatsError;
-use async_nats::jetstream::Context;
 use async_nats::Client;
+use async_nats::jetstream::Context;
 use std::time::Duration;
 use tracing::{info, warn};
 

@@ -2,6 +2,8 @@
 //!
 //! Provides connection management, migration running, and PostgreSQL-specific helpers.
 
+#[cfg(feature = "catalog")]
+pub mod catalog;
 mod config;
 mod connector;
 mod health;

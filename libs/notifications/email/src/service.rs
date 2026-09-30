@@ -302,11 +302,11 @@ impl NotificationService {
         });
 
         let subject = match notification_type {
-            "assigned" => format!("Task assigned: {}", task_title),
-            "due_soon" => format!("Task due soon: {}", task_title),
-            "overdue" => format!("Task overdue: {}", task_title),
-            "completed" => format!("Task completed: {}", task_title),
-            _ => format!("Task update: {}", task_title),
+            "assigned" => format!("Task assigned: {task_title}"),
+            "due_soon" => format!("Task due soon: {task_title}"),
+            "overdue" => format!("Task overdue: {task_title}"),
+            "completed" => format!("Task completed: {task_title}"),
+            _ => format!("Task update: {task_title}"),
         };
 
         let job = EmailJob::new(EmailType::TaskNotification, email.to_string(), subject)

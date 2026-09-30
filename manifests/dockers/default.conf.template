@@ -16,6 +16,10 @@ server {
   gzip_proxied any;
   gzip_comp_level 6;
   gzip_min_length 1000;
+  # `application/wasm` is included deliberately: the Leptos/trunk arm's payload
+  # is a ~341 kB .wasm that gzips to ~135 kB. nginx's bundled mime.types
+  # (verified on nginx 1.31.6 in nginxinc/nginx-unprivileged:alpine) already
+  # maps .wasm -> application/wasm, so no extra `types` block is needed.
   gzip_types
     text/plain
     text/css
@@ -23,6 +27,7 @@ server {
     application/javascript
     application/json
     application/xml
+    application/wasm
     image/svg+xml;
 
   # ==========================================================================
@@ -78,7 +83,7 @@ server {
     try_files $uri $uri/ /index.html;
 
     # Cache static assets
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    location ~* \.(js|wasm|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
       expires 1y;
       add_header Cache-Control "public, immutable";
       access_log off;

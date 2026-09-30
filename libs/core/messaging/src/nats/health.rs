@@ -1,11 +1,11 @@
 //! Health endpoints for K8s probes.
 
 use axum::{
+    Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::get,
-    Router,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -33,7 +33,7 @@ impl HealthStatus {
     /// Create an unhealthy status.
     pub fn unhealthy(reason: &str) -> Self {
         Self {
-            status: format!("unhealthy: {}", reason),
+            status: format!("unhealthy: {reason}"),
             stream_connected: false,
             processor_healthy: false,
         }

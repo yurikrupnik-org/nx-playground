@@ -50,6 +50,9 @@ pub mod entity;
 pub mod error;
 pub mod handlers;
 pub mod models;
+/// Cluster-observed, read-only inventory (Crossplane `CloudInventory`).
+#[cfg(feature = "k8s")]
+pub mod observed;
 pub mod postgres;
 pub mod repository;
 pub mod service;
