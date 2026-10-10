@@ -16,11 +16,13 @@
     "@solidjs/router": "2.0.0-next.26",
     "@solidjs/web": "2.0.0-rc.9",
     "@tanstack/solid-query": "6.0.0-rc.0",
-    "effect": "^3.22.2",
+    "effect": "4.0.2",
+    "effect-v3": "npm:effect@^3.22.2",
     "solid-js": "2.0.0-rc.9",
     "xstate": "^5.33.2"
   },
   "devDependencies": {
+    "@effect/vitest": "4.0.2",
     "@solidjs/testing-library": "1.0.0-beta.3",
     "@solidjs/vite-plugin": "3.0.0-next.34",
     "@testing-library/jest-dom": "^7.0.1",

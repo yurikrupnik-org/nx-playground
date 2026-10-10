@@ -653,12 +653,15 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   (what ships anyway). Postgres' image runs a socket-only bootstrap server
   first: probe with `psql -h 127.0.0.1 -d todo`, not `pg_isready`.
 - **State management is compared by route in `todo-web`**, not chosen globally:
-  `/` (TanStack Query + signals) is the real app, `/xstate` and `/effect` are
-  equivalent implementations of the same loop for comparison. Both alternatives
-  MUST stay `lazy()`-loaded so `/` never downloads them — this vertical publishes
+  `/` (TanStack Query + signals) is the real app, `/xstate`, `/effect` (Effect 3,
+  via the `effect-v3` npm alias) and `/effect-v4` (Effect 4) are equivalent
+  implementations of the same loop for comparison. All alternatives MUST stay
+  `lazy()`-loaded so `/` never downloads them — this vertical publishes
   shipped-JS numbers (`stack_profiles`). Measured: `/` 52.1 kB gz, `+15.6` for
-  xstate, `+57.1` for effect — remeasured 2026-09-20 by
-  `scripts/bench/assets.sh`, which is also why `/` moved from the 46.2 kB this
+  xstate, `+57.1` for effect 3 — remeasured 2026-09-20 by
+  `scripts/bench/assets.sh`; `+21.9` for effect 4, measured 2026-10-10 with the
+  per-route closure method in `docs/todo-state-management.md`. The re-measure
+  is also why `/` moved from the 46.2 kB this
   file used to claim: `todo-web` could not build at all (solid-js 2.0.0-rc.4
   declares `@solidjs/signals: ^2.0.0-rc.4`, which floated to rc.9, and rc.9
   dropped internals rc.4 re-exports), and the fix — advancing the whole Solid 2
@@ -666,7 +669,10 @@ buf, biome, rumdl (markdown), typos (spelling, whole tree).
   A prerelease caret on a transitive is the trap; pin the SET, not the
   transitive. Neither library has a Solid 2 binding
   (`@xstate/solid` and `@effect-atom/atom-solid` both peer on Solid 1), so each
-  route hand-writes a ~10-line bridge. See `docs/todo-state-management.md`.
+  route hand-writes a ~10-line bridge. Effect 4 runs a new fiber synchronously
+  to its first async boundary, so never fork from a component body: the first
+  signal write throws `REACTIVE_WRITE_IN_OWNED_SCOPE` in Solid 2 dev. See
+  `docs/todo-state-management.md`.
 - **`resolve.conditions` must not include `development` in builds.** All three
   SPAs did, which shipped solid-js's `dist/dev.js` (warnings + debug hooks) to
   production; now gated on `command === 'serve'`. Cost was ~9.6 kB gz per app.

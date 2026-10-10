@@ -12,7 +12,7 @@
  * unmount — no dangling requests after navigating away.
  */
 import type { Todo, TodoEvent, TodoPriority } from '@domain/todo';
-import { Duration, Effect, Schedule, SubscriptionRef } from 'effect';
+import { Duration, Effect, Schedule, SubscriptionRef } from 'effect-v3';
 
 import { applyTodoEvent, removeTodo, upsertTodo } from '../lib/realtime';
 import { todoApi } from '../lib/todo-api';

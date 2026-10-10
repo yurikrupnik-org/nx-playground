@@ -10,15 +10,15 @@ import { TodoApp } from './todo-app';
 const queryClient = new QueryClient();
 
 /**
- * Three routes, three ways to hold the same state.
+ * Four routes, four ways to hold the same state.
  *
  * `/` is the production app (TanStack Query + signals, plus feature flags and
- * identity switching). `/xstate` and `/effect` are minimal re-implementations of
- * the same core loop — load, add, toggle, delete, patch from database events —
- * so the only variable between them is the state-management library. See
- * `docs/todo-state-management.md`.
+ * identity switching). `/xstate`, `/effect` (Effect 3) and `/effect-v4` (Effect
+ * 4) are minimal re-implementations of the same core loop — load, add, toggle,
+ * delete, patch from database events — so the only variable between them is the
+ * state-management library. See `docs/todo-state-management.md`.
  *
- * Both alternatives are `lazy()` so their runtimes are separate chunks: visiting
+ * The alternatives are `lazy()` so their runtimes are separate chunks: visiting
  * `/` must not download xstate or effect. That is load-bearing for this vertical,
  * which publishes shipped-JS numbers (`stack_profiles`).
  */
@@ -31,6 +31,10 @@ const routes = defineRoutes([
   {
     path: '/effect',
     component: lazy(() => import('./routes/effect-route')),
+  },
+  {
+    path: '/effect-v4',
+    component: lazy(() => import('./routes/effect-v4-route')),
   },
 ]);
 

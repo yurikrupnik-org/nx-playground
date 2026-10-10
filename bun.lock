@@ -55,11 +55,13 @@
         "@solidjs/router": "2.0.0-next.26",
         "@solidjs/web": "2.0.0-rc.9",
         "@tanstack/solid-query": "6.0.0-rc.0",
-        "effect": "^3.22.2",
+        "effect": "4.0.2",
+        "effect-v3": "npm:effect@^3.22.2",
         "solid-js": "2.0.0-rc.9",
         "xstate": "^5.33.2",
       },
       "devDependencies": {
+        "@effect/vitest": "4.0.2",
         "@solidjs/testing-library": "1.0.0-beta.3",
         "@solidjs/vite-plugin": "3.0.0-next.34",
         "@testing-library/jest-dom": "^7.0.1",
@@ -466,6 +468,8 @@
     "@csstools/css-tokenizer": ["@csstools/css-tokenizer@4.0.2", "", {}, "sha512-OoKoR0f76dCY666JlcbhmVTs2drYj1GUXZTYTcbUgJjh9Nv41aFfZ21bPQTERm5+L5cBDo466NltB2lplS5GBw=="],
 
     "@domain/todo": ["@domain/todo@workspace:libs/domains/todo"],
+
+    "@effect/vitest": ["@effect/vitest@4.0.2", "", { "peerDependencies": { "effect": "^4.0.2", "vitest": ">=5.0.0 <6.0.0" } }, "sha512-Zb72nu7iUy3rNdBp9J1Xu5oUQGwJ8cOYsUwmYgujj88aqyvASRDjOS01SjlcPViqf77csduetKdCJTVndMNfzw=="],
 
     "@emnapi/core": ["@emnapi/core@1.4.5", "", { "dependencies": { "@emnapi/wasi-threads": "1.0.4", "tslib": "^2.4.0" } }, "sha512-XsLw1dEOpkSX/WucdqUhPWP7hDxSvZiY+fsUC14h+FtQ2Ifni4znbBt8punRX+Uj2JG/uDb8nEHVKvrVlvdZ5Q=="],
 
@@ -1285,7 +1289,9 @@
 
     "ee-first": ["ee-first@1.1.1", "", {}, "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow=="],
 
-    "effect": ["effect@3.22.2", "", { "dependencies": { "@standard-schema/spec": "^1.0.0", "fast-check": "^3.23.1" } }, "sha512-fm1CQXCs7GTMwpadZxwU5rnAb2bN6mbQpknq/pXBGCzSKkosNYb9k0wsoL0TfB10rSa5xOEZJjo77u/KLXSANg=="],
+    "effect": ["effect@4.0.2", "", {}, "sha512-YeYnLqSFrL4+tCOXRrfNP03w8FILoF/wDl+ukraJAGzXrjcS383W7LAAvGBbLatEyktmLxRq+9xJinx7QzXW5A=="],
+
+    "effect-v3": ["effect@3.22.2", "", { "dependencies": { "@standard-schema/spec": "^1.0.0", "fast-check": "^3.23.1" } }, "sha512-fm1CQXCs7GTMwpadZxwU5rnAb2bN6mbQpknq/pXBGCzSKkosNYb9k0wsoL0TfB10rSa5xOEZJjo77u/KLXSANg=="],
 
     "ejs": ["ejs@5.0.1", "", { "bin": { "ejs": "bin/cli.js" } }, "sha512-COqBPFMxuPTPspXl2DkVYaDS3HtrD1GpzOGkNTJ1IYkifq/r9h8SVEFrjA3D9/VJGOEoMQcrlhpntcSUrM8k6A=="],
 

@@ -74,6 +74,7 @@ LABEL \
     security.no-shell="true" \
     security.distroless="false" \
     security.minimal="true" \
+    security.language="rust" \
     security.base-image="scratch"
 
 ENTRYPOINT ["/app"]

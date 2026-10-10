@@ -1,6 +1,6 @@
-# State management, three ways — `/`, `/xstate`, `/effect`
+# State management, four ways — `/`, `/xstate`, `/effect`, `/effect-v4`
 
-`todo-web` serves the same todo loop three times, one route per state-management
+`todo-web` serves the same todo loop four times, one route per state-management
 approach. The vertical already compares *rendering* stacks by shipped JS
 (`stack_profiles`, rendered by web-astro); this compares *state* the same way, on
 the same measured basis.
@@ -15,7 +15,8 @@ the state.
 |---|---|---|
 | `/` | TanStack Query cache + signals. Also carries feature flags and identity switching, so it is the real app rather than a demo. | `todo-app.tsx` |
 | `/xstate` | One XState v5 machine: explicit `loading / failed / ready.{idle,saving,resyncing}`. | `routes/todo-machine.ts`, `routes/xstate-route.tsx` |
-| `/effect` | Effect `SubscriptionRef` for state, `Effect` for operations, `Stream` for subscription. | `routes/todo-effect.ts`, `routes/effect-route.tsx` |
+| `/effect` | Effect 3 (`effect-v3` alias): `SubscriptionRef` for state, `Effect` for operations, `Stream` for subscription. | `routes/todo-effect.ts`, `routes/effect-route.tsx` |
+| `/effect-v4` | Effect 4: the same model, plus the REST client as a `TodoApi` service (`Context.Service` + `Layer`). | `routes/todo-effect-v4.ts`, `routes/effect-v4-route.tsx` |
 
 ## Measured cost
 
@@ -30,14 +31,19 @@ differs per chunk and so skews a comparison between routes.
 | `/` | 52.1 kB | — |
 | `/xstate` | 67.8 kB | **+15.6 kB** |
 | `/effect` | 109.2 kB | **+57.1 kB** |
+| `/effect-v4` | 74.1 kB | **+21.9 kB** |
 
-Both alternatives are `lazy()`-loaded, so visiting `/` downloads neither. That is
-deliberate and load-bearing: this vertical publishes shipped-JS numbers, and a
-library used by one route must not be charged to the others. `xstate` and `effect`
-land in their own chunks (`xstate-route-*.js`, `effect-route-*.js`), which the
-table above reflects.
+`/effect-v4` measured 2026-10-10 on `effect@4.0.2` with the same method (the
+other rows re-measured in the same build to within 0.1 kB).
 
-For scale: the whole baseline app is 52.1 kB gz. Effect alone is larger than that.
+All alternatives are `lazy()`-loaded, so visiting `/` downloads none of them.
+That is deliberate and load-bearing: this vertical publishes shipped-JS numbers,
+and a library used by one route must not be charged to the others. `xstate` and
+both Effect majors land in their own chunks (`xstate-route-*.js`,
+`effect-route-*.js`, `effect-v4-route-*.js`), which the table above reflects.
+
+For scale: the whole baseline app is 52.1 kB gz. Effect 3 alone is larger than
+that; Effect 4 costs 38% of Effect 3's delta for the same program.
 
 ## What each approach actually buys
 
@@ -62,7 +68,7 @@ Costs: +15.6 kB gz, a second vocabulary, and `@xstate/solid` is unusable here (i
 peers on `solid-js@^1.6`; this app is Solid 2), so the actor→signal bridge is
 hand-written — all 10 lines of it, in `xstate-route.tsx`.
 
-**Effect (`/effect`)** — makes *effects* first-class rather than states:
+**Effect 3 (`/effect`)** — makes *effects* first-class rather than states:
 
 - `load` is retried with `Schedule.exponential` and a timeout, declaratively.
   Doing that by hand is the fiddliest part of the baseline route.
@@ -71,9 +77,37 @@ hand-written — all 10 lines of it, in `xstate-route.tsx`.
   unmounted, request still running".
 - `SubscriptionRef.changes` is a `Stream`, so the UI *subscribes* to state.
 
-Costs: +57 kB gz, the steepest learning curve of the three, and no official Solid
+Costs: +57 kB gz, the steepest learning curve here, and no official Solid
 binding (`@effect-atom/atom-solid` peers `solid-js >=1 <2`), so the
 `Stream → signal` bridge is hand-written too.
+
+**Effect 4 (`/effect-v4`)** — the same program on the rewritten runtime:
+
+- `Schedule.compose` is gone; the retry policy is
+  `Effect.retry({ schedule: Schedule.exponential('200 millis'), times: 2 })`.
+  `forkDaemon` → `forkDetach`/`forkChild`, `ref.changes` →
+  `SubscriptionRef.changes(ref)`, `Stream.runCollect` returns an `Array`.
+- `todoApi` is provided as a `TodoApi` service instead of imported. The route
+  provides `TodoApiLive`; tests provide a fake `Layer`. That is what makes
+  `@effect/vitest`'s `TestClock` usable: no promise hops between the program
+  and the clock, so the tests check the retry delays (+200 ms, +400 ms) and the
+  5 s timeout exactly, in ~1 ms of wall time. The Effect 3 suite waits through
+  the real schedule (~1.4 s across three tests) and cannot test the timeout at
+  all.
+- Fiber lifetime goes through a `FiberSet.makeRuntimePromise` runner on a
+  `Scope` that the route closes on cleanup, so every click, stream event and
+  retry is interrupted on unmount (and `tryPromise`'s `AbortSignal` cancels
+  the HTTP request; there is a test for that).
+- **Solid 2 gotcha:** Effect 4 runs a new fiber synchronously up to its first
+  async boundary. Started from the component body, the state mirror's first
+  emission writes a signal inside Solid's owned scope, and Solid 2 dev *throws*
+  `REACTIVE_WRITE_IN_OWNED_SCOPE`. That kills the mirror fiber and leaves the
+  page on "Loading todos…". The route starts every fiber through
+  `ready.then(...)`, i.e. after the body returns. Effect 3's `runPromise` does
+  not hit this.
+
+Costs: +21.9 kB gz (vs +57.1 kB for Effect 3). The learning curve is the same,
+and the Solid bridge is still hand-written.
 
 ## Two bugs this exercise surfaced
 
@@ -102,9 +136,10 @@ state library would have covered.
 Default to the baseline. Reach for a machine when coordination — not data
 fetching — is the hard part: write serialisation, resync obligations, wizard
 flows, optimistic rollback. XState is the cheaper of the two here and targets
-exactly that. Effect earns its 57 kB when you want retry/timeout/interruption
-policy as a first-class, composable concern across many operations; as a pure
-state container for one list it is heavy.
+exactly that. Effect earns its bytes when you want retry/timeout/interruption
+policy as a first-class, composable concern across many operations, and on
+Effect 4 those bytes are +21.9 kB rather than +57 kB. As a pure state container
+for one list it is still heavy.
 
 ## A production bug this measurement exposed
 
@@ -139,5 +174,6 @@ docker exec -i dockers-postgres-1 psql -U myuser -d todo \
 | File | Covers |
 |---|---|
 | `src/routes/todo-machine.test.ts` | 11 tests: load/retry, write serialisation, error surfacing and clearing, changes applied mid-write, resync on reconnect, the dropped-`streamOpen` regression. Actors are stubbed via `machine.provide`, states awaited with `waitFor` — no network, no timers. |
-| `src/routes/todo-effect.test.ts` | 12 tests: retry schedule (asserts attempt count), degradation that keeps visible rows, write error mapping (403/429 flag messages), `SubscriptionRef.changes` emission order. |
+| `src/routes/todo-effect.test.ts` | 12 tests (Effect 3): retry schedule (asserts attempt count), degradation that keeps visible rows, write error mapping (403/429 flag messages), `SubscriptionRef.changes` emission order. Real timers. |
+| `src/routes/todo-effect-v4.test.ts` | 12 tests (Effect 4, `@effect/vitest` `it.effect`): retry delays and the 5 s timeout under `TestClock`, degradation, writes against a fake `TodoApi` layer, `changes` emission order, and two `TodoApiLive` tests with stubbed `fetch` (403 message passes through; interrupting the fiber aborts the request). |
 | `src/lib/realtime.test.ts` | 14 tests: merge rules plus the subscription contract, including the late-subscriber `onOpen` fix. |

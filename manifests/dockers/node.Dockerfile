@@ -175,6 +175,7 @@ LABEL \
     org.opencontainers.image.source="playground" \
     org.opencontainers.image.description="Astro SSR (Node standalone) app from Nx monorepo" \
     security.non-root="true" \
+    security.language="node" \
     security.base-image="node:${NODE_VERSION}-trixie-slim"
 
 CMD ["node", "dist/server/entry.mjs"]

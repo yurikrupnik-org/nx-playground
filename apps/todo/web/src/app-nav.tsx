@@ -2,7 +2,7 @@ import { useLocation } from '@solidjs/router';
 import { For } from 'solid-js';
 
 /**
- * Switches between the three state-management implementations of the same todo
+ * Switches between the four state-management implementations of the same todo
  * loop. Plain anchors: the router intercepts them (`explicitLinks` defaults to
  * off), and hovering preloads the target chunk.
  */
@@ -13,7 +13,12 @@ const ROUTES = [
     hint: 'baseline: query cache + signals',
   },
   { href: '/xstate', label: 'XState', hint: 'explicit state machine' },
-  { href: '/effect', label: 'Effect', hint: 'SubscriptionRef + Stream' },
+  { href: '/effect', label: 'Effect 3', hint: 'SubscriptionRef + Stream' },
+  {
+    href: '/effect-v4',
+    label: 'Effect 4',
+    hint: 'SubscriptionRef + Stream, TodoApi service',
+  },
 ] as const;
 
 export function AppNav() {

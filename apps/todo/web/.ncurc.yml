@@ -12,3 +12,7 @@ reject:
   - "@solidjs/vite-plugin"
   - "@solidjs/testing-library"
   - "@tanstack/solid-query"
+# `effect-v3` is an npm alias (`npm:effect@^3`) that keeps the `/effect` arm on
+# Effect 3 next to `/effect-v4`; ncu would bump the alias target to 4.x and
+# silently collapse the comparison. `effect` and `@effect/vitest` move together.
+  - effect-v3

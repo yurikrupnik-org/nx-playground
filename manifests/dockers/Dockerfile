@@ -20,6 +20,9 @@ COPY ./$DIST_PATH /usr/share/nginx/html
 COPY manifests/dockers/default.conf.template /etc/nginx/templates/default.conf.template
 ENV PORT=8080
 EXPOSE ${PORT}
+LABEL \
+    org.opencontainers.image.title="${APP_DIR}" \
+    security.language="node"
 CMD ["nginx", "-g", "daemon off;"]
 
 # ============================================================================
@@ -75,6 +78,7 @@ EXPOSE ${PORT}
 LABEL \
     org.opencontainers.image.title="${APP_NAME}" \
     org.opencontainers.image.description="Python application from Nx monorepo" \
+    security.language="python" \
     security.non-root="true"
 
 ENV APP_MODULE=${APP_MODULE}

@@ -7,7 +7,7 @@
  * signal. `runtime.dispose()` on cleanup interrupts every fiber, so an in-flight
  * retry cannot outlive the route.
  */
-import { Effect, Layer, ManagedRuntime, Stream } from 'effect';
+import { Effect, Layer, ManagedRuntime, Stream } from 'effect-v3';
 import { createSignal, onCleanup } from 'solid-js';
 
 import { TodoView } from '../components/todo-view';

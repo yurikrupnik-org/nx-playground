@@ -1,5 +1,5 @@
 import type { Todo, TodoEvent } from '@domain/todo';
-import { Chunk, Effect, Fiber, Stream, SubscriptionRef } from 'effect';
+import { Chunk, Effect, Fiber, Stream, SubscriptionRef } from 'effect-v3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {

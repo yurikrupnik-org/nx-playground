@@ -13,7 +13,7 @@ Pick this one when you need a working example of live-updating UI.
 
 ## Routes — one per state-management approach
 
-The same todo loop, implemented three times, so the approaches can be compared on
+The same todo loop, implemented four times, so the approaches can be compared on
 equal footing (and on measured bytes). See
 [`docs/todo-state-management.md`](../../../docs/todo-state-management.md).
 
@@ -21,10 +21,13 @@ equal footing (and on measured bytes). See
 |---|---|---:|
 | `/` | TanStack Query + signals (plus flags/identity — the real app) | 46.2 kB |
 | `/xstate` | an XState v5 machine | +16.0 kB |
-| `/effect` | Effect `SubscriptionRef` + `Stream` | +57.1 kB |
+| `/effect` | Effect 3 `SubscriptionRef` + `Stream` | +57.1 kB |
+| `/effect-v4` | Effect 4, same model + `TodoApi` service | +21.9 kB |
 
-Both alternatives are `lazy()`-loaded, so `/` downloads neither. Keep it that
-way: this vertical publishes shipped-JS numbers.
+All alternatives are `lazy()`-loaded, so `/` downloads none of them. Keep it that
+way: this vertical publishes shipped-JS numbers. Both Effect majors are installed
+side by side: `effect` is 4.x, `effect-v3` is an npm alias for 3.x (only
+`/effect` imports it), so `@effect/vitest` resolves its `effect` peer to 4.x.
 
 ## Layout
 
@@ -35,6 +38,7 @@ way: this vertical publishes shipped-JS numbers.
 | `src/todo-app.tsx` | `/` — list + mutations over the TanStack Query cache that events patch. |
 | `src/routes/todo-machine.ts` | `/xstate` — the machine: load, write serialisation, resync states. |
 | `src/routes/todo-effect.ts` | `/effect` — `SubscriptionRef` state + retry/timeout policy. |
+| `src/routes/todo-effect-v4.ts` | `/effect-v4` — the same on Effect 4, with `todoApi` behind a `TodoApi` service so tests swap a `Layer` and drive `TestClock`. |
 | `src/components/todo-view.tsx` | Presentational list/form shared by the two demo routes. |
 | `src/event-feed.tsx` | Debug log of the same stream, plus the WebSocket echo demo. |
 | `src/lib/todo-api.ts` | REST client (`/api/todos`). |
