@@ -1,0 +1,55 @@
+# Prometheus server for the kind dev loop — installed by
+# `task observability-up` (scripts/tasks/observability.yml), chart
+# prometheus-community/prometheus at the version pinned there. Release
+# `prometheus` → Deployment/Service `prometheus-server` (port-forwarded to
+# localhost:55798 by the root Tiltfile, `[ui.prometheus]` in butler.toml).
+#
+# What it scrapes is the chart's default `kubernetes-pods` job: pods annotated
+# `prometheus.io/scrape: "true"` (+ `prometheus.io/port`, `prometheus.io/path`),
+# exactly what butler renders for an app with `prometheus = true`
+# (manifests/k8s/dev/taskgraph-api.yaml). kubelet/cAdvisor jobs stay on for
+# per-pod CPU/memory.
+#
+# Single node, dev only: the subcharts are off — no alert routing
+# (alertmanager), no push jobs (pushgateway), and cAdvisor already covers the
+# per-pod resource view node-exporter/kube-state-metrics would add.
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+
+server:
+  global:
+    scrape_interval: 30s
+    evaluation_interval: 30s
+  retention: 7d
+  # Live metrics only — history lives in Postgres `insights`; an emptyDir keeps
+  # `observability-down` free of leftovers.
+  persistentVolume:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+configmapReload:
+  prometheus:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 16Mi
+      limits:
+        memory: 32Mi
+
+scrapeConfigs:
+  # Targets that do not exist here: no pushgateway, no blackbox exporter.
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false

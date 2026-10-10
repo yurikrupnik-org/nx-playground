@@ -1,0 +1,22 @@
+# The platform's pre-made development configuration: what `devenv create` (and
+# `task env-create`) provisions when no PRESET is given. The CLI replaces
+# metadata.name/namespace with NAME/NAMESPACE; everything else is applied as is.
+# Add a preset by dropping another claim next to this file — `devenv presets`
+# lists them, `devenv create <name> PRESET=<file stem>` uses one.
+# Plain `kubectl apply -f` also works and creates default/demo.
+apiVersion: platform.playground.io/v1alpha1
+kind: DevEnvironment
+metadata:
+  name: demo
+  namespace: default
+spec:
+  parameters:
+    postgres:
+      enabled: true
+      instances: 1
+      storageGB: 1
+    redis:
+      enabled: true
+    nats:
+      enabled: true
+      jetstream: true

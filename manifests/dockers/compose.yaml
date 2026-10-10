@@ -76,6 +76,23 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+  # Durable-execution server for apps/todo/restate. It calls INTO the service
+  # endpoint, so register the host-run endpoint once after `cargo run -p todo_restate`:
+  #   curl localhost:9070/deployments --json '{"uri":"http://host.docker.internal:9080"}'
+  # Keep the tag in step with IMAGE/TAG in libs/testing/test-utils/src/restate.rs.
+  restate:
+    image: docker.io/restatedev/restate:1.7.12
+    container_name: restate
+    ports:
+      - "18080:8080" # Ingress (invoke handlers); host 8080 is todo-api's
+      - "9070:9070" # Admin API (register deployments, UI)
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Linux: reach the host-run endpoint
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9070/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
   influxdb2:
     image: influxdb:2
     ports:

@@ -1,0 +1,79 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+[tilt]
+hostPort = 5230
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.web]` shape
+# already states is omitted — including the four writable nginx dirs and the
+# 101 uid — and `image`/`name`/`namespace`/`partOf` are injected by butler from
+# the image facts and this app's path.
+[workload]
+
+# nginx answers /health from the moment it binds, so 4 * 5s of grace is plenty.
+# `port = "http"` is the container port's name, not a number: one place decides
+# the port and the probes follow it.
+[workload.startupProbe]
+path = "/health"
+port = "http"
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 4
+
+[workload.livenessProbe]
+path = "/health"
+port = "http"
+
+# A static server has no dependencies to report, so readiness probes the same
+# path as liveness — only faster, to rejoin the Service sooner after a restart.
+[workload.readinessProbe]
+path = "/health"
+port = "http"
+periodSeconds = 5
+timeoutSeconds = 2
+
+# The nginx image's /api reverse proxy is configured entirely through these
+# three env vars (manifests/dockers/default.conf.template substitutes them at
+# container start). They come from the ConfigMap the `[config]` table below
+# renders, which the package always names `<workload name>-config`.
+[[workload.env]]
+name = "UPSTREAM_HOST"
+configMapName = "terran-web-config"
+configMapKey = "upstream_host"
+
+[[workload.env]]
+name = "UPSTREAM_PORT"
+configMapName = "terran-web-config"
+configMapKey = "upstream_port"
+
+[[workload.env]]
+name = "UPSTREAM_NAME"
+configMapName = "terran-web-config"
+configMapKey = "upstream_name"
+
+# → ConfigMap terran-web-config. Values, not shape: this is the one place that
+# says which backend terran-web proxies /api to.
+[config]
+upstream_host = "terran-api"
+upstream_port = "8080"
+upstream_name = "backend"
+
+# Public entry point for the terran vertical, on the shared gateway. Prod only:
+# local kind runs no Gateway API controller and reaches the app through the Tilt
+# port forward above. `extraManifests` is verbatim pass-through, so this object
+# carries its own name and namespace and ${GATEWAY_SUFFIX} is substituted later
+# by Flux (postBuild), not by butler or KCL.
+[[env.prod.workload.extraManifests]]
+apiVersion = "gateway.networking.k8s.io/v1"
+kind = "HTTPRoute"
+
+[env.prod.workload.extraManifests.metadata]
+name = "terran-web"
+namespace = "terran"
+
+[env.prod.workload.extraManifests.spec]
+parentRefs = [{ name = "main-gateway", namespace = "gateway", sectionName = "https" }]
+hostnames = ["terran.${GATEWAY_SUFFIX}"]
+rules = [{ matches = [{ path = { type = "PathPrefix", value = "/" } }], backendRefs = [{ name = "terran-web", port = 8080 }] }]

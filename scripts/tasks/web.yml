@@ -1,0 +1,278 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Web/node workspace tasks (nx + biome + ncu) — included (flattened) by the root Taskfile.yml.
+# nx handles web: package.json scripts as cached targets, scoped with -p '*-web'.
+version: '3'
+
+tasks:
+  # Biome (root config) over all JS/TS/JSON/CSS, read-only. The per-project
+  # `lint` target (tools/nx/polyglot-targets.ts) runs the same `biome ci` scoped
+  # to one project root; this is the whole-tree pass.
+  lint-web:
+    desc: Biome (root config) over all JS/TS/JSON/CSS, read-only
+    cmds:
+      - bunx biome ci .
+
+  # nx build+test+typecheck for every *-web project plus the shared web libs.
+  # `typecheck` (tsc --noEmit) is the TS gate — `vite build` is NOT: esbuild strips
+  # types without checking them.
+  test-web:
+    desc: nx build+test+typecheck for every *-web project plus the shared web libs
+    cmds:
+      - bun nx run-many -t build test typecheck -p '*-web' web-auth
+
+  # Formatter + assists (organizeImports) only — `--linter-enabled=false`. A
+  # formatting pass must never gate: `biome check --write` exits 1 when an
+  # unfixable LINT diagnostic remains, which would abort `task fmt` before the
+  # markdown and spelling leaves ever run. Lint is `lint-web`'s job (`biome ci .`,
+  # which checks formatting too — that is why `fmt-check` has no web leaf).
+  # Not routed through nx: one biome process beats N per-project invocations, and
+  # there is no per-project biome config to honour — the inferred `fmt` target is
+  # for the affected scope, not for this task.
+  fmt-web:
+    desc: 'Web auto-format: biome over the whole tree'
+    cmds:
+      - bunx biome check --write --linter-enabled=false .
+
+  # Native N-API addons (libs/native/*): cargo build via napi-cli + their node tests.
+  # nx-driven (unlike plain Rust crates) because the deliverable is a JS package:
+  # the .node artifact plus generated index.js/index.d.ts are nx build outputs.
+  test-napi:
+    desc: 'Native N-API addons (libs/native/*): napi build + node tests'
+    cmds:
+      - bun nx run-many -t build test -p '@native/*'
+
+  # Browser e2e for the todo vertical (apps/todo/e2e): Playwright boots a
+  # throwaway Postgres (docker), todo-api, and all three frontends on dedicated
+  # ports, then drives every delivery option against the one backend. Needs
+  # docker + cargo; the first run compiles two binaries and downloads Chromium
+  # (`playwright install` is idempotent). ~10s warm, 9 tests.
+  e2e:
+    desc: Browser e2e for the todo vertical (apps/todo/e2e, Playwright)
+    cmds:
+      - cd apps/todo/e2e && bunx playwright install chromium
+      - bun nx e2e todo-e2e
+
+  # Dependency boundaries over the whole nx graph (cargo + TS edges): every edge
+  # must stay inside its `scope:` tag or point at scope:shared. Tags are declared
+  # in tools/nx/scope-tags.ts; this is backlog 1.3 as an executable gate.
+  boundaries:
+    desc: 'Dependency boundaries over the whole nx graph (scope: tags)'
+    cmds:
+      - bun nx graph --file=dist/boundaries-graph.json >/dev/null
+      - bun tools/nx/check-boundaries.ts dist/boundaries-graph.json
+
+  # Platform tool registry drift gate (bun, no nx): every tool in
+  # docs/tooling/registry.toml must still cite paths that exist, every `adopted`
+  # row must name a gate or a declared [[gap]], and every paid tool must carry a
+  # human approval. Contract: .claude/skills/cncf-manager/SKILL.md.
+  tooling-check:
+    desc: Platform tool registry drift gate (docs/tooling/registry.toml)
+    cmds:
+      - bun tools/tooling/check-registry.ts
+
+  # Agent skill adapters: render every runtime's copy from the SKILL.md bodies +
+  # docs/agents/registry.toml (.gemini commands + context, docs/agents/README.md,
+  # docs/agents/skills.html). Contract: tools/agents/gen.ts.
+  agents-gen:
+    desc: Render every agent skill adapter from SKILL.md + docs/agents/registry.toml
+    cmds:
+      - bun tools/agents/gen.ts --write
+
+  # Agent skill drift gate: every registry row still cites paths that exist, has
+  # a gate or a declared [[gap]], and every generated adapter matches what the
+  # registry would render right now. Run `task agents-gen` when it fails.
+  agents-check:
+    desc: 'Agent skill drift gate (run `task agents-gen` when it fails)'
+    cmds:
+      - bun tools/agents/gen.ts --check
+
+  # Hosted-agent export (gitignored dist/agents/): per-skill instruction (capped
+  # at Bedrock's 4000-char limit) + knowledge document for AWS Bedrock and GCP
+  # Vertex AI, plus the upload commands. Creating the agents costs money and is a
+  # human decision — see .claude/skills/cncf-manager/SKILL.md.
+  agents-export:
+    desc: Hosted-agent export (Bedrock / Vertex AI) into dist/agents/
+    cmds:
+      - bun tools/agents/gen.ts --export
+
+  # Freeze the STAGED diff into one review input both pre-commit passes read
+  # (file table + class per file + the gates that diff implies + the diff
+  # itself). Exits 1 on a hard stop (secret-shaped path). Protocol:
+  # .claude/skills/precommit-review/SKILL.md
+  # Usage: task review-bundle [OUT=dist/review/bundle.md]
+  review-bundle:
+    desc: Freeze the STAGED diff into one pre-commit review input (OUT)
+    vars:
+      OUT: '{{.OUT | default "dist/review/bundle.md"}}'
+    cmds:
+      - bun tools/review/bundle.ts --out {{.OUT}}
+
+  outdated-node:
+    desc: npm-check-updates preview across all workspace package.json files (no -u)
+    cmds:
+      - cmd: ncu --workspaces --target latest
+        ignore_error: true
+
+  # Everything zerg-web needs, compose path: `web-deps` (postgres/redis/nats up +
+  # empty DBs seeded), then mprocs with zerg-api + zerg-tasks + zerg-web
+  # (manifests/mprocs/web.yaml — the focused sibling of local.yaml, same env).
+  web:
+    desc: 'Zerg web full stack: web-deps, then mprocs zerg-api + zerg-tasks + zerg-web'
+    interactive: true
+    cmds:
+      - task: web-deps
+      - mprocs -c manifests/mprocs/web.yaml
+
+  # The vite dev server alone (:3000, proxies /api -> :8080) — for when the API
+  # is already running elsewhere.
+  web-only:
+    desc: Zerg web vite dev server only (no API, no infra)
+    cmds:
+      - cd apps/zerg/web && bun run dev
+
+  # Idempotent, non-interactive infra for zerg-web: compose postgres/redis/nats
+  # up, wait for postgres over TCP (the initdb-script server is socket-only, so a
+  # socket pg_isready can pass before the real server starts), then
+  # `db-fresh` every manifests/db/<db> that is missing or has zero user tables.
+  # A DB that already has tables is never reset.
+  web-deps:
+    desc: 'Ensure zerg-web infra: compose postgres/redis/nats + seed missing/empty DBs (idempotent)'
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        docker compose -f manifests/dockers/compose.yaml up -d postgres redis nats
+        echo "Waiting for PostgreSQL..."
+        ready=0
+        for _ in $(seq 1 60); do
+          if docker exec dockers-postgres-1 pg_isready -h 127.0.0.1 -U myuser -d postgres -q 2>/dev/null; then ready=1; break; fi
+          sleep 1
+        done
+        [ "$ready" = 1 ] || { echo "PostgreSQL not ready after 60s (docker logs dockers-postgres-1)" >&2; exit 1; }
+        pgq() { docker exec dockers-postgres-1 psql -U myuser -v ON_ERROR_STOP=1 -tAq "$@"; }
+        summary=""
+        for d in manifests/db/*/; do
+          db=$(basename "$d")
+          if [ -z "$(pgq -d postgres -c "SELECT 1 FROM pg_database WHERE datname = '$db'")" ]; then
+            reason="missing"
+          else
+            n=$(pgq -d "$db" -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+            if [ "$n" -gt 0 ]; then
+              summary="$summary\n  $db: kept ($n tables)"
+              continue
+            fi
+            reason="empty"
+          fi
+          echo "==> $db is $reason; applying with db-fresh"
+          task db-fresh DB="$db"
+          n=$(pgq -d "$db" -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+          summary="$summary\n  $db: seeded, was $reason ($n tables)"
+        done
+        redis=$(docker exec dockers-redis-1 redis-cli ping 2>/dev/null || echo "NOT READY")
+        nats=$(curl -sf http://localhost:8222/healthz >/dev/null && echo ok || echo "NOT READY")
+        printf "web-deps ready:\n  postgres: localhost:5432\n  redis: localhost:6379 (%s)\n  nats: localhost:4222 (%s)\ndatabases:%b\n" "$redis" "$nats" "$summary"
+
+  # Everything zerg-web needs, platform path: the Crossplane DevEnvironment on
+  # the CURRENT kube context. Crossplane core is not installed by this repo (see
+  # the `crossplane` row in docs/tooling/registry.toml) — `web-kind-preflight`
+  # stops before anything is applied when the cluster or the core is missing.
+  # Then: providers/functions/XRDs, the claim NAME (default web), readiness +
+  # schema seed (`web-kind-db`), and mprocs with port-forwards (5434/6380/4223)
+  # plus zerg-api/zerg-web pointed at them (manifests/mprocs/web-kind.yaml).
+  # Usage: task web-kind [NAME=web] [NAMESPACE=default]
+  web-kind:
+    desc: 'Zerg web on kind + Crossplane DevEnvironment NAME (default web): platform, claim, seed, mprocs'
+    interactive: true
+    vars:
+      NAME: '{{.NAME | default "web"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - task: web-kind-preflight
+        vars: { CALLER: web-kind }
+      - task: platform-install
+      - task: env-create
+        vars: { NAME: '{{.NAME}}', NAMESPACE: '{{.NAMESPACE}}' }
+      - task: web-kind-db
+        vars: { NAME: '{{.NAME}}', NAMESPACE: '{{.NAMESPACE}}' }
+      - DEVENV_NAME={{.NAME}} mprocs -c manifests/mprocs/web-kind.yaml
+
+  # Stop with an actionable message when the current kube context is unset or
+  # unreachable (kubectl would otherwise fall back to localhost:8080), or has no
+  # Crossplane core. A cmd, not `preconditions:`, which Task evaluates even
+  # under --dry. CALLER names the task to rerun.
+  web-kind-preflight:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if ! ctx=$(kubectl config current-context 2>/dev/null) || ! kubectl get --raw /readyz --request-timeout=5s >/dev/null 2>&1; then
+          echo "{{.CALLER}}: no reachable Kubernetes cluster on the current kubectl context (${ctx:-none set})." >&2
+          echo "  Create/select one first (e.g. a kind cluster from the cluster bootstrap) and check it with:" >&2
+          echo "    kubectl config current-context && kubectl get nodes" >&2
+          echo "  then rerun: task {{.CALLER}}. Docker-only variant: task web" >&2
+          exit 1
+        fi
+        if ! kubectl get crd providers.pkg.crossplane.io >/dev/null 2>&1; then
+          echo "{{.CALLER}}: Crossplane core is not installed on context $ctx (CRD providers.pkg.crossplane.io missing)." >&2
+          echo "  This repo installs only Crossplane providers/functions/XRDs; the core comes from the cluster" >&2
+          echo "  bootstrap (docs/tooling/registry.toml, row crossplane). Install it there, then rerun: task {{.CALLER}}" >&2
+          exit 1
+        fi
+        echo "{{.CALLER}}: context $ctx reachable, Crossplane core present"
+
+  # Wait for DevEnvironment NAME to be usable (claim Ready, CNPG cluster Ready,
+  # redis + nats rolled out), then apply manifests/db/zerg/{schema,seed}.sql into
+  # the CNPG `app` database AS the `app` role — only when it has no user tables.
+  # psql runs inside the primary pod with the secret's `uri`; the password is
+  # never written to disk. schema.sql needs PostgreSQL 18 (uuidv7()).
+  # Usage: task web-kind-db [NAME=web] [NAMESPACE=default]
+  web-kind-db:
+    desc: 'Wait for DevEnvironment NAME (default web) Ready; seed zerg schema into its CNPG app DB if empty'
+    vars:
+      NAME: '{{.NAME | default "web"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - task: web-kind-preflight
+        vars: { CALLER: web-kind-db }
+      - cmd: |
+          if ! kubectl get devenvironment -n '{{.NAMESPACE}}' '{{.NAME}}' >/dev/null 2>&1; then
+            echo "web-kind-db: no DevEnvironment {{.NAMESPACE}}/{{.NAME}} on this context. Create it with:" >&2
+            echo "    task web-kind NAME={{.NAME}} NAMESPACE={{.NAMESPACE}}   (platform + claim + seed + mprocs)" >&2
+            echo "    devenv create {{.NAME}} NAMESPACE={{.NAMESPACE}}        (claim only; needs task platform-install)" >&2
+            exit 1
+          fi
+        silent: true
+      - |
+        set -euo pipefail
+        name='{{.NAME}}'; ns="devenv-$name"; cluster="cluster.postgresql.cnpg.io/$name-pg"
+        wait_exists() {
+          for _ in $(seq 1 150); do kubectl get "$@" >/dev/null 2>&1 && return 0; sleep 2; done
+          echo "timed out after 300s waiting for: kubectl get $*" >&2; return 1
+        }
+        echo "Waiting for DevEnvironment {{.NAMESPACE}}/$name..."
+        kubectl wait --for=condition=Ready --timeout=600s -n '{{.NAMESPACE}}' "devenvironment/$name"
+        # Claim Ready means the Objects were applied, not that their workloads run.
+        wait_exists -n "$ns" "$cluster"
+        kubectl wait --for=condition=Ready --timeout=600s -n "$ns" "$cluster"
+        wait_exists -n "$ns" deployment/redis
+        kubectl rollout status -n "$ns" deployment/redis --timeout=300s
+        wait_exists -n "$ns" statefulset/nats
+        kubectl rollout status -n "$ns" statefulset/nats --timeout=300s
+        primary=$(kubectl get -n "$ns" "$cluster" -o jsonpath='{.status.currentPrimary}')
+        uri=$(kubectl get secret -n "$ns" "$name-pg-app" -o jsonpath='{.data.uri}' | base64 -d)
+        pg() { kubectl exec -i -n "$ns" "$primary" -c postgres -- psql "$uri" -v ON_ERROR_STOP=1 "$@"; }
+        n=$(pg -tAq -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+        if [ "$n" -gt 0 ]; then
+          echo "$ns/$name-pg app DB: kept ($n tables)"
+          exit 0
+        fi
+        ver=$(pg -tAq -c 'SHOW server_version_num')
+        if [ "$ver" -lt 180000 ]; then
+          echo "$ns/$name-pg runs PostgreSQL $ver; manifests/db/zerg/schema.sql needs 18+ (uuidv7()). Give the CNPG Cluster a PG18 imageName and recreate the env." >&2
+          exit 1
+        fi
+        echo "Applying manifests/db/zerg/{schema,seed}.sql to $ns/$name-pg app DB as role app..."
+        pg -q < manifests/db/zerg/schema.sql
+        pg -q < manifests/db/zerg/seed.sql
+        n=$(pg -tAq -c "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")
+        echo "$ns/$name-pg app DB: seeded ($n tables)"

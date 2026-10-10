@@ -1,0 +1,539 @@
+{
+  "components": {
+    "schemas": {
+      "CreateTodo": {
+        "description": "DTO for creating a todo.",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TodoPriority"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "Standard error response structure.\n\nThis structure is returned for all error responses, providing consistent\nerror information to clients including\n- `code`: Integer error code for logging/monitoring (e.g., 1008)\n- `error`: Machine-readable error identifier (e.g., \"CONFLICT\")\n- `message`: Human-readable error message\n- `details`: Optional additional error details (e.g., validation errors)\n\n# JSON Example\n\n```json\n{\n  \"code\": 1008,\n  \"error\": \"CONFLICT\",\n  \"message\": \"Resource already exists\",\n  \"details\": null\n}\n```",
+        "properties": {
+          "code": {
+            "description": "Integer error code for logging and monitoring",
+            "format": "int32",
+            "type": "integer"
+          },
+          "details": {
+            "description": "Optional structured error details (e.g., validation field errors)"
+          },
+          "error": {
+            "description": "Machine-readable error identifier for programmatic handling",
+            "type": "string"
+          },
+          "message": {
+            "description": "Human-readable error message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "error",
+          "message"
+        ],
+        "type": "object"
+      },
+      "Todo": {
+        "description": "A todo item.",
+        "properties": {
+          "completed": {
+            "description": "Whether the todo is completed",
+            "type": "boolean"
+          },
+          "created_at": {
+            "description": "Creation timestamp (RFC3339)",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "description": "Optional longer description",
+            "type": "string"
+          },
+          "id": {
+            "description": "Unique identifier",
+            "format": "uuid",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TodoPriority",
+            "description": "Priority"
+          },
+          "title": {
+            "description": "Short title",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last update timestamp (RFC3339)",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "completed",
+          "priority",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "TodoPriority": {
+        "description": "Todo priority levels (maps to the Postgres `todo_priority` enum).",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "type": "string"
+      },
+      "UpdateTodo": {
+        "description": "DTO for updating a todo. All fields optional (PATCH semantics).",
+        "properties": {
+          "completed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TodoPriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Todo CRUD + lifecycle REST API (served by todo-api under /api/todos)",
+    "license": {
+      "name": ""
+    },
+    "title": "Todos API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "list_todos",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "completed",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/TodoPriority"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Todo"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "List todos"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "tags": [
+          "todos"
+        ]
+      },
+      "post": {
+        "operationId": "create_todo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTodo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid body"
+          }
+        },
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/{id}": {
+      "delete": {
+        "operationId": "delete_todo",
+        "parameters": [
+          {
+            "description": "Todo id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed id"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such todo"
+          }
+        },
+        "tags": [
+          "todos"
+        ]
+      },
+      "get": {
+        "operationId": "get_todo",
+        "parameters": [
+          {
+            "description": "Todo id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            },
+            "description": "Get a todo"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed id"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such todo"
+          }
+        },
+        "tags": [
+          "todos"
+        ]
+      },
+      "put": {
+        "operationId": "update_todo",
+        "parameters": [
+          {
+            "description": "Todo id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTodo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            },
+            "description": "Updated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid body or id"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such todo"
+          }
+        },
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/{id}/complete": {
+      "post": {
+        "operationId": "complete_todo",
+        "parameters": [
+          {
+            "description": "Todo id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            },
+            "description": "Marked complete"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed id"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such todo"
+          }
+        },
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/{id}/uncomplete": {
+      "post": {
+        "operationId": "uncomplete_todo",
+        "parameters": [
+          {
+            "description": "Todo id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            },
+            "description": "Marked incomplete"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed id"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such todo"
+          }
+        },
+        "tags": [
+          "todos"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "todo-api mount path",
+      "url": "/api/todos"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Todo CRUD + lifecycle operations",
+      "name": "todos"
+    }
+  ]
+}

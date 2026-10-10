@@ -1,2 +1,2 @@
 // @generated
-include!("tasks.rs");
+pub mod v1;

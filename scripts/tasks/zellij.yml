@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Zellij workspace — included by the root Taskfile.yml.
+#
+# The layout (manifests/zellij/nx-playground.kdl) carries no absolute paths, so
+# every pane inherits the cwd of the zellij process: it MUST be started from the
+# repo root. These tasks are the supported way to do that (included tasks always
+# run from the repo root, whatever directory `task` is invoked from).
+#
+# zesh users (zoxide-backed session manager) get the same session with:
+#   zesh connect nx-playground -n "$PWD/manifests/zellij/nx-playground.kdl"
+# — `-n/--new-session-with-layout` is the same flag this task uses, and it is
+# honoured on FIRST create only: zellij ignores a layout when attaching to a
+# session that already exists.
+#
+# Flag trap: `zellij -s NAME -l FILE` does NOT create a session — with `-s`,
+# `--layout` means "append these tabs to the RUNNING session NAME" and dies with
+# "There is no active session!" when it is absent. Creating needs `-n`.
+version: '3'
+
+vars:
+  ZELLIJ_LAYOUT: '{{.ROOT_DIR}}/manifests/zellij/nx-playground.kdl'
+  ZELLIJ_SESSION: nx-playground
+
+tasks:
+  zj:
+    desc: Attach to the repo's zellij workspace, creating it from the layout if needed
+    interactive: true
+    cmds:
+      - |
+        set -euo pipefail
+        if zellij list-sessions --short --no-formatting 2>/dev/null | grep -qx '{{.ZELLIJ_SESSION}}'; then
+            exec zellij attach '{{.ZELLIJ_SESSION}}'
+        fi
+        exec zellij --session '{{.ZELLIJ_SESSION}}' --new-session-with-layout '{{.ZELLIJ_LAYOUT}}'
+
+  zj-kill:
+    desc: Kill + delete the workspace session (compose and the kind cluster keep running)
+    cmds:
+      - zellij delete-session --force '{{.ZELLIJ_SESSION}}'

@@ -1,5 +1,5 @@
 use grpc_client::{TracedChannel, TracingInterceptor};
-use rpc::tasks::tasks_service_client::TasksServiceClient;
+use rpc::tasks::v1::tasks_service_client::TasksServiceClient;
 use tonic::transport::Channel;
 use tonic_health::pb::health_client::HealthClient;
 

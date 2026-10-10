@@ -23,16 +23,23 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
         crate::assets::get_asset,
         crate::assets::list_assets_by_user,
         crate::assets::create_asset,
+        crate::inventory::list_cloud_resources,
+        crate::inventory::get_cloud_resource,
     ),
     components(schemas(
         crate::db::CloudAsset,
         crate::assets::CreateAsset,
         crate::auth::PasswordLogin,
+        domain_cloud_resources::observed::ObservedCloudResource,
+        domain_cloud_resources::ResourceType,
+        domain_cloud_resources::ResourceStatus,
+        domain_cloud_resources::Tag,
     )),
     modifiers(&SecurityAddon),
     tags(
         (name = "auth", description = "Authentication / BFF session endpoints"),
-        (name = "assets", description = "Tenant-scoped cloud inventory")
+        (name = "assets", description = "Tenant-scoped cloud inventory"),
+        (name = "cloud-resources", description = "Read-only cluster-observed cloud inventory")
     )
 )]
 pub struct ApiDoc;
@@ -49,5 +56,35 @@ impl Modify for SecurityAddon {
                 SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new("terran_session"))),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use test_utils::openapi;
+    use utoipa::OpenApi;
+
+    fn document() -> serde_json::Value {
+        openapi::normalized(
+            serde_json::to_value(super::ApiDoc::openapi()).expect("serialize terran openapi doc"),
+        )
+    }
+
+    /// Regenerates the committed OpenAPI v1 document. Same convention as the
+    /// ts-rs `export_bindings_*` tests: running the suite keeps
+    /// `docs/openapi/terran.v1.json` in sync with the handler annotations.
+    #[test]
+    fn export_openapi_terran_v1() {
+        openapi::export(
+            serde_json::to_value(super::ApiDoc::openapi()).expect("serialize terran openapi doc"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/openapi/terran.v1.json"),
+        );
+    }
+
+    /// The `x` CLI derives its command tree from this document alone.
+    #[test]
+    fn document_satisfies_cli_invariants() {
+        openapi::assert_invariants(&document());
     }
 }

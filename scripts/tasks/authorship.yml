@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Commit attribution — `Assisted-by: <agent-id>[:<model>]` trailers checked
+# against libs/core/authorship/agents.json (tools/authorship). Included by the
+# root Taskfile.yml.
+#
+#   task authorship-check [RANGE=<base>..<head>]   validate trailers, one row per commit (CI gate on PRs)
+#   task authorship-report                         whole history, one row per author kind/attribution
+#
+# The local lefthook hooks stamp and enforce the trailer in agent shells; CI
+# can only validate trailers that exist — an agent commit made without the
+# hooks has none and looks human (see the header of tools/authorship/check.ts).
+version: '3'
+
+tasks:
+  authorship-check:
+    desc: 'Validate Assisted-by trailers of the non-merge commits in RANGE (default origin/main..HEAD)'
+    vars:
+      RANGE: '{{.RANGE | default "origin/main..HEAD"}}'
+    cmds:
+      - bun tools/authorship/check.ts range '{{.RANGE}}'
+
+  authorship-report:
+    desc: Attribution summary of the whole history, per author, kind and attribution
+    cmds:
+      - bun tools/authorship/check.ts range HEAD --summary

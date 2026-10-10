@@ -1,0 +1,20 @@
+# Trunk build config. Everything lands at the DIST ROOT — `index.html`,
+# `todo_web_leptos-<hash>.js`, `todo_web_leptos_bg-<hash>.wasm`,
+# `todo-<hash>.css` — with no `assets/` subdirectory, which is where trunk
+# differs from `vite build`. `scripts/bench/*` and `scripts/wrk/web-servers.sh`
+# discover assets accordingly (agreed with the bench harness); do not add a
+# `public_url` or a custom `dist` without telling them.
+[build]
+target = "index.html"
+dist = "dist"
+# Hashed filenames, same cache story as the Solid app's `assets/index-<hash>.js`.
+filehash = true
+
+[serve]
+# 3110/3210/3310 are taken by the Playwright stack (apps/todo/e2e/tests/stack.ts);
+# 3410 keeps `trunk serve` usable while an e2e run is in flight.
+port = 3410
+# Same-origin `/api`, so the dev loop matches the nginx image: no CORS, no
+# absolute origin baked into the wasm.
+[[serve.proxy]]
+backend = "http://127.0.0.1:8080/api"

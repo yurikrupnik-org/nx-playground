@@ -71,7 +71,7 @@ pub use error::{ErrorCategory, ProcessingError};
 pub use job::{Job, JobPriority};
 pub use processor::{FailingProcessor, NoOpProcessor, Processor};
 
-// NATS module (feature-gated)
+// Backend module, feature-gated so a non-NATS consumer links no NATS deps.
 #[cfg(feature = "nats")]
 pub mod nats;
 

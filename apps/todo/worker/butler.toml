@@ -1,0 +1,55 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.service]` shape
+# already states is omitted, and `image`/`name`/`namespace`/`partOf` are injected
+# by butler from the image facts and this app's path.
+[workload]
+component = "worker"
+# A NATS consumer, not a server: nothing dials it, so it gets no Service. The
+# single port below exists only for kubelet probes and Prometheus.
+service = false
+# messaging::nats::HealthServer, not an axum app port — it serves /healthz,
+# /readyz and /metrics on 8091 (see libs/messaging/src/nats/health.rs).
+port = 8091
+portName = "health"
+# The one workload in the repo that really does serve /metrics: HealthServer is
+# built `.with_metrics(...)` in src/lib.rs. The kind default is scrape-off.
+prometheus = true
+# Longer drain than todo-api's: a message being processed should finish rather
+# than be redelivered.
+terminationGracePeriodSeconds = 15
+
+# A queue consumer's cost is its NATS connection plus one in-flight message.
+[workload.resources]
+requests = { memory = "32Mi", cpu = "50m" }
+limits = { memory = "128Mi", cpu = "250m" }
+
+# 12 * 5s = up to 60s to connect to NATS before liveness starts restarting.
+[workload.startupProbe]
+path = "/healthz"
+port = "health"
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 12
+
+[workload.livenessProbe]
+path = "/healthz"
+port = "health"
+
+# /readyz (not /healthz): HealthServer reports NATS connectivity here, so a
+# broker outage shows up as not-ready instead of a restart loop.
+[workload.readinessProbe]
+path = "/readyz"
+port = "health"
+periodSeconds = 5
+
+[[workload.env]]
+name = "NATS_URL"
+value = "nats://nats:4222"
+
+[[workload.env]]
+name = "APP_ENV"
+value = "development"

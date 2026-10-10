@@ -26,7 +26,7 @@
 //! - Health check endpoints for Kubernetes probes
 //! - Prometheus metrics
 
-use core_config::{app_info, Environment};
+use core_config::{Environment, app_info};
 use email::{
     EmailJob, EmailNatsStream, EmailProcessor, SendGridProvider, SmtpProvider, TemplateEngine,
 };
@@ -94,8 +94,8 @@ pub async fn run() -> Result<()> {
 
     info!(
         stream = %worker_config.stream_name,
-        consumer = %worker_config.consumer_name,
-        durable = %worker_config.durable_name,
+        consumer_group = %worker_config.consumer_name,
+        kind = ?worker_config.kind,
         "Worker configuration loaded"
     );
 

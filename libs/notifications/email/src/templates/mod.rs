@@ -86,7 +86,7 @@ fn render_string(template: &str, data: &Value) -> Result<String> {
 
     if let Value::Object(map) = data {
         for (key, value) in map {
-            let placeholder = format!("{{{{{}}}}}", key);
+            let placeholder = format!("{{{{{key}}}}}");
             let replacement = match value {
                 Value::String(s) => s.clone(),
                 Value::Number(n) => n.to_string(),
@@ -150,16 +150,16 @@ impl TemplateEngine {
             .get(name)
             .ok_or_else(|| TemplateError::NotFound(name.to_string()))?;
 
-        let subject = self.handlebars.render(&format!("{}_subject", name), data)?;
+        let subject = self.handlebars.render(&format!("{name}_subject"), data)?;
 
         let body_text = if template.body_text.is_some() {
-            Some(self.handlebars.render(&format!("{}_text", name), data)?)
+            Some(self.handlebars.render(&format!("{name}_text"), data)?)
         } else {
             None
         };
 
         let body_html = if template.body_html.is_some() {
-            Some(self.handlebars.render(&format!("{}_html", name), data)?)
+            Some(self.handlebars.render(&format!("{name}_html"), data)?)
         } else {
             None
         };

@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Documentation tasks — included (flattened) by the root Taskfile.yml.
+#
+# `monodocs` is an EXTERNAL tool: it lives in yurikrupnik/wasm-and-k8s and ships
+# to crates.io, so this workspace consumes the published binary instead of
+# vendoring a copy that drifts (it had already diverged in four files by the time
+# the duplicate was removed). `task docs-install` installs the pinned version;
+# every task below assumes it is on PATH.
+#
+# It discovers every project in the workspace by its manifest (Cargo.toml with a
+# [package], package.json, kcl.mod, nupm.nuon) and renders the project READMEs
+# plus docs/*.md into ONE self-contained HTML file: no CDN, no JS bundler, no
+# server — open the file. Output goes to `dist/`, which is gitignored, so the
+# document is a build artifact and never a diff.
+#
+# `docs-lint` is deliberately NOT in `task verify`: 36 of the 59 discovered
+# projects have no README, so the gate is red by construction today. Wire it in
+# once that backlog is closed; until then it is the worklist itself.
+version: '3'
+
+vars:
+  # Pinned so every machine and CI run renders with the same generator — the
+  # output is byte-deterministic, which is worth nothing if the binary floats.
+  MONODOCS_VERSION: 0.1.0
+
+tasks:
+  docs-install:
+    desc: Install/refresh the pinned monodocs (from crates.io, not this workspace)
+    cmds:
+      - cargo install monodocs --locked --version {{.MONODOCS_VERSION}}
+
+  docs-html:
+    desc: Render every README into dist/docs/index.html
+    cmds:
+      - monodocs build
+
+  # Same, plus rustdoc for the whole workspace under dist/docs/api: each crate's
+  # modules, structs, enums and functions are then listed in the document itself
+  # and linked into the generated reference.
+  docs-html-api:
+    desc: Render every README plus workspace rustdoc (dist/docs/api)
+    cmds:
+      - monodocs build --cargo-doc
+
+  docs-open:
+    desc: Render and open it
+    cmds:
+      - task: docs-html
+      - open dist/docs/index.html
+
+  docs-list:
+    desc: 'What monodocs discovered: project, language, kind, path, documents'
+    cmds:
+      - monodocs list
+
+  # Dead links/anchors, unhighlightable code fences, projects with no README.
+  # `task docs-lint -- --fix` also applies monodocs' formatting subset first.
+  docs-lint:
+    desc: Dead links/anchors, unhighlightable code fences, projects with no README
+    cmds:
+      - monodocs lint {{.CLI_ARGS}}
+
+  # Markdown normalisation is rumdl's (.rumdl.toml), not monodocs': two formatters
+  # over one file fight, and rumdl's 84 rules are a superset of the five
+  # `monodocs fmt` implements. monodocs keeps the checks rumdl cannot make —
+  # `docs-lint` above resolves links/anchors against the rendered document, knows
+  # which fence languages the renderer can highlight, and knows which discovered
+  # projects have no README at all.
+  fmt-docs:
+    desc: Normalise every markdown file (rumdl)
+    cmds:
+      - rumdl fmt .
+
+  # `rumdl fmt --check`, NOT `rumdl check`: the formatter normalises blank lines
+  # around headings, fences and lists whether or not the matching lint rule is
+  # enabled, so `check` alone would pass on files `fmt` would still rewrite.
+  fmt-check-docs:
+    desc: Markdown formatting gate — fails when `fmt-docs` would change a file
+    cmds:
+      - rumdl fmt --check .

@@ -1,0 +1,32 @@
+# Grafana Tempo (single binary) for the kind dev loop — installed by
+# `task observability-up` (scripts/tasks/observability.yml), chart
+# grafana-community/tempo at the version pinned there. Release `tempo` →
+# Service `tempo.monitoring.svc.cluster.local` (HTTP API 3200, OTLP 4317/4318),
+# fed by the otel-collector and read by Grafana's `tempo` datasource. The
+# chart's default receivers stay: its Service template dereferences the jaeger
+# receiver unconditionally, so dropping it fails the render (chart 3.0.0).
+replicas: 1
+
+tempo:
+  # Offline dev cluster: no anonymous usage report to Grafana Labs.
+  reportingEnabled: false
+  # Retention is judged on a block's END time, i.e. the newest span in it. The
+  # insights sync replays CI runs as spans with their ORIGINAL timestamps over
+  # an INSIGHTS_BACKFILL_DAYS=90 window, so a shorter retention would delete a
+  # backfilled trace on the next compaction cycle, before anyone opened it.
+  retention: 2208h # 92 days
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 1Gi
+
+# A small local-path PVC so traces (and the trace links in the CI dashboards)
+# survive a pod restart; `task observability-down` deletes the namespace and
+# with it the claim.
+persistence:
+  enabled: true
+  enableStatefulSetAutoDeletePVC: true
+  storageClassName: standard
+  size: 2Gi

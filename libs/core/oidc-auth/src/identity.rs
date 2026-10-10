@@ -25,10 +25,35 @@ pub struct AuthIdentity {
     pub session_id: Option<String>,
 }
 
+/// Prefix marking a B2C personal workspace's tenant ref.
+pub const PERSONAL_PREFIX: &str = "personal:";
+
 impl AuthIdentity {
     /// True when the principal carries `role`.
     pub fn has_role(&self, role: &str) -> bool {
         self.roles.iter().any(|r| r == role)
+    }
+
+    /// The tenant this principal acts within, as an identity-provider reference.
+    ///
+    /// An `org_id` claim means the IdP organization is the tenant (B2B); no claim
+    /// means the user's own personal workspace (B2C), `personal:{subject}`.
+    ///
+    /// This derivation is authorization-critical and **must** be identical in every
+    /// service that scopes data by tenant - `apps/zerg/tasks` stores it as `org_ref`
+    /// while `apps/zerg/api` mirrors it as `organizations.external_org_id`, and the
+    /// two only agree because they call this one function. Do not reimplement it.
+    pub fn tenant_ref(&self) -> String {
+        match &self.org_id {
+            Some(org) => org.clone(),
+            None => format!("{PERSONAL_PREFIX}{}", self.subject),
+        }
+    }
+
+    /// True when [`Self::tenant_ref`] denotes a personal workspace rather than a
+    /// real IdP organization.
+    pub fn is_personal_tenant(&self) -> bool {
+        self.org_id.is_none()
     }
 }
 

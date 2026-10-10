@@ -13,7 +13,7 @@ use crate::{ErrorCategory, Job, ProcessingError, Processor};
 use async_nats::jetstream::Context;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{watch, Semaphore};
+use tokio::sync::{Semaphore, watch};
 use tracing::{debug, error, info, warn};
 
 /// NATS JetStream worker for processing jobs.
@@ -79,7 +79,6 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
         info!(
             stream = %self.config.stream_name,
             consumer = %self.config.consumer_name,
-            durable = %self.config.durable_name,
             max_concurrent = %self.config.max_concurrent_jobs,
             "Starting NATS worker"
         );
@@ -122,21 +121,48 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
 
     /// Process a batch of messages concurrently.
     ///
-    /// IMPROVEMENT: Uses a semaphore to limit concurrent processing to max_concurrent_jobs.
+    /// Uses a semaphore to limit concurrent processing to max_concurrent_jobs.
     async fn process_batch(&self) -> Result<(), NatsError> {
-        let messages: Vec<NatsMessage<J>> = self.consumer.fetch(self.config.batch_size).await?;
+        let fetched = self.consumer.fetch::<J>(self.config.batch_size).await?;
 
-        if messages.is_empty() {
+        if fetched.is_empty() {
             // No messages, wait before next poll
             tokio::time::sleep(Duration::from_millis(100)).await;
+            self.publish_depth_gauges().await;
             return Ok(());
+        }
+
+        // Poison first: these cannot be processed, only captured and terminated.
+        for poison in fetched.poison {
+            self.metrics.job_received();
+            self.metrics.job_failed("poison");
+
+            error!(
+                subject = %poison.subject,
+                sequence = poison.sequence,
+                error = %poison.error,
+                bytes = poison.raw.len(),
+                "Undeserializable message, moving to DLQ"
+            );
+
+            self.dlq
+                .move_poison_to_dlq(
+                    &poison.raw,
+                    &poison.subject,
+                    &poison.error,
+                    poison.sequence,
+                    poison.delivery_count,
+                )
+                .await?;
+            self.metrics.job_moved_to_dlq();
+            poison.term().await?;
         }
 
         // Create a semaphore to limit concurrent processing
         let semaphore = Arc::new(Semaphore::new(self.config.max_concurrent_jobs));
-        let mut handles = Vec::with_capacity(messages.len());
+        let mut handles = Vec::with_capacity(fetched.jobs.len());
 
-        for message in messages {
+        for message in fetched.jobs {
             self.metrics.job_received();
 
             if message.is_redelivery() {
@@ -148,12 +174,17 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
                 );
             }
 
-            // Clone Arcs for the spawned task
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            // Clone Arcs for the spawned task. `acquire_owned` only fails on a closed
+            // semaphore, and this one lives as long as the worker loop below it.
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("concurrency semaphore is never closed while the worker runs");
             let processor = self.processor.clone();
             let dlq = self.dlq.clone();
             let metrics = self.metrics.clone();
-            let config = self.config.clone();
+            let max_deliver = self.config.max_deliver;
 
             // Spawn concurrent task
             let handle = tokio::spawn(async move {
@@ -162,7 +193,7 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
                     processor.as_ref(),
                     dlq.as_ref(),
                     metrics.as_ref(),
-                    &config,
+                    max_deliver,
                 )
                 .await;
 
@@ -181,7 +212,31 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
             }
         }
 
+        self.publish_depth_gauges().await;
+
         Ok(())
+    }
+
+    /// Publish stream and DLQ depth gauges.
+    ///
+    /// The DLQ gauge is the entire operational answer to "who handles the DLQ": a
+    /// non-zero `nats_worker_dlq_depth` is an alert, and a human decides whether to
+    /// fix and redrive or to discard. There is deliberately no DLQ *consumer* —
+    /// a message lands there only after automatic retry is exhausted, so reprocessing
+    /// it automatically is the same failure on a slower loop.
+    ///
+    /// Depth is refreshed once per batch rather than per message: it is two stream
+    /// info round-trips, and a gauge only needs to be eventually right.
+    async fn publish_depth_gauges(&self) {
+        match self.consumer.stream_info().await {
+            Ok(info) => self.metrics.stream_depth(info.messages),
+            Err(e) => debug!(error = %e, "Could not read stream depth"),
+        }
+        match self.dlq.stream_info().await {
+            Ok(info) => self.metrics.dlq_depth(info.messages),
+            // Absent until the first failure creates it; not worth a warning.
+            Err(e) => debug!(error = %e, "Could not read DLQ depth"),
+        }
     }
 
     /// Process a single message (static method for use in spawned tasks).
@@ -190,16 +245,15 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
         processor: &P,
         dlq: &DlqManager,
         metrics: &NatsMetrics,
-        _config: &WorkerConfig,
+        max_deliver: i64,
     ) -> Result<(), NatsError> {
         let job_id = message.job_id();
         let sequence = message.sequence;
-        let retry_count = message.job.retry_count();
 
         debug!(
             job_id = %job_id,
             sequence = sequence,
-            retry_count = retry_count,
+            delivery_count = message.delivery_count,
             "Processing job"
         );
 
@@ -221,7 +275,7 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
                 );
             }
             Err(e) => {
-                Self::handle_error_inner(message, e, dlq, metrics).await?;
+                Self::handle_error_inner(message, e, dlq, metrics, max_deliver).await?;
             }
         }
 
@@ -229,72 +283,88 @@ impl<J: Job, P: Processor<J> + 'static> NatsWorker<J, P> {
     }
 
     /// Handle a processing error (static method for use in spawned tasks).
+    ///
+    /// The attempt count comes from `message.delivery_count` — the server's counter —
+    /// **not** from the payload. A `nak` asks JetStream to redeliver the *stored*
+    /// bytes, so a counter the consumer increments is discarded on the way out. The
+    /// old code read `job.retry_count()`, which was therefore pinned at 0 forever:
+    /// `should_retry` was always true, the DLQ branch below was unreachable, and
+    /// backoff never grew past its base delay.
     async fn handle_error_inner(
         message: NatsMessage<J>,
         error: ProcessingError,
         dlq: &DlqManager,
         metrics: &NatsMetrics,
+        max_deliver: i64,
     ) -> Result<(), NatsError> {
         let job_id = message.job_id();
-        let retry_count = message.job.retry_count();
+        // `delivery_count` is 1 on first delivery, so retries already made is one less.
+        let retries_made = message.delivery_count.saturating_sub(1);
+        // JetStream stops redelivering after max_deliver attempts and drops the message
+        // with no further notice. If this is the last attempt the server will give us,
+        // the DLQ decision has to happen now regardless of what the category permits —
+        // otherwise a policy that allows more retries than the stream does (RateLimited
+        // permits 5; EMAILS sets max_deliver = 5) loses the message silently.
+        let last_attempt = max_deliver > 0 && i64::from(message.delivery_count) >= max_deliver;
         let category = error.category();
 
-        metrics.job_failed(&format!("{:?}", category));
+        metrics.job_failed(category.as_str());
 
-        match category {
-            ErrorCategory::Permanent => {
-                // Move to DLQ immediately
-                warn!(
-                    job_id = %job_id,
-                    error = %error,
-                    "Permanent error, moving to DLQ"
-                );
-
-                dlq.move_to_dlq(&message.job, &error.to_string(), message.sequence)
-                    .await?;
-
-                metrics.job_moved_to_dlq();
-
-                // Terminate (don't redeliver)
-                message.term().await?;
-            }
+        let give_up = match category {
+            ErrorCategory::Permanent => true,
             ErrorCategory::Transient | ErrorCategory::RateLimited => {
-                if error.should_retry(retry_count) {
-                    // Request redelivery with backoff
-                    let delay_ms = error.backoff_delay_ms(retry_count);
-
-                    warn!(
-                        job_id = %job_id,
-                        error = %error,
-                        retry_count = retry_count,
-                        delay_ms = delay_ms,
-                        "Transient error, will retry"
-                    );
-
-                    metrics.job_retried();
-
-                    // Nak with delay
-                    message
-                        .nak_with_delay(Duration::from_millis(delay_ms))
-                        .await?;
-                } else {
-                    // Max retries exceeded, move to DLQ
-                    error!(
-                        job_id = %job_id,
-                        error = %error,
-                        retry_count = retry_count,
-                        "Max retries exceeded, moving to DLQ"
-                    );
-
-                    dlq.move_to_dlq(&message.job, &error.to_string(), message.sequence)
-                        .await?;
-
-                    metrics.job_moved_to_dlq();
-
-                    // Terminate
-                    message.term().await?;
-                }
+                last_attempt || !error.should_retry(retries_made)
             }
+        };
+
+        if give_up {
+            let reason = if category == ErrorCategory::Permanent {
+                "Permanent error, moving to DLQ"
+            } else if last_attempt {
+                "Final delivery attempt, moving to DLQ"
+            } else {
+                "Max retries exceeded, moving to DLQ"
+            };
+
+            warn!(
+                job_id = %job_id,
+                error = %error,
+                category = category.as_str(),
+                delivery_count = message.delivery_count,
+                max_deliver = max_deliver,
+                "{reason}"
+            );
+
+            dlq.move_to_dlq(
+                &message.job,
+                &message.subject,
+                &error.to_string(),
+                message.sequence,
+                message.delivery_count,
+            )
+            .await?;
+
+            metrics.job_moved_to_dlq();
+
+            // Terminate (don't redeliver)
+            message.term().await?;
+        } else {
+            // Request redelivery with backoff
+            let delay_ms = error.backoff_delay_ms(retries_made);
+
+            warn!(
+                job_id = %job_id,
+                error = %error,
+                delivery_count = message.delivery_count,
+                delay_ms = delay_ms,
+                "Transient error, will retry"
+            );
+
+            metrics.job_retried();
+
+            message
+                .nak_with_delay(Duration::from_millis(delay_ms))
+                .await?;
         }
 
         Ok(())

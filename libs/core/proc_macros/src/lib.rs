@@ -15,13 +15,18 @@ pub use sea_orm_resource::SeaOrmResource;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// The derive (feature `api_resource`) generates exactly this impl; its own
+/// examples live in the `api_resource` crate. Written by hand it needs no feature:
+///
+/// ```
 /// use core_proc_macros::ApiResource;
 ///
-/// #[derive(ApiResource)]
-/// pub struct User {
-///     id: Uuid,
-///     email: String,
+/// pub struct User;
+///
+/// impl ApiResource for User {
+///     const URL: &'static str = "/user";
+///     const COLLECTION: &'static str = "users";
+///     const TAG: &'static str = "Users";
 /// }
 ///
 /// assert_eq!(User::URL, "/user");

@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Tiltfile generation — included by the root Taskfile.yml.
+#
+# The project graph owns the app LIST: tools/nx/tilt-targets.ts (and, for
+# butler, its Rust port — `task graph-check` proves the two graphs agree) infers
+# a `tilt-gen` / `tilt-check` target on every project that ships k8s manifests
+# and has a recognizable kind, so `butler show projects --with-target tilt-gen`
+# IS the app set. butler owns the LOGIC: `docker_build(only=...)` needs the
+# transitive, dev-dependency-excluding cargo closure, which nx's graph cannot
+# express.
+#
+# Run through `butler run-many`, not `bun nx run-many`: these are local-only
+# gates (CI does not run them), so Nx Cloud buys nothing here and butler skips
+# nx's ~1.7 s graph boot.
+#
+# Config, two levels:
+#   butler.toml          repo-wide  (registry, env, image conventions per kind,
+#                        infra port-forwards, shared cluster resources)
+#   <app>/butler.toml    OPTIONAL   (host port, ordering, non-conventional image)
+version: '3'
+
+vars:
+  # Shell snippet spliced into tilt-gen / tilt-check (after `set -euo pipefail`):
+  # sets $tilt_apps to the comma-separated project roots of every project with a
+  # `tilt-gen` target. One graph read, so the list cannot disagree with what
+  # `run-many` executed. A snippet rather than a helper task because go-task
+  # `internal` tasks cannot be called from a nested `$(task ...)`.
+  TILT_APPS_SH: |
+    tilt_apps=$(cargo run --quiet -p butler -- graph --json | jq -r '[.graph.nodes[] | select(.data.targets["tilt-gen"]) | .data.root] | sort | join(",")')
+
+tasks:
+  # Regenerate every Tiltfile: per-app through butler (cached), then the root
+  # Tiltfile from exactly the app set the graph reported.
+  tilt-gen:
+    desc: Regenerate every Tiltfile (per-app through butler, then the root Tiltfile)
+    cmds:
+      - |
+        set -euo pipefail
+        cargo run --quiet -p butler -- run-many -t tilt-gen
+        {{.TILT_APPS_SH}}
+        cargo run --quiet -p butler -- tilt gen --root --apps "$tilt_apps"
+
+  tilt-gen-app:
+    desc: "Regenerate one app's Tiltfile (butler, cached): task tilt-gen-app APP=<project>"
+    requires:
+      vars: [APP]
+    cmds:
+      - cargo run --quiet -p butler -- run-many -t tilt-gen -p {{.APP}}
+
+  tilt-check:
+    desc: Fail if any Tiltfile has drifted from the generator (part of `task verify`)
+    cmds:
+      - |
+        set -euo pipefail
+        cargo run --quiet -p butler -- run-many -t tilt-check
+        {{.TILT_APPS_SH}}
+        cargo run --quiet -p butler -- tilt gen --root --check --apps "$tilt_apps"

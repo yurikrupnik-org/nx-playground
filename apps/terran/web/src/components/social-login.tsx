@@ -1,4 +1,4 @@
-import { useAuth } from '../lib/auth-context';
+import { useAuth } from '../lib/auth';
 
 const BTN =
   'w-full rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50';

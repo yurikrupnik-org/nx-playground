@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# devenv — the DevEnvironment CLI (Crossplane claim → postgres + redis + nats).
+#
+# One Taskfile, two front ends:
+#   devenv create myenv                       # bin/devenv: `devenv <verb> [NAME] [VAR=value ...]`
+#   task env-create NAME=myenv                # flattened into the root Taskfile.yml
+# `devenv <verb>` runs task `env-<verb>` from this file; a bare word becomes NAME.
+#
+# The pre-made development configuration lives in presets/<name>.yaml; `create`
+# applies presets/default.yaml unless PRESET= names another one. Every task
+# takes NAME (default demo) and NAMESPACE (default default). The XRD and
+# composition must be installed first: `task platform-install` (once per cluster).
+version: '3'
+
+vars:
+  PRESETS_DIR: '{{.TASKFILE_DIR}}/presets'
+
+tasks:
+  env-presets:
+    desc: List the pre-made environment presets and the parameters each one sets
+    silent: true
+    cmds:
+      - |
+        for f in '{{.PRESETS_DIR}}'/*.yaml; do
+          printf '%-12s %s\n' "$(basename "$f" .yaml)" "$(yq -o=json -I=0 '.spec.parameters' "$f")"
+        done
+
+  env-create:
+    desc: 'Create (or update) a dev environment from a preset (PRESET, default: default)'
+    silent: true
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+      PRESET: '{{.PRESET | default "default"}}'
+    preconditions:
+      - sh: test -f '{{.PRESETS_DIR}}/{{.PRESET}}.yaml'
+        msg: 'no preset "{{.PRESET}}" in {{.PRESETS_DIR}} — list them with: devenv presets'
+    cmds:
+      - |
+        set -eo pipefail
+        # The claim's namespace (a team/user namespace), not devenv-<name>: that one the composition owns.
+        kubectl create namespace '{{.NAMESPACE}}' --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+        NAME='{{.NAME}}' NAMESPACE='{{.NAMESPACE}}' \
+          yq '.metadata.name = strenv(NAME) | .metadata.namespace = strenv(NAMESPACE)' '{{.PRESETS_DIR}}/{{.PRESET}}.yaml' \
+          | kubectl apply -f -
+
+  env-status:
+    desc: Claim + composed resource status for one environment
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - kubectl get devenvironment -n {{.NAMESPACE}} {{.NAME}} -o wide
+      - cmd: kubectl get objects.kubernetes.crossplane.io,releases.helm.crossplane.io -l crossplane.io/claim-name={{.NAME}}
+        ignore_error: true
+      - cmd: kubectl get pods -n devenv-{{.NAME}}
+        ignore_error: true
+
+  # Same values the SDKs' `connection()` returns, as dotenv lines under the names
+  # the apps read. Hosts are cluster-internal (*.svc.cluster.local): use them from
+  # pods, or port-forward from the laptop. Disabled services print nothing.
+  #   devenv connection myenv > .env.devenv
+  env-connection:
+    desc: Print DATABASE_URL / REDIS_HOST / NATS_URL for a Ready environment
+    silent: true
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - |
+        set -eo pipefail
+        env=$(kubectl get devenvironment -n '{{.NAMESPACE}}' '{{.NAME}}' -o json | jq -c '.status.environment // empty')
+        if [ -z "$env" ]; then
+          echo "{{.NAMESPACE}}/{{.NAME}} has no status.environment yet — check: devenv status {{.NAME}}" >&2
+          exit 1
+        fi
+        field() { printf '%s' "$env" | jq -r --arg k "$1" '.[$k] // empty'; }
+        ns=$(field namespace)
+        secret=$(field postgresSecret)
+        if [ -n "$secret" ]; then
+          printf 'DATABASE_URL=%s\n' "$(kubectl get secret -n "$ns" "$secret" -o jsonpath='{.data.uri}' | base64 -d)"
+        fi
+        redis=$(field redisHost)
+        if [ -n "$redis" ]; then printf 'REDIS_HOST=redis://%s\n' "$redis"; fi
+        nats=$(field natsUrl)
+        if [ -n "$nats" ]; then printf 'NATS_URL=%s\n' "$nats"; fi
+
+  env-delete:
+    desc: Tear an environment down (namespace included)
+    vars:
+      NAME: '{{.NAME | default "demo"}}'
+      NAMESPACE: '{{.NAMESPACE | default "default"}}'
+    cmds:
+      - kubectl delete devenvironment -n {{.NAMESPACE}} {{.NAME}}
+
+  env-list:
+    desc: List all dev environments across namespaces
+    cmds:
+      - kubectl get devenvironments -A

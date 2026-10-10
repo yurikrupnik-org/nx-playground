@@ -3,11 +3,12 @@ use axum::{Extension, Router, middleware};
 use axum_helpers::RateLimitTier;
 
 pub mod auth;
+pub mod catalog;
 pub mod cloud_resources;
 pub mod health;
+pub mod org;
 pub mod projects;
 pub mod tasks;
-pub mod tasks_direct;
 pub mod users;
 pub mod vector;
 
@@ -57,6 +58,10 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         state.config.cookie_name.clone(),
     );
     let auth_mw = || middleware::from_fn_with_state(auth_layer.clone(), oidc_auth::auth_required);
+    // Tenant context: resolves org/user scope from the verified identity; MUST sit
+    // inside auth_mw (innermost) so AuthIdentity is already in extensions.
+    let tenant_mw =
+        || middleware::from_fn_with_state(state.clone(), crate::orgs::tenant_context_mw);
     // CSRF double-submit on cookie-authed mutations; safe methods and Bearer are exempt.
     let csrf_cfg = axum_helpers::CsrfConfig::new("csrf_token");
     let csrf_mw = || middleware::from_fn_with_state(csrf_cfg.clone(), axum_helpers::csrf_protect);
@@ -88,14 +93,16 @@ pub fn routes(state: &crate::state::AppState) -> Router {
         .nest(
             "/tasks",
             tasks::router(state.clone())
+                .layer(tenant_mw())
                 .layer(rl_layer())
                 .layer(Extension(standard.clone()))
                 .layer(auth_mw())
                 .layer(csrf_mw()),
         )
         .nest(
-            "/tasks-direct",
-            tasks_direct::router(state)
+            "/org",
+            org::router(state)
+                .layer(tenant_mw())
                 .layer(rl_layer())
                 .layer(Extension(standard.clone()))
                 .layer(auth_mw())
@@ -126,11 +133,27 @@ pub fn routes(state: &crate::state::AppState) -> Router {
                 .layer(csrf_mw()),
         );
 
+    // Dev-only data catalog: introspects every database on the server, so it is
+    // never mounted outside development (production answers 404).
+    let router = if state.config.environment.is_development() {
+        router.nest(
+            "/catalog",
+            catalog::router(state)
+                .layer(rl_layer())
+                .layer(Extension(standard.clone()))
+                .layer(auth_mw())
+                .layer(csrf_mw()),
+        )
+    } else {
+        router
+    };
+
     // Add vector routes with stricter tier if Qdrant is configured
     if let Some(vector_router) = vector::router(state) {
         router.nest(
             "/vector",
             vector_router
+                .layer(tenant_mw())
                 .layer(rl_layer())
                 .layer(Extension(vector_tier))
                 .layer(auth_mw())
@@ -141,14 +164,16 @@ pub fn routes(state: &crate::state::AppState) -> Router {
     }
 }
 
-/// Creates a router with the /ready endpoint that performs actual health checks.
+/// Creates a router with the /ready and /upstreams endpoints.
 ///
 /// This router has state applied and can be merged with the stateless app router
-/// from `create_router`. The /ready endpoint checks database and redis connections.
+/// from `create_router`. `/ready` checks only what this process owns (database,
+/// redis); `/upstreams` reports downstream reachability without gating on it.
 pub fn ready_router(state: crate::state::AppState) -> Router {
     use axum::routing::get;
 
     Router::new()
         .route("/ready", get(health::ready_handler))
+        .route("/upstreams", get(health::upstreams_handler))
         .with_state(state)
 }

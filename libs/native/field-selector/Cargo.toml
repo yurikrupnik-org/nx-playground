@@ -1,0 +1,27 @@
+[package]
+name = "field_selector_napi"
+description = "Node addon (N-API) exposing runtime-schema field selection with role-based access control"
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+crate-type = ['cdylib']
+# A cdylib-only addon cannot link a Rust test harness (node supplies the N-API
+# symbols at load time), so behaviour is covered from Node in `__test__/`.
+test = false
+doctest = false
+
+[dependencies]
+field-selector = { workspace = true }
+napi = { workspace = true }
+napi-derive = { workspace = true }
+serde_json = { workspace = true }
+
+[build-dependencies]
+napi-build = { workspace = true }
+
+[lints]
+workspace = true

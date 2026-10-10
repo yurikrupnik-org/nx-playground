@@ -13,13 +13,13 @@ Simple shutdown implementations have several issues:
 
 ## What Happens During Shutdown
 
-### With Axum's `with_graceful_shutdown()`:
+### With Axum's `with_graceful_shutdown()`
 
 1. **Stop accepting new connections** - No new TCP connections accepted
 2. **Wait for current requests** - Existing HTTP requests complete
 3. **BUT**: No timeout, no cleanup, connections left open
 
-### With Our Production Solution:
+### With Our Production Solution
 
 1. **Signal received** (SIGTERM/SIGINT)
 2. **Shutdown coordinator notifies all subsystems**
@@ -30,7 +30,7 @@ Simple shutdown implementations have several issues:
 
 ## Shutdown Sequence Details
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │  1. SIGTERM/SIGINT received                         │
 └──────────────────┬──────────────────────────────────┘
@@ -76,6 +76,7 @@ db.close().await?;
 ```
 
 **What happens if you don't close:**
+
 - Connections left in ESTABLISHED state
 - PostgreSQL may keep connections in `pg_stat_activity`
 - Connection pool resources not freed
@@ -90,6 +91,7 @@ drop(redis);
 ```
 
 **What happens if you don't close:**
+
 - Connection left open in Redis
 - Redis may eventually timeout (default: 300s)
 - ConnectionManager will close on drop, but explicit drop in cleanup is cleaner
@@ -252,6 +254,7 @@ spec:
 | Production  | 30-60s           | 90-120s                  |
 
 **Why 30-60s for production?**
+
 - Most HTTP requests complete in < 5s
 - Database transactions complete in < 10s
 - Long-running queries should use background jobs
@@ -261,7 +264,7 @@ spec:
 
 Log what to watch for:
 
-```
+```text
 ✓ Good shutdown:
   INFO Received SIGTERM, initiating graceful shutdown
   INFO Starting cleanup tasks (timeout: 30s)
@@ -306,16 +309,19 @@ redis-cli CLIENT LIST
 ### Issue: Cleanup exceeds timeout
 
 **Symptoms:**
-```
+
+```text
 WARN Cleanup exceeded timeout of 30s, forcing shutdown
 ```
 
 **Causes:**
+
 - Long-running database queries
 - Slow network to database
 - Deadlocked transaction
 
 **Solutions:**
+
 - Increase timeout
 - Cancel long-running queries on shutdown signal
 - Use shorter statement timeouts
@@ -323,14 +329,17 @@ WARN Cleanup exceeded timeout of 30s, forcing shutdown
 ### Issue: Database "too many connections"
 
 **Symptoms:**
+
 - Next startup fails with "too many connections"
 - Old connections visible in `pg_stat_activity`
 
 **Causes:**
+
 - Application crashed without cleanup
 - Connections not properly closed
 
 **Solutions:**
+
 - Always use `create_production_app` in production
 - Set reasonable `max_connections` in PostgreSQL
 - Configure connection pool properly
@@ -338,13 +347,16 @@ WARN Cleanup exceeded timeout of 30s, forcing shutdown
 ### Issue: Requests fail during shutdown
 
 **Symptoms:**
+
 - 502/503 errors during deployment
 
 **Causes:**
+
 - Load balancer sends requests after SIGTERM
 - No `preStop` hook delay
 
 **Solutions:**
+
 - Add `preStop` sleep (5-10s)
 - Ensure `terminationGracePeriodSeconds` > shutdown timeout
 - Use readiness probe to stop traffic before shutdown

@@ -1,6 +1,7 @@
 use axum_helpers::{AppError, impl_into_response_via_app_error};
 use thiserror::Error;
 use uuid::Uuid;
+use validator::ValidationErrors;
 
 #[derive(Debug, Error)]
 pub enum UserError {
@@ -13,11 +14,12 @@ pub enum UserError {
     #[error("User with email '{0}' already exists")]
     DuplicateEmail(String),
 
-    #[error("Invalid input: {0}")]
-    Validation(String),
-
+    // #[error("Invalid input: {0}")]
+    // Validation(String),
     #[error("Database error")]
     Database(#[from] sea_orm::DbErr),
+    #[error("Invalid input validation: {0}")]
+    Validation(#[from] ValidationErrors),
 
     #[error("Redis error")]
     Redis(#[from] redis::RedisError),
@@ -41,7 +43,7 @@ impl From<UserError> for AppError {
             UserError::DuplicateEmail(email) => {
                 AppError::Conflict(format!("User with email '{email}' already exists"))
             }
-            UserError::Validation(msg) => AppError::BadRequest(msg),
+            UserError::Validation(errors) => AppError::BadRequest(errors.to_string()),
             UserError::Database(source) => {
                 tracing::error!(source = %source, "Database error");
                 AppError::InternalServerError("An internal error occurred".to_string())

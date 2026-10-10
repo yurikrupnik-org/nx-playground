@@ -1,0 +1,67 @@
+---
+// Shared shell: theme + nav + the flag/identity chrome. Both variants render
+// the exact same todo DOM (class names from libs/ui/todo-theme), so any visual
+// diff is a bug.
+//
+// Flags are resolved once per request in each page's frontmatter (todo-api is
+// the only evaluation point) and handed here for display, so every page —
+// including the 503 "app disabled" page — shows who is being evaluated and
+// lets the visitor switch identity.
+import '../../../../../libs/ui/todo-theme/todo.css';
+import type { FlagSet } from '../lib/api';
+import { renderFlagStrip, renderIdentityForm } from '../lib/fragments';
+
+interface Props {
+  title: string;
+  identity: string | null;
+  flags: FlagSet;
+}
+
+const { title, identity, flags } = Astro.props;
+const links = [
+  ['/', 'Compare'],
+  ['/solid', 'Solid island'],
+  ['/htmx', 'HTML + htmx'],
+] as const;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <nav class="site-nav">
+      {links.map(([href, label]) => (
+        <a href={href} aria-current={Astro.url.pathname === href ? 'page' : undefined}>{label}</a>
+      ))}
+    </nav>
+    <section class="todo-app" aria-label="feature flags">
+      <Fragment set:html={renderFlagStrip(flags)} />
+      <Fragment set:html={renderIdentityForm(identity)} />
+    </section>
+    <slot />
+  </body>
+</html>
+
+<style>
+  .site-nav {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+  .site-nav a {
+    color: inherit;
+    text-decoration: none;
+    opacity: 0.7;
+  }
+  .site-nav a:hover,
+  .site-nav a[aria-current='page'] {
+    opacity: 1;
+    text-decoration: underline;
+  }
+</style>

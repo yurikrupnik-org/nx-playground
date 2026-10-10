@@ -1,12 +1,15 @@
 [package]
 name = "core_retry"
+description = "Async retry with exponential backoff and jitter"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
-
-[lints]
-workspace = true
 
 [dependencies]
 rand = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+# Atlas Operator Installation
+#
+# The operator is installed via Helm. This kustomization just creates the namespace.
+#
+# Install the operator:
+#   helm install atlas-operator oci://ghcr.io/ariga/charts/atlas-operator \
+#     --namespace atlas-operator \
+#     --create-namespace
+#
+# Or with ArgoCD:
+#   Use the Helm chart directly in an Application
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml

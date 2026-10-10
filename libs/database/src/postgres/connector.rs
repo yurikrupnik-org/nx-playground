@@ -151,7 +151,7 @@ pub async fn connect_from_config_with_retry(
 }
 
 // Note: Migrations live per-DB under manifests/db/<db>/migrations
-// Run `just migrate <db>` (sqlx) to apply them
+// Run `task migrate DB=<db>` (sqlx) to apply them
 
 #[cfg(test)]
 mod tests {

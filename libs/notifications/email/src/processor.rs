@@ -5,10 +5,10 @@
 //!
 //! IMPROVEMENT: Removed Redis StreamProcessor - this is now NATS-only.
 
+use crate::Email;
 use crate::job::{EmailJob, EmailType};
 use crate::provider::{EmailProvider, SendResult};
 use crate::templates::TemplateEngine;
-use crate::Email;
 use messaging::ProcessingError;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -68,7 +68,7 @@ impl<P: EmailProvider> EmailProcessor<P> {
             let rendered = self
                 .templates
                 .render(name, &job.template_vars)
-                .map_err(|e| ProcessingError::permanent(format!("Template error: {}", e)))?;
+                .map_err(|e| ProcessingError::permanent(format!("Template error: {e}")))?;
 
             (rendered.subject, rendered.body_text, rendered.body_html)
         } else {
@@ -98,7 +98,6 @@ impl<P: EmailProvider> EmailProcessor<P> {
         }
 
         email.priority = job.priority.clone();
-        email.retry_count = job.retry_count;
 
         Ok(email)
     }

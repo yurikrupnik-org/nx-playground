@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# ============================================================================
+# Nushell — the one scripting language besides the task shell itself.
+#
+# bash: go-task runs every `cmds:` entry through its built-in interpreter
+# (mvdan/sh), which covers the bash this repo uses (`set -euo pipefail`,
+# `[[ ]]`, arrays, `<(...)`, `trap ... EXIT`). Write it inline; no shebang (a
+# `#!/usr/bin/env bash` line is just a comment there). Scripts too long for
+# YAML go in scripts/<area>/<name>.sh and are called as `bash scripts/...`.
+#
+# nu: go-task cannot hand a block to another shell (no interpreter/shebang
+# option upstream: go-task/task#448, #1292), so nu is NEVER inline. It lives in
+# scripts/<area>/<name>.nu with a `def main [...]` signature and the task calls
+# it:
+#
+#   my-task:
+#     desc: ...
+#     cmds:
+#       - nu --no-config-file scripts/<area>/<name>.nu {{.NAME | shellQuote}} {{.CLI_ARGS}}
+#
+#   - `--no-config-file` always: a command, alias or $env from someone's
+#     config.nu/env.nu must not change what a task does, or local stops
+#     matching CI.
+#   - Named task vars become `main` arguments; the `.env` vars that go-task's
+#     `dotenv` loads arrive as `$env.X`, like in any other task.
+#   - `lint-nu` (in `lint`, so in `check`) parses and type-checks every .nu
+#     file without running it.
+# ============================================================================
+version: '3'
+
+tasks:
+  lint-nu:
+    desc: Parse + type-check every .nu script without running it (nu --ide-check)
+    cmds:
+      - nu --no-config-file scripts/nu/ide-check.nu

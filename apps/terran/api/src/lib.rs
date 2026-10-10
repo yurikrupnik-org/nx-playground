@@ -10,6 +10,7 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod health;
+pub mod inventory;
 pub mod openapi;
 pub mod provisioning;
 pub mod state;
@@ -34,6 +35,12 @@ use crate::state::AppState;
 
 /// Build application state: DB pool, Redis, OIDC provider + verifier, session store.
 pub async fn build_state(config: Config) -> eyre::Result<AppState> {
+    // Both rustls backends are linked (aws-lc-rs via jsonwebtoken, ring via
+    // hyper-rustls), so rustls cannot pick one itself and panics on first TLS
+    // use. Install aws-lc-rs — the backend jsonwebtoken already requires.
+    // Idempotent: a second call (e.g. per-test) returns Err, which is fine.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     let db = db::connect(&config.database_url).await?;
     let manager = database::redis::connect(&config.redis_url).await?;
     let sessions = Arc::new(RedisSessionStore::from_manager(manager.clone(), "terran"));
@@ -53,6 +60,16 @@ pub async fn build_state(config: Config) -> eyre::Result<AppState> {
     verifier_config.audience = config.oidc_audience.clone();
     let verifier = Arc::new(OidcVerifier::new(verifier_config));
 
+    // Optional dependency: the API is fully usable without cluster access, the
+    // inventory endpoints just report 503.
+    let inventory = match domain_cloud_resources::observed::K8sInventory::try_default().await {
+        Ok(client) => Some(Arc::new(client)),
+        Err(e) => {
+            tracing::warn!(error = %e, "no cluster access — cloud-resource inventory disabled");
+            None
+        }
+    };
+
     Ok(AppState {
         config: Arc::new(config),
         db,
@@ -61,6 +78,7 @@ pub async fn build_state(config: Config) -> eyre::Result<AppState> {
         sessions,
         provider,
         verifier,
+        inventory,
     })
 }
 
@@ -89,6 +107,14 @@ pub fn api_routes(state: AppState) -> Router {
         .route(
             "/assets/by-user/{user_id}",
             routing::get(assets::list_assets_by_user),
+        )
+        .route(
+            "/cloud-resources",
+            routing::get(inventory::list_cloud_resources),
+        )
+        .route(
+            "/cloud-resources/{id}",
+            routing::get(inventory::get_cloud_resource),
         )
         .route_layer(from_fn_with_state(auth_layer, oidc_auth::auth_required));
 

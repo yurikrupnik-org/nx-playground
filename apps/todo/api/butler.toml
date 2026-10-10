@@ -1,0 +1,74 @@
+# Tilt/k8s config for this app. Repo-wide defaults live in the root butler.toml.
+# Image build inputs are NOT here: they follow the repo convention in the root
+# butler.toml, which also drives this app's nx `container`/`scan` targets.
+
+# The k8s workload, rendered by the `app` KCL package. This table is the whole
+# app-local k8s surface: everything the root `[workloadDefaults.service]` shape
+# already states is omitted, and `image`/`name`/`namespace`/`partOf` are injected
+# by butler from the image facts and this app's path.
+[workload]
+# "backend", not the kind default "api-server": this is the label the todo
+# vertical's Deployment has always carried.
+component = "backend"
+# Stateless HTTP: in-flight requests finish well inside 10s, so a shorter drain
+# than the kind default 30 is honest about it.
+terminationGracePeriodSeconds = 10
+
+# Smaller than the service default: an axum binary with a Postgres pool idles
+# tiny, and 500m of burst covers request spikes without reserving it.
+[workload.resources]
+requests = { memory = "32Mi", cpu = "50m" }
+limits = { memory = "128Mi", cpu = "500m" }
+
+# /healthz (see src/main.rs) — this app serves no /health or /ready.
+# 12 * 5s = up to 60s for the pool to reach Postgres before liveness restarts it.
+[workload.startupProbe]
+path = "/healthz"
+port = "http"
+initialDelaySeconds = 2
+periodSeconds = 5
+failureThreshold = 12
+
+[workload.livenessProbe]
+path = "/healthz"
+port = "http"
+
+[workload.readinessProbe]
+path = "/healthz"
+port = "http"
+periodSeconds = 5
+
+# Local kind dev creds, from the in-cluster Postgres in
+# manifests/kustomize/todo/postgres.yaml. `optional = false` keeps the kustomize
+# behaviour: the pod must not start without a database URL.
+[[workload.env]]
+name = "DATABASE_URL"
+secretName = "todo-api-env"
+secretKey = "database_url"
+optional = false
+
+[[workload.env]]
+name = "NATS_URL"
+value = "nats://nats:4222"
+
+[[workload.env]]
+name = "APP_ENV"
+value = "development"
+
+# The Secret the env var above reads. It replaces the kustomize secretGenerator
+# and has to ride along as an extra manifest: the package's `config` renders a
+# ConfigMap and its `externalSecret` talks to GCP Secret Manager, so a literal
+# in-cluster Secret has no schema of its own. Plaintext by design and local-kind
+# only — the same throwaway creds as manifests/kustomize/todo/postgres.yaml.
+# `extraManifests` is verbatim pass-through, so it carries its own namespace.
+[[workload.extraManifests]]
+apiVersion = "v1"
+kind = "Secret"
+type = "Opaque"
+
+[workload.extraManifests.metadata]
+name = "todo-api-env"
+namespace = "todo"
+
+[workload.extraManifests.stringData]
+database_url = "postgres://todo:todo@postgres:5432/todo"

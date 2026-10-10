@@ -1,0 +1,39 @@
+# One HTML file out of docs/*.md — `task docs` (PDF: `task docs-pdf`).
+#
+# The sidebar is derived from the directory tree, so a new docs/<topic>.md is a
+# new page with no edit here. Titles come from each file's H1, which is why the
+# H1s read as navigation entries ("Crossplane estate", not "estate.md").
+#
+# Reference: https://kuttsun.github.io/monodocs/docs/configuration
+
+title: "nx-playground"
+lang: en
+
+input: ./docs
+
+output:
+  format: html
+  path: ./dist/da/docs.html
+
+sidebar:
+  # Flat directory today; a folder added under docs/ becomes a collapsible group.
+  mode: folder
+  titleFrom: heading
+
+toc:
+  maxLevel: 3
+
+mermaid:
+  enabled: true
+  # client/inline keeps the output a single self-contained file with no CDN and
+  # no Chromium at build time. `pre-render` would bake the SVGs in, at the cost
+  # of a browser on every machine that builds the HTML.
+  mode: client
+  runtime: inline
+
+html:
+  colorScheme: auto
+
+pdf:
+  pageSize: A4
+  bookmarks: true

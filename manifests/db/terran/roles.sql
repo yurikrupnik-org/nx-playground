@@ -4,7 +4,7 @@
 -- Security policies in schema.sql actually take effect: superusers and table owners
 -- otherwise bypass RLS, which silently disables the tenant-isolation safety net.
 --
--- Applied by `just db-fresh terran` after schema.sql. In the CNPG cluster the app
+-- Applied by `task db-fresh DB=terran` after schema.sql. In the CNPG cluster the app
 -- connects as the managed `terran` role (a non-superuser DB owner; FORCE RLS applies).
 
 DO $$

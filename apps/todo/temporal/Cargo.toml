@@ -1,0 +1,48 @@
+[package]
+name = "todo_temporal"
+publish = false
+# Concrete, not `version.workspace = true`: .github/workflows/release.yml reads and
+# sed-bumps this literal line for every project with a container target.
+version = "0.1.0"
+edition.workspace = true
+description = "Todo lifecycle on Temporal: workflow-as-entity worker + starter, publishing todos.> events to NATS JetStream"
+
+# Named by no `use` in this crate, yet all three are required to compile: the
+# `#[workflow]` / `#[workflow_methods]` / `#[activities]` attribute macros from
+# `temporalio-macros` expand to absolute `::futures::`, `::temporalio_common::`
+# and `::temporalio_workflow::` paths. Dropping any one of them fails
+# `cargo check -p todo_temporal --all-targets` (E0432/E0433/E0599/E0277), so
+# cargo-machete's source-heuristic verdict is wrong here.
+[package.metadata.cargo-machete]
+ignored = ["futures", "temporalio-common", "temporalio-workflow"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "todo_temporal"
+path = "src/main.rs"
+
+[[bin]]
+name = "todo_temporal_starter"
+path = "src/starter.rs"
+
+[dependencies]
+chrono = { workspace = true }
+core_config = { workspace = true }
+domain_todo = { workspace = true }
+eyre = { workspace = true }
+futures = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+serde = { workspace = true }
+temporalio-client = { workspace = true }
+temporalio-common = { workspace = true }
+temporalio-macros = { workspace = true }
+temporalio-sdk = { workspace = true }
+temporalio-workflow = { workspace = true }
+tokio = { workspace = true, features = ["full", "signal"] }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

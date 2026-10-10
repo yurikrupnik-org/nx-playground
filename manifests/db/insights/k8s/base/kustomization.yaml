@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace omitted on purpose — Flux's parent Kustomization sets targetNamespace.
+
+resources:
+  - migrations-configmap.yaml
+  - atlas-migration.yaml

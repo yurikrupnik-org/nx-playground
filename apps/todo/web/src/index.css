@@ -1,1 +1,34 @@
 @import "../../../../libs/ui/todo-theme/todo.css";
+
+/*
+ * SPA-only styles. Deliberately not in the shared theme: web-astro and web-htmx
+ * import that file and publish byte counts, so they must not carry the SPA's
+ * router chrome.
+ */
+.app-nav {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 1.5rem auto 0;
+  max-width: 32rem;
+}
+
+.app-nav__link {
+  border: 1px solid var(--todo-border);
+  border-radius: 0.5rem;
+  color: var(--todo-muted);
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+  text-decoration: none;
+}
+
+.app-nav__link:hover {
+  border-color: var(--todo-accent);
+  color: var(--todo-accent);
+}
+
+.app-nav__link--active {
+  background: var(--todo-accent);
+  border-color: var(--todo-accent);
+  color: #fff;
+}

@@ -1,0 +1,33 @@
+[package]
+name = "domain_insights"
+publish = false
+version.workspace = true
+edition.workspace = true
+description = "CI / shell observability + developer insights: GitHub Actions + commits sync, CI artifact ingestion, TASKGRAPH warehouse, historical OTLP traces and the insights Postgres store"
+
+[dependencies]
+async-nats = { workspace = true }
+chrono = { workspace = true }
+contract_taskgraph = { workspace = true }
+core_authorship = { workspace = true }
+domain_taskgraph = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+opentelemetry = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls"] }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+zip = { workspace = true }
+
+[dev-dependencies]
+test-utils = { workspace = true, features = ["nats"] }
+
+[lints]
+workspace = true

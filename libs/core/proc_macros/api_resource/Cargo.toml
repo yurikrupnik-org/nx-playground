@@ -1,15 +1,16 @@
 [package]
 name = "api_resource"
+description = "ApiResource derive macro for REST API resource trait implementations"
+license.workspace = true
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
-
-[lints]
-workspace = true
 
 [lib]
 proc-macro = true
 
 [dependencies]
+core_strings = { workspace = true }
 darling = { workspace = true }
 pluralizer = { workspace = true }
 proc-macro2 = { workspace = true }
@@ -19,6 +20,9 @@ syn = { workspace = true }
 [dev-dependencies]
 core_proc_macros = { workspace = true, features = ["api_resource"] }
 trybuild = { workspace = true }
+
+[lints]
+workspace = true
 
 [[test]]
 name = "tests"

@@ -1,5 +1,5 @@
 import { createSignal, Show } from 'solid-js';
-import { login } from '../lib/auth-api';
+import { authApi } from '../lib/auth';
 import { Button } from './ui/button';
 
 export function SocialLogin() {
@@ -8,7 +8,7 @@ export function SocialLogin() {
   const handleOAuthLogin = (provider: 'google' | 'github') => {
     setIsLoading(provider);
     // Redirect to the BFF, which 302s to WorkOS with the provider hint.
-    login(provider);
+    authApi.login(provider);
   };
 
   return (

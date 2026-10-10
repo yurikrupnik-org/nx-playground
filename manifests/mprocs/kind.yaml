@@ -1,11 +1,11 @@
 # Kind/Kubernetes development workflow
-# Usage: just dev-kind (or: mprocs -c manifests/mprocs/kind.yaml)
-# For local docker workflow: just dev
+# Usage: task dev-kind (or: mprocs -c manifests/mprocs/kind.yaml)
+# For local docker workflow: task dev
 
 procs:
   # =============================================================================
   # Kind/Kubernetes Development (CNPG + Tilt)
-  # Prerequisites: just kind-cnpg-setup
+  # Prerequisites: task cnpg-install
   # =============================================================================
 
   dev:

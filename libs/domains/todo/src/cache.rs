@@ -15,11 +15,11 @@
 
 use std::time::Duration;
 
-use async_nats::jetstream::kv::{Config, Store};
 use async_nats::jetstream::Context;
+use async_nats::jetstream::kv::{Config, Store};
 use async_trait::async_trait;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
@@ -113,6 +113,21 @@ impl<R: TodoRepository> CachedTodoRepository<R> {
         if let Err(e) = kv.delete(key.to_string()).await {
             warn!(key, error = %e, "kv delete failed");
         }
+    }
+
+    /// Drop every cached view of `id`, so the next read hits the database.
+    ///
+    /// Writes made through this decorator refresh the cache themselves; this is
+    /// for changes that bypassed it entirely (another replica, the CLI, a plain
+    /// `psql` UPDATE). The DB-notification listener calls it before hydrating a
+    /// snapshot, which is what keeps the cache honest under external writes.
+    pub async fn invalidate(&self, id: Uuid) {
+        if self.kv.is_none() {
+            return;
+        }
+        self.cache_del(&Self::id_key(id)).await;
+        self.cache_del(LIST_KEY).await;
+        debug!(%id, "cache invalidated from external change");
     }
 }
 

@@ -1,0 +1,52 @@
+{
+  "name": "todo-astro-web",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/todo/web-astro/src",
+  "tags": [],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run dev",
+        "cwd": "{workspaceRoot}/apps/todo/web-astro"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist"],
+      "dependsOn": [
+        {
+          "projects": ["@native/field-selector"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "bun run build",
+        "cwd": "{workspaceRoot}/apps/todo/web-astro"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "dependsOn": [
+        {
+          "projects": ["@native/field-selector"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "bun run test",
+        "cwd": "{workspaceRoot}/apps/todo/web-astro"
+      }
+    },
+    "typecheck": {
+      "dependsOn": [
+        {
+          "projects": ["@native/field-selector"],
+          "target": "build"
+        }
+      ]
+    }
+  }
+}

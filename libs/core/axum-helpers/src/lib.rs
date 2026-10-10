@@ -4,12 +4,13 @@
 //!
 //! ## Modules
 //!
-//! - **[`auth`]**: JWT authentication with Redis-backed whitelist/blacklist
 //! - **[`server`]**: Server setup, health checks, graceful shutdown
 //! - **[`http`]**: HTTP middleware (CORS, CSRF, security headers)
 //! - **[`errors`]**: Structured error responses with error codes
 //! - **[`extractors`]**: Custom extractors (UUID path, validated JSON)
 //! - **[`audit`]**: Audit logging for security and compliance
+//! - **[`metrics`]**: Prometheus metrics middleware and exporter
+//! - **[`rate_limit`]**: Per-client request rate limiting
 //!
 //! ## Quick Start
 //!

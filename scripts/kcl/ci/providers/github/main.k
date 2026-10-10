@@ -10,7 +10,6 @@ import ...schemas.common as c
 # =============================================================================
 # STEP SEQUENCE BUILDERS
 # =============================================================================
-
 _sccache_env_gcp = {
     CARGO_INCREMENTAL = "0"
     RUSTC_WRAPPER = "sccache"
@@ -31,19 +30,14 @@ _sccache_env_aws = {
 # =============================================================================
 # Remap `uses:` pins from gh_config.action_versions (keyed by common.GHA_ACTIONS
 # logical name) over the assembled jobs, so no step builder needs the map.
-
-_finalize_jobs = lambda jobs: {str: {str:}}, gh_config: cfg.GitHubConfig -> {str:} {
+_finalize_jobs = lambda jobs: {str:{str:}}, gh_config: cfg.GitHubConfig -> {str:} {
     _refs = {c.GHA_ACTIONS[k]: gh_config.action_versions[k] for k in gh_config.action_versions if k in c.GHA_ACTIONS}
-    {
-        name: (job | {"steps" = [(s | {"uses" = _refs[s.uses]}) if ("uses" in s and s.uses in _refs) else s for s in job.steps]})
-        for name, job in jobs
-    } if _refs else jobs
+    {name: (job | {"steps" = [(s | {"uses" = _refs[s.uses]}) if ("uses" in s and s.uses in _refs) else s for s in job.steps]}) for name, job in jobs} if _refs else jobs
 }
 
 # =============================================================================
 # MONOREPO WORKFLOW GENERATOR
 # =============================================================================
-
 _monorepo_base_steps = lambda config: cfg.MonorepoConfig -> [{str:}] {
     [
         steps.checkout(0)
@@ -64,10 +58,15 @@ _monorepo_base_steps = lambda config: cfg.MonorepoConfig -> [{str:}] {
     ]
 }
 
-_monorepo_job = lambda config: cfg.MonorepoConfig, target: str, needs: [str] = [], runs_on: str = "ubuntu-latest" -> {str:} {
+_monorepo_job = lambda {
+    config: cfg.MonorepoConfig,
+    target: str,
+    needs: [str] = [],
+    runs_on: str = "ubuntu-latest",
+} -> {str:} {
     _step_fn = steps.nx_affected if config.use_affected else steps.nx_run_many
     _base = {
-        name = target[0].upper() + target[1:]
+        name = target[0].upper() + target[1::]
         "runs-on" = runs_on
         steps = [s for s in _monorepo_base_steps(config) if s] + [
             _step_fn(target, config.package_manager)
@@ -76,7 +75,10 @@ _monorepo_job = lambda config: cfg.MonorepoConfig, target: str, needs: [str] = [
     _base | ({"needs" = needs} if needs else {})
 }
 
-generate_monorepo = lambda config: cfg.MonorepoConfig, gh_config: cfg.GitHubConfig = cfg.GitHubConfig {} -> gh.GithubWorkflow {
+generate_monorepo = lambda {
+    config: cfg.MonorepoConfig,
+    gh_config: cfg.GitHubConfig = cfg.GitHubConfig {},
+} -> gh.GithubWorkflow {
     _env = {"NX_CLOUD_ACCESS_TOKEN" = "\${{ secrets.NX_CLOUD_ACCESS_TOKEN }}"} if config.nx_cloud else {}
     _sccache_env = _sccache_env_gcp if config.sccache_provider == "gcp" else _sccache_env_aws
     _env = _env | (_sccache_env if config.use_sccache else {})
@@ -101,7 +103,6 @@ generate_monorepo = lambda config: cfg.MonorepoConfig, gh_config: cfg.GitHubConf
 # =============================================================================
 # RUST APP WORKFLOW GENERATOR
 # =============================================================================
-
 _rust_base_steps = lambda config: cfg.RustAppConfig -> [{str:}] {
     _components = (["clippy"] if config.clippy else []) + (["rustfmt"] if config.rustfmt else [])
     [
@@ -114,7 +115,10 @@ _rust_base_steps = lambda config: cfg.RustAppConfig -> [{str:}] {
     ]
 }
 
-generate_rust = lambda config: cfg.RustAppConfig, gh_config: cfg.GitHubConfig = cfg.GitHubConfig {} -> gh.GithubWorkflow {
+generate_rust = lambda {
+    config: cfg.RustAppConfig,
+    gh_config: cfg.GitHubConfig = cfg.GitHubConfig {},
+} -> gh.GithubWorkflow {
     _sccache_env = _sccache_env_gcp if config.sccache_provider == "gcp" else _sccache_env_aws
     _env = _sccache_env if config.use_sccache else {}
     _env = _env | config.env
@@ -123,8 +127,10 @@ generate_rust = lambda config: cfg.RustAppConfig, gh_config: cfg.GitHubConfig = 
     _check_steps = [s for s in _rust_base_steps(config) if s]
     if config.rustfmt:
         _check_steps += [steps.cargo("fmt", "--check")]
+
     if config.clippy:
         _check_steps += [steps.cargo("clippy", "${_features} -- -D warnings")]
+
     _check_steps += [steps.cargo("check", _features)]
 
     gh.GithubWorkflow {
@@ -163,7 +169,6 @@ generate_rust = lambda config: cfg.RustAppConfig, gh_config: cfg.GitHubConfig = 
 # =============================================================================
 # NODE APP WORKFLOW GENERATOR
 # =============================================================================
-
 _node_base_steps = lambda config: cfg.NodeAppConfig -> [{str:}] {
     [
         steps.checkout(0)
@@ -174,7 +179,10 @@ _node_base_steps = lambda config: cfg.NodeAppConfig -> [{str:}] {
     ]
 }
 
-generate_node = lambda config: cfg.NodeAppConfig, gh_config: cfg.GitHubConfig = cfg.GitHubConfig {} -> gh.GithubWorkflow {
+generate_node = lambda {
+    config: cfg.NodeAppConfig,
+    gh_config: cfg.GitHubConfig = cfg.GitHubConfig {},
+} -> gh.GithubWorkflow {
     _pm = config.package_manager
     _test_cmd = {
         vitest = "${_pm} run test"
@@ -223,8 +231,10 @@ generate_node = lambda config: cfg.NodeAppConfig, gh_config: cfg.GitHubConfig = 
 # =============================================================================
 # TAURI APP WORKFLOW GENERATOR
 # =============================================================================
-
-generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig = cfg.GitHubConfig {} -> gh.GithubWorkflow {
+generate_tauri = lambda {
+    config: cfg.TauriAppConfig,
+    gh_config: cfg.GitHubConfig = cfg.GitHubConfig {},
+} -> gh.GithubWorkflow {
     _pm = config.package_manager
     _os_map = {
         linux = "ubuntu-latest"
@@ -239,6 +249,7 @@ generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig 
     ]
     if config.use_cargo_cache:
         _test_steps += [steps.rust_cache()]
+
     _test_steps += [
         steps.install_deps(config.package_manager)
         steps.run_script("Lint", "${_pm} run lint")
@@ -252,6 +263,7 @@ generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig 
     ]
     if config.use_cargo_cache:
         _build_steps += [steps.rust_cache()]
+
     _build_steps += [
         steps.install_deps(config.package_manager)
         steps.tauri_build()
@@ -288,7 +300,6 @@ generate_tauri = lambda config: cfg.TauriAppConfig, gh_config: cfg.GitHubConfig 
 # =============================================================================
 # GO SERVICE WORKFLOW GENERATOR
 # =============================================================================
-
 _go_base_steps = lambda config: cfg.GoServiceConfig -> [{str:}] {
     [
         steps.checkout(0)
@@ -296,7 +307,10 @@ _go_base_steps = lambda config: cfg.GoServiceConfig -> [{str:}] {
     ]
 }
 
-generate_go = lambda config: cfg.GoServiceConfig, gh_config: cfg.GitHubConfig = cfg.GitHubConfig {} -> gh.GithubWorkflow {
+generate_go = lambda {
+    config: cfg.GoServiceConfig,
+    gh_config: cfg.GitHubConfig = cfg.GitHubConfig {},
+} -> gh.GithubWorkflow {
     _env = {"GOPRIVATE" = config.go_private} if config.go_private else {}
     _env = _env | config.env
 
@@ -334,7 +348,6 @@ generate_go = lambda config: cfg.GoServiceConfig, gh_config: cfg.GitHubConfig = 
         }, gh_config)
     }
 }
-
 # =============================================================================
 # EXPORTS
 # =============================================================================

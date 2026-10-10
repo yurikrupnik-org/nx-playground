@@ -29,6 +29,7 @@ Successfully optimized gRPC tasks service by replacing string-based proto schema
 ### 1. Protocol Buffer Schema Changes
 
 **Before (String-based):**
+
 ```protobuf
 message CreateResponse {
   string id = 1;              // 36 bytes UUID
@@ -41,6 +42,7 @@ message CreateResponse {
 ```
 
 **After (Binary-optimized):**
+
 ```protobuf
 enum Priority {
   LOW = 1;
@@ -66,6 +68,7 @@ message CreateResponse {
 ```
 
 **Savings per task:**
+
 - UUID (id): 36 → 16 bytes (56% reduction)
 - UUID (project_id): 36 → 16 bytes (56% reduction)
 - Priority enum: 6 → 1 byte (83% reduction)
@@ -76,11 +79,13 @@ message CreateResponse {
 ### 2. Removed RwLock Bottleneck (Previous Optimization)
 
 Changed from:
+
 ```rust
 Arc<RwLock<TasksServiceClient<Channel>>>  // Serializes all requests
 ```
 
 To:
+
 ```rust
 TasksServiceClient<Channel>  // Cloneable, concurrent
 ```
@@ -105,6 +110,7 @@ Endpoint::from_shared(addr)?
 **POST requests:** 1.60x slower (6,293 vs 10,053 req/sec)
 
 This is a reasonable overhead for the benefits gRPC provides:
+
 - Type safety and schema validation
 - Cross-language support
 - Streaming capabilities
@@ -113,6 +119,7 @@ This is a reasonable overhead for the benefits gRPC provides:
 ### Compared to Unoptimized Version
 
 **Gap reduction:**
+
 - Before: 15x slower (503 vs 7,637 req/sec)
 - After: 1.41x slower (5,186 vs 7,333 req/sec)
 - **Improvement: 10.6x reduction in performance gap**
@@ -120,6 +127,7 @@ This is a reasonable overhead for the benefits gRPC provides:
 ## Cost-Benefit Analysis
 
 ### Benefits of Optimized Proto
+
 ✅ 64% reduction in wire format size
 ✅ 10.3x throughput improvement
 ✅ 90% latency reduction
@@ -127,6 +135,7 @@ This is a reasonable overhead for the benefits gRPC provides:
 ✅ Better CPU cache efficiency (smaller messages)
 
 ### Trade-offs
+
 ⚠️ More conversion code (bytes ↔ UUID, enum ↔ string)
 ⚠️ Less human-readable during debugging (binary UUIDs, integer enums)
 ⚠️ Breaking change (requires coordinated deployment)
@@ -145,12 +154,14 @@ For most use cases, the 1.4x overhead of gRPC is acceptable given the architectu
 ## Recommendations
 
 ### When to Use Optimized gRPC
+
 ✅ High-throughput services (>1,000 req/sec)
 ✅ Cross-service communication
 ✅ Type-safe contracts required
 ✅ Streaming use cases
 
 ### When to Use Direct DB
+
 ✅ Internal-only APIs (no cross-service calls)
 ✅ Monolithic architectures
 ✅ Simple CRUD where 1.4x performance matters
@@ -159,6 +170,7 @@ For most use cases, the 1.4x overhead of gRPC is acceptable given the architectu
 ## Future Optimizations
 
 Potential further improvements:
+
 1. **Enable gzip compression** for large list responses (60-80% size reduction)
 2. **Connection pooling** for even better concurrency
 3. **Batch operations** to amortize overhead across multiple items

@@ -1,0 +1,59 @@
+{
+  "name": "rust_workspace_gate",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "scripts/rust/gate",
+  "tags": ["scope:infra"],
+  "targets": {
+    "lint-workspace": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "inputs": ["rustWorkspace"],
+      "outputs": [],
+      "options": {
+        "command": "task lint-rust",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test-workspace": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "inputs": ["rustWorkspace"],
+      "outputs": [],
+      "options": {
+        "command": "task test-rust",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "doc-test-workspace": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "inputs": ["rustWorkspace"],
+      "outputs": [],
+      "options": {
+        "command": "task test-doc",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "doc-workspace": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "inputs": ["rustWorkspace"],
+      "outputs": [],
+      "options": {
+        "command": "task doc-check",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "openapi-workspace": {
+      "cache": true,
+      "executor": "nx:run-commands",
+      "inputs": ["rustWorkspace"],
+      "outputs": [],
+      "options": {
+        "command": "task openapi-check",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

@@ -1,0 +1,89 @@
+name: taskgraph CLI (rolling release)
+
+# Publishes the `taskgraph` binary every CI job and Tekton TaskRun downloads to
+# observe its `task` calls (.github/actions/taskgraph, butler.toml
+# [tekton.taskgraph], docs/ci-insights.md). One rolling prerelease,
+# `taskgraph-cli-latest`, whose assets are replaced in place:
+#   taskgraph-x86_64-unknown-linux-musl.tar.gz          (the single file `taskgraph`)
+#   taskgraph-x86_64-unknown-linux-musl.tar.gz.sha256   (`sha256sum` format)
+# Its notes are the commit the assets were built from. Consumers verify the
+# checksum and degrade to plain go-task on any mismatch, so the two uploads not
+# being atomic costs at most one untraced job, never a red one.
+on:
+  push:
+    branches:
+      - main
+    # The cargo closure of `taskgraph_cli` (`cargo metadata`: the crate, its
+    # domain and contract, libs/core/*) plus everything that changes how it
+    # compiles. A push touching none of these would republish the same bytes.
+    paths:
+      - apps/taskgraph/cli/**
+      - libs/domains/taskgraph/**
+      - libs/contracts/taskgraph/**
+      - libs/core/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .cargo/config.toml
+      - .github/workflows/taskgraph-cli.yml
+  workflow_dispatch:
+
+# Queue instead of cancel: a run cancelled between its two uploads would leave
+# a tarball and a checksum from different commits until the next push.
+concurrency:
+  group: taskgraph-cli-release
+  cancel-in-progress: false
+
+# Creating the release and replacing its assets is all this workflow does.
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TAG: taskgraph-cli-latest
+      TARGET: x86_64-unknown-linux-musl
+      ASSET: taskgraph-x86_64-unknown-linux-musl.tar.gz
+      # The SAME musl-cross image (and digest) manifests/dockers/rust.Dockerfile
+      # builds every service image with: its musl gcc links the C in the
+      # dependency tree, so the binary is static and runs on any Linux —
+      # ubuntu runners, the alpine/bun Tekton step images, scratch.
+      IMAGE: messense/rust-musl-cross:x86_64-musl@sha256:ce75e9174325d4fbb3de85c309e2d7ca29f7500169bc4b5d2c611ff7e86d549a
+    steps:
+      - uses: actions/checkout@v7
+
+      # rust-toolchain.toml stays the pin (see the `rust` job in
+      # ci-optimized.yml): the checkout is mounted, so rustup installs that
+      # toolchain rather than using the image's, and only the musl std is
+      # added to it. The .cargo/config.toml target-dir puts the binary under
+      # dist/target, as on a developer machine.
+      - name: Build taskgraph for ${{ env.TARGET }}
+        run: |
+          docker run --rm -v "$PWD":/src -w /src "$IMAGE" sh -euc '
+            rustup toolchain install --no-self-update
+            rustup target add "$1"
+            cargo build --release --locked -p taskgraph_cli --target "$1"
+          ' sh "$TARGET"
+
+      - name: Package
+        run: |
+          bin="dist/target/$TARGET/release/taskgraph"
+          file "$bin"
+          "$bin" --version
+          tar -C "$(dirname "$bin")" -czf "$ASSET" taskgraph
+          sha256sum "$ASSET" | tee "$ASSET.sha256"
+
+      # Prerelease and never `latest`: this must not become the repo's
+      # "Latest release" badge, which the per-app releases in release.yml own.
+      - name: Publish to ${{ env.TAG }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "taskgraph CLI (rolling)" --notes "$GITHUB_SHA"
+          fi
+          gh release upload "$TAG" "$ASSET" "$ASSET.sha256" --clobber
+          gh release edit "$TAG" --prerelease --latest=false --notes "$GITHUB_SHA"

@@ -46,10 +46,27 @@ impl AuthLayerState {
     }
 }
 
+/// The verified access token backing the current request, inserted into request
+/// extensions alongside the [`AuthIdentity`].
+///
+/// A BFF needs this to call a downstream service *as the user*: the downstream
+/// verifies the same token against the same JWKS and derives its own tenant scope,
+/// so identity never crosses a service boundary as a trusted plaintext field.
+/// Treat it as a credential - forward it, never log it.
+#[derive(Clone)]
+pub struct AccessToken(pub String);
+
+impl std::fmt::Debug for AccessToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AccessToken(<redacted>)")
+    }
+}
+
 /// Mandatory authentication middleware.
 ///
 /// Resolves exactly one [`AuthIdentity`] from two ingress paths and inserts it into
-/// request extensions, or rejects with 401/503:
+/// request extensions (together with the [`AccessToken`] it was derived from), or
+/// rejects with 401/503:
 /// - **machine** → `Authorization: Bearer <jwt>` verified via JWKS/RS256;
 /// - **browser** → opaque session cookie resolved against the [`SessionStore`].
 ///
@@ -63,8 +80,9 @@ pub async fn auth_required(
     // await: `axum::body::Body` is not `Sync`, so a live `&Request` across `.await`
     // would make this future `!Send` and the middleware unusable as a tower `Service`.
     let creds = extract_credentials(&req, &state.cookie_name);
-    let identity = resolve(&state, creds).await?;
+    let (identity, access_token) = resolve(&state, creds).await?;
     req.extensions_mut().insert(identity);
+    req.extensions_mut().insert(AccessToken(access_token));
     Ok(next.run(req).await)
 }
 
@@ -85,10 +103,14 @@ fn extract_credentials(req: &Request, cookie_name: &str) -> Credentials {
     Credentials::None
 }
 
-async fn resolve(state: &AuthLayerState, creds: Credentials) -> Result<AuthIdentity> {
+/// Resolve an identity **and** the access token it came from.
+async fn resolve(state: &AuthLayerState, creds: Credentials) -> Result<(AuthIdentity, String)> {
     match creds {
         // Bearer token (machine clients) — verified statelessly via JWKS.
-        Credentials::Bearer(token) => state.verifier.verify(&token).await,
+        Credentials::Bearer(token) => {
+            let identity = state.verifier.verify(&token).await?;
+            Ok((identity, token))
+        }
         // Opaque session cookie (browser) — resolved server-side; store errors fail closed.
         Credentials::Session(sid) => resolve_session(state, sid).await,
         Credentials::None => Err(AuthError::MissingCredentials),
@@ -99,7 +121,7 @@ async fn resolve(state: &AuthLayerState, creds: Credentials) -> Result<AuthIdent
 /// cap, and lazily refresh the access token near expiry so IdP-side changes (roles,
 /// org, revocation) propagate within the access-token lifetime instead of the full
 /// session TTL. Any failure denies (fail closed) and drops the session.
-async fn resolve_session(state: &AuthLayerState, sid: String) -> Result<AuthIdentity> {
+async fn resolve_session(state: &AuthLayerState, sid: String) -> Result<(AuthIdentity, String)> {
     let mut rec = state
         .sessions
         .get(&sid)
@@ -122,14 +144,21 @@ async fn resolve_session(state: &AuthLayerState, sid: String) -> Result<AuthIden
         return Err(AuthError::SessionInvalid);
     }
 
-    Ok(AuthIdentity {
-        subject: rec.subject,
-        org_id: rec.org_id,
-        roles: rec.roles,
-        email: rec.email,
-        name: rec.name,
-        session_id: Some(sid),
-    })
+    // Taken after the lazy refresh above, so a forwarded token is always the freshest
+    // one the session holds - never one about to expire mid-flight downstream.
+    let access_token = rec.access_token;
+
+    Ok((
+        AuthIdentity {
+            subject: rec.subject,
+            org_id: rec.org_id,
+            roles: rec.roles,
+            email: rec.email,
+            name: rec.name,
+            session_id: Some(sid),
+        },
+        access_token,
+    ))
 }
 
 /// Exchange the stored refresh token for a fresh token set, re-verify it (so the
@@ -321,7 +350,7 @@ mod tests {
             record(now + 1000, now + 2000, &["org_admin"]),
         );
 
-        let id = resolve_session(&st, "sid-1".into())
+        let (id, _token) = resolve_session(&st, "sid-1".into())
             .await
             .expect("valid session");
         assert_eq!(id.subject, "user-1");
@@ -348,7 +377,7 @@ mod tests {
             record(now.saturating_sub(5), now + 2000, &["org_admin"]),
         );
 
-        let id = resolve_session(&st, "sid-1".into())
+        let (id, _token) = resolve_session(&st, "sid-1".into())
             .await
             .expect("refreshed session");
         assert_eq!(

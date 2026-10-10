@@ -5,9 +5,9 @@ use crate::error::{NotificationError, NotificationResult};
 use crate::models::Email;
 use async_trait::async_trait;
 use lettre::{
-    message::{header::ContentType, Mailbox, MultiPart, SinglePart},
-    transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    message::{Mailbox, MultiPart, SinglePart, header::ContentType},
+    transport::smtp::authentication::Credentials,
 };
 
 /// SMTP provider configuration
@@ -127,7 +127,7 @@ impl SmtpProvider {
     ///
     /// # Setup
     /// 1. Enable 2-Factor Authentication on your Google account
-    /// 2. Generate an App Password at https://myaccount.google.com/apppasswords
+    /// 2. Generate an App Password at <https://myaccount.google.com/apppasswords>
     /// 3. Set environment variables:
     ///    - `GMAIL_USER` - Your Gmail address
     ///    - `GMAIL_APP_PASSWORD` - The 16-character app password

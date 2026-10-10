@@ -4,20 +4,27 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  Link,
   Navigate,
   Outlet,
   RouterProvider,
 } from '@tanstack/solid-router';
+import { lazy, Suspense } from 'solid-js';
 import { render } from 'solid-js/web';
-import 'solid-devtools';
 
-import { ProtectedRoute } from './components/protected-route';
 import { UserMenu } from './components/user-menu';
-import { AuthProvider } from './lib/auth-context';
+import { AuthProvider, ProtectedRoute } from './lib/auth';
 import { LoginPage } from './pages/login';
 import { RegisterPage } from './pages/register';
+import { RegistriesPage } from './pages/registries';
+import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';
 import { TasksListPage } from './pages/tasks-list';
+
+// Code-split: bundles every committed OpenAPI document and the yaml parser.
+const DataMapPage = lazy(() =>
+  import('./pages/data-map').then((m) => ({ default: m.DataMapPage })),
+);
 
 const queryClient = new QueryClient();
 
@@ -28,8 +35,32 @@ function Layout() {
       <nav class="border-b bg-white shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex justify-between h-16 items-center">
-            <div class="flex items-center">
+            <div class="flex items-center gap-6">
               <h1 class="text-xl font-bold">Zerg Tasks</h1>
+              <Link
+                to="/tasks"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Tasks
+              </Link>
+              <Link
+                to="/settings"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Settings
+              </Link>
+              <Link
+                to="/registries"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Registries
+              </Link>
+              <Link
+                to="/schemas"
+                class="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Data map
+              </Link>
             </div>
             <div class="flex items-center">
               <UserMenu />
@@ -69,6 +100,27 @@ const registerRoute = createRoute({
   component: RegisterPage,
 });
 
+// Reference screen — static catalog, no auth required
+const registriesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/registries',
+  component: () => <RegistriesPage />,
+});
+
+// Schema/data browser — repo schemas are public; the live DB catalog asks the
+// dev-only zerg-api /api/catalog routes and surfaces a 401 inline.
+const dataMapRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/schemas',
+  component: () => (
+    <Suspense
+      fallback={<p class="p-6 text-sm text-gray-500">Loading data map…</p>}
+    >
+      <DataMapPage />
+    </Suspense>
+  ),
+});
+
 // Protected routes
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -90,13 +142,26 @@ const taskDetailRoute = createRoute({
   ),
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+  component: () => (
+    <ProtectedRoute>
+      <SettingsPage />
+    </ProtectedRoute>
+  ),
+});
+
 // Build route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   registerRoute,
+  registriesRoute,
+  dataMapRoute,
   tasksRoute,
   taskDetailRoute,
+  settingsRoute,
 ]);
 
 // Create router

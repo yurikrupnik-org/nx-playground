@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Go leaves (go vet + go test + gofmt) — included (flattened) by the root Taskfile.yml.
+#
+# Go is an occasional guest here, so nothing is wired per project: every
+# directory holding a `go.mod` is a module, and each leaf runs the Go
+# toolchain's own `./...` walk inside it. No nx plugin (there is none installed
+# for Go): `go test` caches per package on its own, and nx would add a graph
+# node per module for no extra scope. Untracked-but-not-ignored modules count,
+# so a module you just scaffolded is gated before its first commit.
+#
+# With no module in the tree every leaf prints one line and exits 0 — the
+# aggregates in flows.yml only schedule `go` when a go.mod exists anyway
+# (see `ecosystems`), so this is only reached by an explicit `task lint-go`.
+version: '3'
+
+vars:
+  # One module directory per line, `.` for a go.mod at the root.
+  GO_MODULES:
+    sh: git ls-files -co --exclude-standard -- '*go.mod' | sed -e 's#go\.mod$##' -e 's#/$##' -e 's#^$#.#' | sort -u
+
+tasks:
+  lint-go:
+    desc: go vet over every Go module (any directory with a go.mod)
+    cmds:
+      - cmd: 'echo "lint-go: no go.mod in the tree — nothing to lint"'
+        if: '[ -z "{{.GO_MODULES}}" ]'
+        silent: true
+      - for: { var: GO_MODULES }
+        cmd: cd {{.ITEM}} && go vet ./...
+
+  test-go:
+    desc: go test over every Go module
+    cmds:
+      - cmd: 'echo "test-go: no go.mod in the tree — nothing to test"'
+        if: '[ -z "{{.GO_MODULES}}" ]'
+        silent: true
+      - for: { var: GO_MODULES }
+        cmd: cd {{.ITEM}} && go test ./...
+
+  fmt-go:
+    desc: gofmt -w over every Go module
+    cmds:
+      - for: { var: GO_MODULES }
+        cmd: gofmt -w {{.ITEM}}
+
+  # gofmt -l lists the files it WOULD rewrite and still exits 0, so the listing
+  # itself is the verdict.
+  fmt-check-go:
+    desc: Go formatting gate — fails when `fmt-go` would change a file
+    cmds:
+      - for: { var: GO_MODULES }
+        cmd: |
+          out=$(gofmt -l {{.ITEM}})
+          if [ -n "$out" ]; then
+              printf 'fmt-check-go: not gofmt-formatted:\n%s\n' "$out" >&2
+              exit 1
+          fi
+
+  # `go list -u` marks an available upgrade as `[vX.Y.Z]`; only those lines are
+  # worth printing. grep exits 1 on "nothing outdated", which is not a failure.
+  outdated-go:
+    desc: Preview Go module upgrades (read-only)
+    cmds:
+      - for: { var: GO_MODULES }
+        cmd: cd {{.ITEM}} && { go list -u -m all | grep '\[' || true; }

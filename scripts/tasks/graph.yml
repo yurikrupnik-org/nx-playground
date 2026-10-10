@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Project-graph parity — included by the root Taskfile.yml.
+#
+# The project graph is inferred twice: by tools/nx/plugin.ts inside nx (nx must
+# not wait on a cargo build) and by its Rust port inside butler
+# (apps/butler/cli/src/infer). Two implementations of one rule set drift, so
+# this gate diffs butler's graph against `nx graph --file` — every project,
+# target (executor, options, configurations, inputs, outputs, dependsOn, cache)
+# and edge — and fails on any disagreement. It runs twice: once with the native
+# port, once with butler running the TypeScript plugin itself through
+# tools/nx/infer.ts, the example of butler's external-inferrer protocol.
+#
+# It subsumes the old `container-check`: the `container`/`scan` targets are part
+# of the graph, and butler builds them from the same Rust image resolution the
+# Tiltfile generator uses.
+version: '3'
+
+tasks:
+  graph-check:
+    desc: Fail if butler's project graph (native and via tools/nx/infer.ts) disagrees with nx's
+    cmds:
+      - |
+        set -euo pipefail
+        d=$(mktemp -d)
+        trap 'rm -rf "$d"' EXIT
+        bun nx graph --file="$d/graph.json" > /dev/null
+        cargo run --quiet -p butler -- --infer native graph verify --graph "$d/graph.json"
+        cargo run --quiet -p butler -- --infer 'bun tools/nx/infer.ts' graph verify --graph "$d/graph.json"

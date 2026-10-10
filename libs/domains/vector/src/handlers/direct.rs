@@ -1,10 +1,19 @@
 //! Direct REST handlers for vector operations
+//!
+//! # Trust boundary
+//!
+//! These handlers take the tenant straight from client input and perform **no**
+//! authorization of their own. They exist to describe the wire shape (they carry
+//! the `utoipa` annotations behind [`super::VectorApiDoc`]); the served routes are
+//! `zerg_api`'s in `apps/zerg/api/src/api/vector.rs`, which verify project
+//! ownership against the request's authenticated tenant first. Do not mount
+//! [`super::router`] on a public listener without an equivalent guard.
 
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -142,8 +151,10 @@ pub struct DeleteResponse {
         ("project_id" = String, Query, description = "Project ID for tenant context"),
         ("namespace" = Option<String>, Query, description = "Optional namespace")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "List of collections", body = Vec<CollectionInfo>),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -184,6 +195,7 @@ impl From<TenantQueryParams> for TenantContext {
         ("project_id" = String, Query, description = "Project ID for tenant context"),
         ("namespace" = Option<String>, Query, description = "Optional namespace")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Collection info", body = CollectionInfo),
         (status = 404, description = "Collection not found"),
@@ -211,9 +223,11 @@ pub async fn get_collection<R: VectorRepository>(
     path = "/collections",
     tag = "vector",
     request_body = CreateCollectionRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 201, description = "Collection created", body = CollectionInfo),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -240,9 +254,10 @@ pub async fn create_collection<R: VectorRepository>(
         ("project_id" = String, Query, description = "Project ID for tenant context"),
         ("namespace" = Option<String>, Query, description = "Optional namespace")
     ),
+    security(("session_cookie" = [])),
     responses(
         (status = 204, description = "Collection deleted"),
-        (status = 404, description = "Collection not found"),
+        (status = 404, description = "Collection or project not found"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -265,9 +280,11 @@ pub async fn delete_collection<R: VectorRepository>(
     path = "/vectors/search",
     tag = "vector",
     request_body = SearchRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Search results", body = Vec<SearchResult>),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -287,9 +304,11 @@ pub async fn search<R: VectorRepository>(
     path = "/vectors/upsert",
     tag = "vector",
     request_body = UpsertRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Vector upserted", body = UpsertResponse),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -322,9 +341,11 @@ pub async fn upsert<R: VectorRepository>(
     path = "/vectors/upsert-batch",
     tag = "vector",
     request_body = UpsertBatchRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Vectors upserted", body = UpsertBatchResponse),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -359,9 +380,11 @@ pub async fn upsert_batch<R: VectorRepository>(
     path = "/vectors/get",
     tag = "vector",
     request_body = GetVectorsRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Retrieved vectors", body = Vec<Vector>),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -387,9 +410,11 @@ pub async fn get_vectors<R: VectorRepository>(
     path = "/vectors/delete",
     tag = "vector",
     request_body = DeleteVectorsRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Vectors deleted", body = DeleteResponse),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -424,6 +449,7 @@ pub async fn delete_vectors<R: VectorRepository>(
     path = "/embed",
     tag = "vector",
     request_body = EmbedRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Embedding generated", body = EmbeddingResult),
         (status = 400, description = "Invalid request"),
@@ -444,9 +470,11 @@ pub async fn embed<R: VectorRepository>(
     path = "/search-with-embedding",
     tag = "vector",
     request_body = SearchWithEmbeddingRequest,
+    security(("session_cookie" = [])),
     responses(
         (status = 200, description = "Search results", body = Vec<SearchResult>),
         (status = 400, description = "Invalid request"),
+        (status = 404, description = "Project not found for this tenant"),
         (status = 500, description = "Internal server error")
     )
 )]

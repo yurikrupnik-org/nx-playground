@@ -5,7 +5,7 @@
 #[tokio::main]
 async fn main() {
     if let Err(e) = zerg_email_nats::run().await {
-        eprintln!("Fatal error: {:#}", e);
+        eprintln!("Fatal error: {e:#}");
         std::process::exit(1);
     }
 }

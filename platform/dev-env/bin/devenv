@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# devenv — command-line front end for platform/dev-env/Taskfile.yml.
+#
+#   devenv                                  list commands
+#   devenv presets                          pre-made configurations
+#   devenv create myenv [PRESET=default] [NAMESPACE=default]
+#   devenv status|connection|delete myenv
+#   devenv list
+#
+# `devenv <verb> [args]` runs `task env-<verb>`; a bare word becomes NAME=<word>,
+# VAR=value and --flags (e.g. --dry) pass through to task unchanged.
+set -euo pipefail
+
+src=${BASH_SOURCE[0]}
+while [ -L "$src" ]; do
+  dir=$(cd -P "$(dirname "$src")" && pwd)
+  src=$(readlink "$src")
+  case $src in /*) ;; *) src="$dir/$src" ;; esac
+done
+taskfile="$(cd -P "$(dirname "$src")/.." && pwd)/Taskfile.yml"
+
+if [ $# -eq 0 ] || [ "$1" = help ] || [ "$1" = -h ] || [ "$1" = --help ]; then
+  echo "usage: devenv <command> [NAME] [VAR=value ...]"
+  echo
+  task --taskfile "$taskfile" --list | sed -n 's/^\* env-\([^:]*\):/  \1/p'
+  exit 0
+fi
+
+verb=$1
+shift
+args=()
+for arg in "$@"; do
+  case $arg in
+    -* | *=*) args+=("$arg") ;;
+    *) args+=("NAME=$arg") ;;
+  esac
+done
+exec task --taskfile "$taskfile" "env-$verb" ${args[@]+"${args[@]}"}

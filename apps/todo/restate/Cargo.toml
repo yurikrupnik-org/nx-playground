@@ -1,0 +1,37 @@
+[package]
+name = "todo_restate"
+publish = false
+version = "0.1.0"
+edition.workspace = true
+description = "Todo lifecycle on Restate: one virtual object per todo, publishing todos.> events to NATS JetStream"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "todo_restate"
+path = "src/main.rs"
+
+[dependencies]
+chrono = { workspace = true }
+core_config = { workspace = true }
+domain_todo = { workspace = true }
+eyre = { workspace = true }
+messaging = { workspace = true, features = ["nats"] }
+restate-sdk = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+validator = { workspace = true }
+
+[dev-dependencies]
+futures = { workspace = true }
+# The typed `TodoObjectIngressClient` the `#[object]` macro generates needs a
+# transport; `reqwest-client` supplies one. Tests only — the endpoint never
+# calls ingress.
+restate-sdk = { workspace = true, features = ["reqwest-client"] }
+serde_json = { workspace = true }
+test-utils = { workspace = true, features = ["nats", "restate"] }
+
+[lints]
+workspace = true

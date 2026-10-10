@@ -181,49 +181,49 @@ impl FromEnv for PostgresConfig {
             .parse()
             .map_err(|e| ConfigError::ParseError {
                 key: "DB_MAX_CONNECTIONS".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?;
 
         let min_connections = env_or_default("DB_MIN_CONNECTIONS", "5")
             .parse()
             .map_err(|e| ConfigError::ParseError {
                 key: "DB_MIN_CONNECTIONS".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?;
 
         let connect_timeout_secs = env_or_default("DB_CONNECT_TIMEOUT_SECS", "8")
             .parse()
             .map_err(|e| ConfigError::ParseError {
                 key: "DB_CONNECT_TIMEOUT_SECS".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?;
 
         let acquire_timeout_secs = env_or_default("DB_ACQUIRE_TIMEOUT_SECS", "8")
             .parse()
             .map_err(|e| ConfigError::ParseError {
                 key: "DB_ACQUIRE_TIMEOUT_SECS".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?;
 
         let idle_timeout_secs = env_or_default("DB_IDLE_TIMEOUT_SECS", "8")
             .parse()
             .map_err(|e| ConfigError::ParseError {
                 key: "DB_IDLE_TIMEOUT_SECS".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?;
 
         let max_lifetime_secs = env_or_default("DB_MAX_LIFETIME_SECS", "8")
             .parse()
             .map_err(|e| ConfigError::ParseError {
                 key: "DB_MAX_LIFETIME_SECS".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?;
 
         let sqlx_logging = env_or_default("DB_SQLX_LOGGING", "true")
             .parse()
             .map_err(|e| ConfigError::ParseError {
                 key: "DB_SQLX_LOGGING".to_string(),
-                details: format!("{}", e),
+                details: format!("{e}"),
             })?;
 
         Ok(Self {

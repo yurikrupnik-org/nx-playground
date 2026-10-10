@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.13-slim AS python
 
 ARG APP_NAME
 ARG APP_MODULE
@@ -16,6 +16,7 @@ EXPOSE ${PORT}
 LABEL \
     org.opencontainers.image.title="${APP_NAME}" \
     org.opencontainers.image.description="Python application from Nx monorepo" \
+    security.language="python" \
     security.non-root="true"
 
 ENV APP_MODULE=${APP_MODULE}

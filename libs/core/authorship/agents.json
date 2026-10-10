@@ -1,0 +1,91 @@
+{
+  "$comment": "Single source of truth for human-vs-machine attribution. Read by tools/authorship/*.ts (git hooks, CI check) and by the Rust classifiers (taskgraph invoker detection, insights commit classification). Order of `agents` matters for env detection: the first agent with any marker set wins (omp also exports CLAUDECODE, so it precedes claude-code). See docs/ci-insights.md#attribution.",
+  "trailer": "Assisted-by",
+  "enforcedSince": "2026-09-27",
+  "genericEnv": ["AI_AGENT", "AGENT"],
+  "genericAgentId": "unknown-agent",
+  "agents": [
+    {
+      "id": "omp",
+      "name": "omp",
+      "env": ["OMPCODE"],
+      "identities": [],
+      "coauthorEmails": []
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "env": ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"],
+      "identities": ["claude-maintenance[bot]", "claude[bot]"],
+      "coauthorEmails": ["noreply@anthropic.com"]
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "env": [
+        "CODEX_SESSION_ID",
+        "CODEX_THREAD_ID",
+        "CODEX_SANDBOX",
+        "CODEX_CI"
+      ],
+      "identities": ["chatgpt-codex-connector[bot]"],
+      "coauthorEmails": []
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "env": ["GEMINI_CLI"],
+      "identities": ["gemini-code-assist[bot]"],
+      "coauthorEmails": []
+    },
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot",
+      "env": ["COPILOT_CLI", "COPILOT_AGENT_SESSION_ID"],
+      "identities": ["copilot-swe-agent[bot]", "Copilot"],
+      "coauthorEmails": ["198982749+Copilot@users.noreply.github.com"]
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "env": ["CURSOR_AGENT"],
+      "identities": ["cursor[bot]"],
+      "coauthorEmails": ["cursoragent@cursor.com"]
+    },
+    {
+      "id": "amp",
+      "name": "Amp",
+      "env": ["AMP_CURRENT_THREAD_ID"],
+      "identities": [],
+      "coauthorEmails": ["amp@ampcode.com"]
+    },
+    {
+      "id": "opencode",
+      "name": "opencode",
+      "env": ["OPENCODE", "OPENCODE_CLIENT"],
+      "identities": [],
+      "coauthorEmails": []
+    },
+    {
+      "id": "qwen-code",
+      "name": "Qwen Code",
+      "env": ["QWEN_CODE"],
+      "identities": [],
+      "coauthorEmails": []
+    },
+    {
+      "id": "cline",
+      "name": "Cline",
+      "env": ["CLINE_ACTIVE"],
+      "identities": [],
+      "coauthorEmails": []
+    },
+    {
+      "id": "augment",
+      "name": "Augment",
+      "env": ["AUGMENT_AGENT"],
+      "identities": [],
+      "coauthorEmails": []
+    }
+  ]
+}

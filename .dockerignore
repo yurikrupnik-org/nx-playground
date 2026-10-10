@@ -7,8 +7,18 @@ target/
 **/.git/
 **/node_modules/
 **/*.md
+# ...except crate READMEs: three crates (`libs/core/strings`,
+# `libs/core/proc_macros/{api_resource,sea_orm_resource}`) make their README the
+# crate-level rustdoc via `#![doc = include_str!("../README.md")]`, so the file
+# is a compile input, not docs churn. Without this negation every Rust image
+# build died with `couldn't read libs/core/strings/src/../README.md`.
+# Last matching rule wins, so this MUST stay below `**/*.md`.
+!**/README.md
 **/k8s/
 **/Tiltfile
+# Host-built N-API addons: node.Dockerfile compiles the `.node` for the image's
+# own platform, so the developer's macOS binary must never leak into context.
+**/*.node
 # NOTE: `dist/` is intentionally NOT globally ignored here.
 # Frontend image builds (e.g. zerg-web) need their own dist in context and use a
 # per-build `only=[...]` whitelist. Backend (Rust) builds whitelist `apps/`, so

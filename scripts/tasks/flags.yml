@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# Feature flags (Flagsmith) for the todo product — included by the root Taskfile.yml.
+# Reference: docs/feature-flags.md
+#
+#   task flags-bootstrap                                     provision org/project/env + the six todo flags (idempotent)
+#   task flags-list [IDENTITY=<id>]                          print the effective flags — environment view, or for one user
+#   task flags-set FLAG=<flag> STATE=<on|off> [IDENTITY=<id>] flip a flag for everyone, or override it for one user
+#   task flags-open                                          open the Flagsmith UI
+version: '3'
+
+vars:
+  FLAGSMITH_URL: '{{.FLAGSMITH_URL | default "http://localhost:8000"}}'
+
+tasks:
+  flags-bootstrap:
+    desc: Provision the local Flagsmith (org/project/environment + the six flags) and print the environment key
+    cmds:
+      - bash scripts/flagsmith/flagsmith-bootstrap.sh
+
+  flags-list:
+    desc: 'Print the flags todo-api resolves: environment view, or `task flags-list IDENTITY=demo-user` for one identity'
+    cmds:
+      - bash scripts/flagsmith/flagsmith-flags.sh list {{.IDENTITY}}
+
+  flags-set:
+    desc: 'Flip a flag — `task flags-set FLAG=todo_write STATE=off IDENTITY=demo-user`; omit IDENTITY to change the environment'
+    requires:
+      vars: [FLAG, STATE]
+    cmds:
+      - bash scripts/flagsmith/flagsmith-flags.sh set {{.FLAG}} {{.STATE}} {{.IDENTITY}}
+
+  flags-open:
+    desc: Open the Flagsmith UI (login shown by `task flags-bootstrap`)
+    cmds:
+      - open {{.FLAGSMITH_URL}} 2>/dev/null || xdg-open {{.FLAGSMITH_URL}}

@@ -1,14 +1,19 @@
 [package]
 name = "test-utils"
-version = "0.1.0"
-edition = "2024"
+publish = false
+version.workspace = true
+edition.workspace = true
 
 [features]
 default = ["postgres"]
 postgres = ["dep:sea-orm"]
 redis = ["dep:redis"]
 nats = ["dep:async-nats", "dep:futures"]
-all = ["postgres", "redis", "nats"]
+restate = ["dep:reqwest", "dep:serde_json"]
+# Invariant checks for the committed `docs/openapi/*.json` artifacts. Pure
+# serde_json, no containers: pair it with `default-features = false`.
+openapi = ["dep:serde_json"]
+all = ["postgres", "redis", "nats", "restate", "openapi"]
 
 [dependencies]
 # NATS dependencies (optional)
@@ -18,9 +23,16 @@ futures = { workspace = true, optional = true }
 # Redis dependencies (optional)
 redis = { workspace = true, optional = true }
 
+# Restate admin/ingress probes and deployment registration (optional)
+reqwest = { workspace = true, optional = true }
+
 # Postgres dependencies (optional, enabled by default)
 # Note: Uses SQL migrations from manifests/db/zerg/migrations/
 sea-orm = { workspace = true, optional = true }
+
+# OpenAPI document walker (feature "openapi") and the Restate registration body
+# (feature "restate") — optional
+serde_json = { workspace = true, optional = true }
 
 # Testcontainers (always available)
 testcontainers = { workspace = true }
@@ -28,3 +40,6 @@ testcontainers-modules = { workspace = true, features = ["postgres", "redis", "n
 tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+
+[lints]
+workspace = true

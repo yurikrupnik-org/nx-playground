@@ -1,4 +1,4 @@
-import type { TaskPriority, TaskStatus } from '@domain/tasks';
+import type { TaskPriority, TaskStatus } from '@contract/tasks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/solid-query';
 import { useNavigate, useParams } from '@tanstack/solid-router';
 import { createSignal, createUniqueId, Show } from 'solid-js';

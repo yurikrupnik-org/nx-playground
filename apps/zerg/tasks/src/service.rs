@@ -8,10 +8,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use domain_tasks::{
-    CreateTask, TaskFilter, TaskRepository, TaskService, UpdateTask, conversions as conv,
+    CreateTask, TaskError, TaskFilter, TaskRepository, TaskService, UpdateTask, conversions as conv,
 };
 use grpc_client::ToTonicResult;
-use rpc::tasks::{
+use rpc::tasks::v1::{
     CreateRequest, CreateResponse, DeleteByIdRequest, DeleteByIdResponse, GetByIdRequest,
     GetByIdResponse, ListRequest, ListResponse, ListStreamRequest, ListStreamResponse,
     UpdateByIdRequest, UpdateByIdResponse, tasks_service_server::TasksService,
@@ -32,6 +32,7 @@ where
     R: TaskRepository + 'static,
 {
     service: Arc<TaskService<R>>,
+    auth: crate::auth::CallerAuth,
 }
 
 impl<R> TasksServiceImpl<R>
@@ -39,9 +40,27 @@ where
     R: TaskRepository + 'static,
 {
     /// Create a new tasks service implementation
-    pub fn new(service: TaskService<R>) -> Self {
+    pub fn new(service: TaskService<R>, auth: crate::auth::CallerAuth) -> Self {
         Self {
             service: Arc::new(service),
+            auth,
+        }
+    }
+}
+
+/// Map a domain error onto a wire status.
+///
+/// The code is load-bearing: the BFF turns it straight into an HTTP status, so a
+/// blanket `Status::internal` (or a blanket `not_found`) misreports every failure.
+/// Database details are logged, not returned.
+fn to_status(err: TaskError) -> Status {
+    match err {
+        TaskError::NotFound(id) => Status::not_found(format!("task {id} not found")),
+        TaskError::Validation(msg) => Status::invalid_argument(msg),
+        TaskError::Internal(msg) => Status::internal(msg),
+        TaskError::Database(e) => {
+            tracing::error!(error = %e, "database error");
+            Status::internal("database error")
         }
     }
 }
@@ -55,12 +74,13 @@ where
         &self,
         request: Request<CreateRequest>,
     ) -> Result<Response<CreateResponse>, Status> {
+        let scope = self.auth.scope(&request).await?;
         let input: CreateTask = request.into_inner().try_into()?;
         let task = self
             .service
-            .create_task(input)
+            .create_task(scope, input)
             .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+            .map_err(to_status)?;
         Ok(Response::new(task.into()))
     }
 
@@ -68,12 +88,13 @@ where
         &self,
         request: Request<GetByIdRequest>,
     ) -> Result<Response<GetByIdResponse>, Status> {
+        let scope = self.auth.scope(&request).await?;
         let id = conv::bytes_to_uuid(&request.into_inner().id).to_tonic()?;
         let task = self
             .service
-            .get_task(id)
+            .get_task(&scope.org_ref, id)
             .await
-            .map_err(|e| Status::not_found(e.to_string()))?;
+            .map_err(to_status)?;
         Ok(Response::new(task.into()))
     }
 
@@ -81,11 +102,12 @@ where
         &self,
         request: Request<DeleteByIdRequest>,
     ) -> Result<Response<DeleteByIdResponse>, Status> {
+        let scope = self.auth.scope(&request).await?;
         let id = conv::bytes_to_uuid(&request.into_inner().id).to_tonic()?;
         self.service
-            .delete_task(id)
+            .delete_task(&scope.org_ref, id)
             .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+            .map_err(to_status)?;
         info!("Deleted task: {}", id);
         Ok(Response::new(DeleteByIdResponse {}))
     }
@@ -94,21 +116,24 @@ where
         &self,
         request: Request<UpdateByIdRequest>,
     ) -> Result<Response<UpdateByIdResponse>, Status> {
+        let scope = self.auth.scope(&request).await?;
         let mut req = request.into_inner();
         let id = conv::bytes_to_uuid(&req.id).to_tonic()?;
         req.id = vec![]; // Clear ID before conversion
         let input: UpdateTask = req.try_into()?;
         let task = self
             .service
-            .update_task(id, input)
+            .update_task(&scope.org_ref, id, input)
             .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+            .map_err(to_status)?;
         Ok(Response::new(task.into()))
     }
 
     async fn list(&self, request: Request<ListRequest>) -> Result<Response<ListResponse>, Status> {
+        let scope = self.auth.scope(&request).await?;
         let req = request.into_inner();
         let filter = TaskFilter {
+            mine: req.mine,
             project_id: conv::opt_bytes_to_uuid(req.project_id).to_tonic()?,
             status: req.status.map(|s| s.try_into()).transpose()?,
             priority: req.priority.map(|p| p.try_into()).transpose()?,
@@ -118,9 +143,9 @@ where
         };
         let tasks = self
             .service
-            .list_tasks(filter)
+            .list_tasks(&scope, filter)
             .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+            .map_err(to_status)?;
         let data: Vec<CreateResponse> = tasks.into_iter().map(|task| task.into()).collect();
         Ok(Response::new(ListResponse { data }))
     }
@@ -131,8 +156,10 @@ where
         &self,
         request: Request<ListStreamRequest>,
     ) -> Result<Response<Self::ListStreamStream>, Status> {
+        let scope = self.auth.scope(&request).await?;
         let req = request.into_inner();
         let filter = TaskFilter {
+            mine: req.mine,
             project_id: conv::opt_bytes_to_uuid(req.project_id).to_tonic()?,
             status: req.status.map(|s| s.try_into()).transpose()?,
             priority: req.priority.map(|p| p.try_into()).transpose()?,
@@ -142,9 +169,9 @@ where
         };
         let tasks = self
             .service
-            .list_tasks(filter)
+            .list_tasks(&scope, filter)
             .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+            .map_err(to_status)?;
         let stream = tokio_stream::iter(tasks.into_iter().map(|task| Ok(task.into())));
         Ok(Response::new(Box::pin(stream)))
     }
@@ -153,13 +180,31 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::auth::CallerAuth;
     use chrono::Utc;
+    use domain_tasks::TaskScope;
     use domain_tasks::{Task, TaskError, TaskPriority, TaskStatus};
+    use parking_lot::Mutex;
     use std::collections::HashMap;
-    use std::sync::Mutex;
     use uuid::Uuid;
 
-    /// Mock repository for testing
+    fn test_org() -> String {
+        "org_01TESTORG".to_string()
+    }
+
+    fn test_user() -> String {
+        "user_01TESTUSER".to_string()
+    }
+
+    /// The scope a verified caller token would yield.
+    fn test_scope() -> TaskScope {
+        TaskScope {
+            org_ref: test_org(),
+            user_ref: test_user(),
+        }
+    }
+
+    /// Mock repository for testing; honors the org scope like the real one.
     #[derive(Clone)]
     struct MockTaskRepository {
         tasks: Arc<Mutex<HashMap<Uuid, Task>>>,
@@ -183,9 +228,11 @@ mod tests {
 
     #[tonic::async_trait]
     impl TaskRepository for MockTaskRepository {
-        async fn create(&self, input: CreateTask) -> Result<Task, TaskError> {
+        async fn create(&self, scope: TaskScope, input: CreateTask) -> Result<Task, TaskError> {
             let task = Task {
                 id: Uuid::new_v4(),
+                org_ref: scope.org_ref.clone(),
+                user_ref: scope.user_ref.clone(),
                 title: input.title,
                 description: input.description,
                 completed: false,
@@ -196,17 +243,30 @@ mod tests {
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             };
-            self.tasks.lock().unwrap().insert(task.id, task.clone());
+            self.tasks.lock().insert(task.id, task.clone());
             Ok(task)
         }
 
-        async fn get_by_id(&self, id: Uuid) -> Result<Option<Task>, TaskError> {
-            Ok(self.tasks.lock().unwrap().get(&id).cloned())
+        async fn get_by_id(&self, org_ref: &str, id: Uuid) -> Result<Option<Task>, TaskError> {
+            Ok(self
+                .tasks
+                .lock()
+                .get(&id)
+                .filter(|t| t.org_ref == org_ref)
+                .cloned())
         }
 
-        async fn update(&self, id: Uuid, input: UpdateTask) -> Result<Task, TaskError> {
-            let mut tasks = self.tasks.lock().unwrap();
-            let task = tasks.get_mut(&id).ok_or(TaskError::NotFound(id))?;
+        async fn update(
+            &self,
+            org_ref: &str,
+            id: Uuid,
+            input: UpdateTask,
+        ) -> Result<Task, TaskError> {
+            let mut tasks = self.tasks.lock();
+            let task = tasks
+                .get_mut(&id)
+                .filter(|t| t.org_ref == org_ref)
+                .ok_or(TaskError::NotFound(id))?;
 
             if let Some(title) = input.title {
                 task.title = title;
@@ -234,15 +294,31 @@ mod tests {
             Ok(task.clone())
         }
 
-        async fn delete(&self, id: Uuid) -> Result<bool, TaskError> {
-            Ok(self.tasks.lock().unwrap().remove(&id).is_some())
+        async fn delete(&self, org_ref: &str, id: Uuid) -> Result<bool, TaskError> {
+            let mut tasks = self.tasks.lock();
+            if tasks.get(&id).is_some_and(|t| t.org_ref == org_ref) {
+                tasks.remove(&id);
+                Ok(true)
+            } else {
+                Ok(false)
+            }
         }
 
-        async fn list(&self, filter: TaskFilter) -> Result<Vec<Task>, TaskError> {
-            let tasks = self.tasks.lock().unwrap();
+        async fn list(
+            &self,
+            scope: &TaskScope,
+            filter: TaskFilter,
+        ) -> Result<Vec<Task>, TaskError> {
+            let tasks = self.tasks.lock();
             let mut result: Vec<Task> = tasks
                 .values()
                 .filter(|task| {
+                    if task.org_ref != scope.org_ref {
+                        return false;
+                    }
+                    if filter.mine && task.user_ref != scope.user_ref {
+                        return false;
+                    }
                     if let Some(project_id) = filter.project_id
                         && task.project_id != Some(project_id)
                     {
@@ -276,30 +352,55 @@ mod tests {
                 .collect())
         }
 
-        async fn count(&self) -> Result<usize, TaskError> {
-            Ok(self.tasks.lock().unwrap().len())
-        }
-
-        async fn count_by_project(&self, project_id: Uuid) -> Result<usize, TaskError> {
+        async fn count(&self, org_ref: &str) -> Result<usize, TaskError> {
             Ok(self
                 .tasks
                 .lock()
-                .unwrap()
                 .values()
-                .filter(|task| task.project_id == Some(project_id))
+                .filter(|t| t.org_ref == org_ref)
                 .count())
+        }
+
+        async fn count_by_project(
+            &self,
+            org_ref: &str,
+            project_id: Uuid,
+        ) -> Result<usize, TaskError> {
+            Ok(self
+                .tasks
+                .lock()
+                .values()
+                .filter(|task| task.org_ref == org_ref && task.project_id == Some(project_id))
+                .count())
+        }
+
+        async fn clear_project_refs(&self, project_id: Uuid) -> Result<u64, TaskError> {
+            let mut tasks = self.tasks.lock();
+            let mut cleared = 0;
+            // Cross-tenant on purpose, mirroring the real query: the event
+            // carries no org, and a project id is globally unique.
+            for task in tasks.values_mut() {
+                if task.project_id == Some(project_id) {
+                    task.project_id = None;
+                    task.updated_at = Utc::now();
+                    cleared += 1;
+                }
+            }
+            Ok(cleared)
         }
     }
 
     fn create_test_service() -> TasksServiceImpl<MockTaskRepository> {
         let repository = MockTaskRepository::new();
         let service = TaskService::new(repository);
-        TasksServiceImpl::new(service)
+        TasksServiceImpl::new(service, CallerAuth::fixed(test_scope()))
     }
 
     fn create_test_task() -> Task {
         Task {
             id: Uuid::new_v4(),
+            org_ref: test_org(),
+            user_ref: test_user(),
             title: "Test Task".to_string(),
             description: "Test Description".to_string(),
             completed: false,
@@ -327,7 +428,7 @@ mod tests {
 
         let response = service.create(request).await;
         if let Err(ref e) = response {
-            eprintln!("Create failed with error: {:?}", e);
+            eprintln!("Create failed with error: {e:?}");
         }
         assert!(response.is_ok(), "Create task should succeed");
 
@@ -335,6 +436,38 @@ mod tests {
         assert_eq!(task.title, "New Task");
         assert_eq!(task.description, "Task Description");
         assert!(!task.completed);
+        assert_eq!(task.org_ref, test_org());
+        assert_eq!(task.user_ref, test_user());
+    }
+
+    #[tokio::test]
+    async fn test_create_without_token_is_unauthenticated() {
+        // A service wired to the real verifier, called with no `authorization`
+        // metadata. Identity is not a request field any more, so the only way to act
+        // on a tenant is to present a token - this is the boundary property.
+        let service = TasksServiceImpl::new(
+            TaskService::new(MockTaskRepository::new()),
+            CallerAuth::new(Arc::new(oidc_auth::OidcVerifier::new(
+                oidc_auth::VerifierConfig::workos("client_test", "https://example.invalid"),
+            ))),
+        );
+
+        let request = Request::new(CreateRequest {
+            title: "New Task".to_string(),
+            description: String::new(),
+            project_id: None,
+            priority: 2,
+            status: 1,
+            due_date: None,
+        });
+
+        let response = service.create(request).await;
+        assert!(response.is_err());
+        assert_eq!(
+            response.unwrap_err().code(),
+            tonic::Code::Unauthenticated,
+            "an unauthenticated caller must not reach the repository"
+        );
     }
 
     #[tokio::test]
@@ -362,7 +495,7 @@ mod tests {
 
         let repository = MockTaskRepository::with_task(task);
         let domain_service = TaskService::new(repository);
-        let service = TasksServiceImpl::new(domain_service);
+        let service = TasksServiceImpl::new(domain_service, CallerAuth::fixed(test_scope()));
 
         let request = Request::new(GetByIdRequest {
             id: conv::uuid_to_bytes(task_id),
@@ -373,6 +506,33 @@ mod tests {
 
         let result = response.unwrap().into_inner();
         assert_eq!(result.title, "Test Task");
+    }
+
+    #[tokio::test]
+    async fn test_get_task_cross_org_not_found() {
+        let task = create_test_task();
+        let task_id = task.id;
+
+        let repository = MockTaskRepository::with_task(task);
+        let domain_service = TaskService::new(repository);
+        // A caller whose *verified token* resolves to a different organization. The
+        // request is byte-identical to the owner's - only the token differs, which is
+        // the whole point of deriving scope from it.
+        let service = TasksServiceImpl::new(
+            domain_service,
+            CallerAuth::fixed(TaskScope {
+                org_ref: "org_01OTHER".to_string(),
+                user_ref: "user_01OTHER".to_string(),
+            }),
+        );
+
+        let request = Request::new(GetByIdRequest {
+            id: conv::uuid_to_bytes(task_id),
+        });
+
+        let response = service.get_by_id(request).await;
+        assert!(response.is_err(), "another org's task must not be readable");
+        assert_eq!(response.unwrap_err().code(), tonic::Code::NotFound);
     }
 
     #[tokio::test]
@@ -408,7 +568,7 @@ mod tests {
 
         let repository = MockTaskRepository::with_task(task);
         let domain_service = TaskService::new(repository);
-        let service = TasksServiceImpl::new(domain_service);
+        let service = TasksServiceImpl::new(domain_service, CallerAuth::fixed(test_scope()));
 
         let request = Request::new(UpdateByIdRequest {
             id: conv::uuid_to_bytes(task_id),
@@ -436,7 +596,7 @@ mod tests {
 
         let repository = MockTaskRepository::with_task(task);
         let domain_service = TaskService::new(repository);
-        let service = TasksServiceImpl::new(domain_service);
+        let service = TasksServiceImpl::new(domain_service, CallerAuth::fixed(test_scope()));
 
         let request = Request::new(DeleteByIdRequest {
             id: conv::uuid_to_bytes(task_id),
@@ -456,7 +616,9 @@ mod tests {
 
         let response = service.delete_by_id(request).await;
         assert!(response.is_err());
-        assert_eq!(response.unwrap_err().code(), tonic::Code::Internal);
+        // A missing task is the caller's mistake, not ours: the BFF turns this code
+        // straight into an HTTP status, so it must be NotFound (404), never Internal.
+        assert_eq!(response.unwrap_err().code(), tonic::Code::NotFound);
     }
 
     #[tokio::test]
@@ -464,6 +626,7 @@ mod tests {
         let service = create_test_service();
 
         let request = Request::new(ListRequest {
+            mine: false,
             project_id: None,
             status: None,
             priority: None,
@@ -477,6 +640,65 @@ mod tests {
 
         let result = response.unwrap().into_inner();
         assert_eq!(result.data.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_without_token_is_unauthenticated() {
+        // `list` has no org field to omit any more, so the failure mode that matters
+        // is an absent credential. Wired to the real verifier, no metadata attached.
+        let service = TasksServiceImpl::new(
+            TaskService::new(MockTaskRepository::new()),
+            CallerAuth::new(Arc::new(oidc_auth::OidcVerifier::new(
+                oidc_auth::VerifierConfig::workos("client_test", "https://example.invalid"),
+            ))),
+        );
+
+        let request = Request::new(ListRequest {
+            mine: false,
+            project_id: None,
+            status: None,
+            priority: None,
+            completed: None,
+            limit: 10,
+            offset: 0,
+        });
+
+        let response = service.list(request).await;
+        assert!(response.is_err());
+        assert_eq!(response.unwrap_err().code(), tonic::Code::Unauthenticated);
+    }
+
+    #[tokio::test]
+    async fn test_list_tasks_scoped_to_org() {
+        let mine = create_test_task();
+        let foreign = Task {
+            org_ref: "org_01OTHER".to_string(),
+            ..create_test_task()
+        };
+
+        let mut tasks = HashMap::new();
+        tasks.insert(mine.id, mine.clone());
+        tasks.insert(foreign.id, foreign);
+
+        let repository = MockTaskRepository {
+            tasks: Arc::new(Mutex::new(tasks)),
+        };
+        let domain_service = TaskService::new(repository);
+        let service = TasksServiceImpl::new(domain_service, CallerAuth::fixed(test_scope()));
+
+        let request = Request::new(ListRequest {
+            mine: false,
+            project_id: None,
+            status: None,
+            priority: None,
+            completed: None,
+            limit: 10,
+            offset: 0,
+        });
+
+        let response = service.list(request).await.unwrap().into_inner();
+        assert_eq!(response.data.len(), 1, "Foreign-org task must not leak");
+        assert_eq!(response.data[0].id, conv::uuid_to_bytes(mine.id));
     }
 
     #[tokio::test]
@@ -500,9 +722,10 @@ mod tests {
             tasks: Arc::new(Mutex::new(tasks)),
         };
         let domain_service = TaskService::new(repository);
-        let service = TasksServiceImpl::new(domain_service);
+        let service = TasksServiceImpl::new(domain_service, CallerAuth::fixed(test_scope()));
 
         let request = Request::new(ListRequest {
+            mine: false,
             project_id: None,
             status: Some(2),   // InProgress (proto: 2 = IN_PROGRESS)
             priority: Some(3), // High (proto: 3 = HIGH)
@@ -526,9 +749,10 @@ mod tests {
         let task = create_test_task();
         let repository = MockTaskRepository::with_task(task);
         let domain_service = TaskService::new(repository);
-        let service = TasksServiceImpl::new(domain_service);
+        let service = TasksServiceImpl::new(domain_service, CallerAuth::fixed(test_scope()));
 
         let request = Request::new(ListStreamRequest {
+            mine: false,
             project_id: None,
             status: None,
             priority: None,

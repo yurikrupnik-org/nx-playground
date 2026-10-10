@@ -1,0 +1,88 @@
+# OpenTelemetry Collector for the kind dev loop — installed by
+# `task observability-up` (scripts/tasks/observability.yml), chart
+# open-telemetry/opentelemetry-collector at the version pinned there.
+#
+# The Service MUST be `otel-collector` in namespace `monitoring`: that is the
+# endpoint every app already exports to
+# (apps/zerg/shared/k8s/kustomize/overlays/dev/kustomization.yaml:
+# OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.monitoring.svc.cluster.local:4317).
+# Release name `otel-collector` alone would render `otel-collector-opentelemetry-collector`,
+# hence the fullnameOverride.
+#
+# Traces only: every OTLP producer in this repo exports spans and nothing else
+# (libs/core/config/src/tracing.rs builds a SpanExporter only), so the
+# chart's default logs/metrics pipelines and its jaeger/zipkin/prometheus
+# receivers are dropped (`null` deletes a chart default).
+mode: deployment
+fullnameOverride: otel-collector
+replicaCount: 1
+
+image:
+  # The k8s distribution: carries otlp receiver/exporter, memory_limiter, batch
+  # and health_check at a fraction of -contrib's size. Tag = chart appVersion.
+  repository: otel/opentelemetry-collector-k8s
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    # memory_limiter's limit_percentage is taken of this cgroup limit.
+    memory: 256Mi
+
+ports:
+  otlp:
+    enabled: true
+  otlp-http:
+    enabled: true
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  # The collector's own telemetry, scraped by Prometheus via the annotations below.
+  metrics:
+    enabled: true
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8888"
+  prometheus.io/path: /metrics
+
+config:
+  receivers:
+    # The chart binds ${env:MY_POD_IP}; `kubectl port-forward` dials localhost
+    # inside the pod, so that default refuses every forwarded connection
+    # (the path `task observability-up` prints for local OTLP export).
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    jaeger: null
+    zipkin: null
+    prometheus: null
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch: {}
+  exporters:
+    debug: null
+    otlp_grpc/tempo:
+      endpoint: tempo.monitoring.svc.cluster.local:4317
+      tls:
+        insecure: true
+  service:
+    pipelines:
+      logs: null
+      metrics: null
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_grpc/tempo]

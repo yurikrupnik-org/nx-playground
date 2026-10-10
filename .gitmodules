@@ -1,0 +1,3 @@
+[submodule "first-rust-app"]
+	path = first-rust-app
+	url = https://github.com/yurikrupnik/first-rust-app

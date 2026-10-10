@@ -1,0 +1,5 @@
+# The only target this crate is ever built for. Without it a bare `cargo check`
+# here would compile for the host, where `wasm-bindgen`'s browser bindings do
+# not exist — so the crate-local default target IS the contract.
+[build]
+target = "wasm32-unknown-unknown"

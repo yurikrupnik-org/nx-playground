@@ -6,6 +6,7 @@
 
 pub mod keycloak;
 pub mod workos;
+pub mod workos_admin;
 
 use async_trait::async_trait;
 

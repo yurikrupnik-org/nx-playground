@@ -1,0 +1,14 @@
+[package]
+name = "core_authorship"
+publish = false
+version.workspace = true
+edition.workspace = true
+description = "Human vs AI-agent vs bot attribution: the agents registry, agent env detection, Assisted-by/Co-authored-by trailers and commit classification"
+
+[dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
